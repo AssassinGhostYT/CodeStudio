@@ -25,8 +25,10 @@ object BuiltInSettingsPages {
     const val PRIVACY = "privacy"
     /** Project-scoped Compose Preview page — the interpreter sandbox toggles (see `PreviewSandboxPolicy`). */
     const val PREVIEW = "preview"
+    const val ABOUT = "about"
 
     /** Toggle key on the [BUILD_RUNTIME] page: route builds/runs through the isolated `:build` process. */
+
     const val SEPARATE_PROCESS = "separateProcess"
 
     /** Toggle key on the [BUILD_RUNTIME] page: weave the IDE log bridge into DEBUG builds so a running app
@@ -111,8 +113,9 @@ object BuiltInSettingsPages {
     /** All built-in pages in display order. [analyticsAvailable] gates the analytics toggle on the Privacy page.
      *  Code Style is not here: it has its own dedicated screen (the formatting profiles are per-language). */
     fun all(analyticsAvailable: Boolean): List<SettingsPage> = listOf(
-        appearance, editor, completion, analysis, preview, build, buildRuntime, privacy(analyticsAvailable),
+        appearance, editor, completion, analysis, preview, build, buildRuntime, privacy(analyticsAvailable), about,
     )
+
 
     private val appearance = page(APPEARANCE, "Appearance", "eye", 0) {
         listOf(
@@ -289,7 +292,17 @@ object BuiltInSettingsPages {
         }
     }
 
+    private val about = page(ABOUT, "About CodeStudio", "info", 60) {
+        listOf(
+            SettingControl.Action("appVersion", "CodeStudio IDE", "v1.0.0 (Build 2026.08)", buttonLabel = "v1.0.0", group = "Application"),
+            SettingControl.Action("author", "Developer", "Created by AssassinGhostYT", buttonLabel = "@AssassinGhostYT", group = "Application"),
+            SettingControl.Action("repository", "Source Code", "https://github.com/AssassinGhostYT/CodeStudio", buttonLabel = "GitHub", group = "Links"),
+            SettingControl.Action("sponsor", "Sponsor this project", "Support AssassinGhostYT on GitHub Sponsors", buttonLabel = "Sponsor", group = "Links"),
+        )
+    }
+
     /** Small builder for an anonymous built-in [SettingsPage] (empty hooks; effects are applied by the backend). */
+
     private fun page(
         id: String, title: String, iconId: String, order: Int,
         scope: SettingsScope = SettingsScope.APPLICATION,
