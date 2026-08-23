@@ -6,11 +6,11 @@
   
   **El entorno de desarrollo integrado nativo de próxima generación para dispositivos móviles Android.**
 
+  [![Sponsor AssassinGhostYT](https://img.shields.io/badge/Sponsor%20this%20project-AssassinGhostYT-ea4aaa.svg?style=for-the-badge&logo=githubsponsors)](https://github.com/sponsors/AssassinGhostYT)
   [![Kotlin](https://img.shields.io/badge/Kotlin-1.9%2B-blueviolet.svg?style=for-the-badge&logo=kotlin)](https://kotlinlang.org/)
   [![Android API](https://img.shields.io/badge/Android-8.0%2B%20(API%2026)-success.svg?style=for-the-badge&logo=android)](https://developer.android.com/)
   [![Jetpack Compose](https://img.shields.io/badge/UI-Jetpack%20Compose-4285F4.svg?style=for-the-badge&logo=jetpackcompose)](https://developer.android.com/jetpack/compose)
   [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
-  [![Build Status](https://img.shields.io/badge/Build-Passing-brightgreen.svg?style=for-the-badge)]()
 
   <br />
 
@@ -22,6 +22,7 @@
   *Desarrolla, edita, analiza, compila y gestiona repositorios Git completos directamente desde la palma de tu mano.*
 
 </div>
+
 
 ---
 
