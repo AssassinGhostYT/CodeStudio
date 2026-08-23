@@ -278,25 +278,62 @@ fun GitPanel(backend: IdeBackend) {
     Column(Modifier.fillMaxSize()) {
         NoticeBar(notice)
 
-        // --- Header: title + refresh (spinning icon) + GitHub ---
+    // --- Header: Title + Refresh (Spinning icon) + GitHub ---
+    Row(
+        Modifier.fillMaxWidth().padding(start = 14.dp, end = 6.dp, top = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Row(
-            Modifier.fillMaxWidth().padding(start = 14.dp, end = 6.dp, top = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f),
         ) {
-            Text("Control de versiones", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            TextButton(onClick = { reload() }, enabled = !refreshing) {
-                Icon(
-                    CaIcons.refresh,
-                    contentDescription = "Actualizar",
-                    modifier = Modifier.size(16.dp).rotate(if (refreshing) angle else 0f),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text("Actualizar", modifier = Modifier.padding(start = 6.dp))
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                modifier = Modifier.size(32.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        CaIcons.gitBranch,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
-            IconButton(onClick = { openGitHub() }) {
-                Icon(CaIcons.github, contentDescription = "Abrir en GitHub", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text(
+                    "Control de versiones",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    currentBranch?.let { "Rama activa: $it" } ?: "Panel de Git",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
+
+        TextButton(onClick = { reload() }, enabled = !refreshing) {
+            Icon(
+                CaIcons.refresh,
+                contentDescription = "Actualizar",
+                modifier = Modifier.size(16.dp).rotate(if (refreshing) angle else 0f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text("Actualizar", modifier = Modifier.padding(start = 6.dp))
+        }
+        IconButton(onClick = { openGitHub() }) {
+            Icon(
+                CaIcons.github,
+                contentDescription = "Abrir en GitHub",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+
 
 AnimatedVisibility(
             visible = session != null,
