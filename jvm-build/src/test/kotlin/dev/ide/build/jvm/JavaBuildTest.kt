@@ -1,0 +1,333 @@
+package dev.ide.build.jvm
+
+import dev.ide.build.BuildGoal
+import dev.ide.build.BuildRequest
+import dev.ide.build.VariantSelector
+import dev.ide.build.engine.BuildCache
+import dev.ide.build.engine.ProgramIo
+import dev.ide.build.engine.SimpleTaskContext
+import dev.ide.build.engine.TaskExecutorImpl
+import dev.ide.build.engine.jarPath
+import dev.ide.build.jvm.run.VmProgramInterpreter
+import dev.ide.model.BuildSystemId
+import dev.ide.model.ContentRole
+import dev.ide.model.DependencyScope
+import dev.ide.model.FacetTemplate
+import dev.ide.model.ModuleDependency
+import dev.ide.model.ModuleId
+import dev.ide.model.ModuleType
+import dev.ide.model.Project
+import dev.ide.model.SourceSetTemplate
+import dev.ide.model.impl.FacetCodecRegistry
+import dev.ide.model.impl.ModuleTypeRegistry
+import dev.ide.model.impl.ProjectModel
+import dev.ide.model.impl.ProjectModelStore
+import dev.ide.platform.PluginId
+import dev.ide.platform.impl.PlatformCore
+import dev.ide.testkit.testEnv
+import dev.ide.testkit.writeSource
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import java.io.File
+import java.nio.file.Files
+import java.nio.file.Path
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+
+/**
+ * Native build + the console-app run task: builds `app → util → core` (api-exported) via the native
+ * [JavaBuildSystem] on the JDT compile backend (lang-jdt's JdtCompileTask), then (1) packages to jars and
+ * runs them, and (2) runs the app through the `run` task (the Gradle `application`-plugin equivalent) which
+ * always re-executes. The `run` task INTERPRETS the compiled program on the bytecode VM
+ * ([VmProgramInterpreter]) — no forking, no dexing — so these are real end-to-end interpreter runs, including
+ * interactive stdin and cancelling a never-ending program.
+ */
+class JavaBuildTest {
+
+    private class JavaLib : ModuleType {
+        override val id = "java-lib"
+        override val displayName = "Java Library"
+        override fun defaultSourceSets(): List<SourceSetTemplate> = emptyList()
+        override fun defaultFacets(): List<FacetTemplate> = emptyList()
+        override fun supportedBuildSystems(): Set<BuildSystemId> = setOf(BuildSystemId.NATIVE)
+    }
+
+    private fun mainSources() =
+        SourceSetTemplate("main", DependencyScope.IMPLEMENTATION, mapOf("src/main/java" to setOf(ContentRole.SOURCE)))
+
+    // Java-only build: no boot classpath (ecj uses the host JRE on the desktop) and no Kotlin compiler.
+    private fun javaBuildSystem() = JavaBuildSystem()
+
+    /** Build the demo workspace (model + sources on disk) and return its single project. */
+    private fun buildWorkspace(dir: Path, platform: PlatformCore): Pair<ProjectModelStore, Project> {
+        ModuleTypeRegistry(platform.extensions).register(JavaLib(), PluginId("java-support"))
+        val store = ProjectModel.open(dir, platform, FacetCodecRegistry())
+        val javaLib = ModuleTypeRegistry(platform.extensions).resolve("java-lib")
+        store.workspace.beginModification().apply { addProject("demo", BuildSystemId.NATIVE, store.vfs.root()); commit() }
+        store.workspace.projects.single().beginModification().apply {
+            addModule("core", javaLib).addSourceSet(mainSources())
+            addModule("util", javaLib).apply {
+                addSourceSet(mainSources())
+                addDependency(ModuleDependency(ModuleId("core"), DependencyScope.API, exported = true))
+            }
+            addModule("app", javaLib).apply {
+                addSourceSet(mainSources())
+                addDependency(ModuleDependency(ModuleId("util"), DependencyScope.API, exported = true))
+            }
+            commit()
+        }
+        dir.writeSource("core/src/main/java/com/example/core/Greeter.java", GREETER)
+        dir.writeSource("util/src/main/java/com/example/util/Formatter.java", FORMATTER)
+        dir.writeSource("app/src/main/java/com/example/app/Main.java", MAIN)
+        return store to store.workspace.projects.single()
+    }
+
+    @Test
+    fun buildsAndRunsAMultiModuleJavaCli() {
+        testEnv("javabuild") { env ->
+            val dir = env.dir
+            val platform = env.platform
+            val (_, project) = buildWorkspace(dir, platform)
+            val graph = javaBuildSystem().createBuildGraph(
+                project, BuildRequest(listOf(ModuleId("app")), VariantSelector("main"), BuildGoal.PACKAGE),
+            )
+            val exec = TaskExecutorImpl(BuildCache(dir.resolve(".caches/build")))
+            val log = StringBuilder()
+            val outcome = runBlocking { exec.execute(graph, SimpleTaskContext(log = { log.appendLine(it) }), 2) }
+            assertTrue(outcome.succeeded, "build failed:\n$log")
+
+            val jars = listOf("core", "util", "app").map { name -> jarPath(project.modules.first { it.name == name }) }
+            jars.forEach { assertTrue(Files.exists(it), "missing jar: $it") }
+            assertTrue("HELLO, WORLD!" in runJava(jars, "com.example.app.Main"))
+
+            val again = runBlocking { exec.execute(graph, SimpleTaskContext(), 2) }
+            assertTrue(again.ranTasks.isEmpty(), "re-build must be up-to-date, ran=${again.ranTasks.map { it.value }}")
+        }
+    }
+
+    @Test
+    fun packagedJarHasARunnableManifestAndRunsStandalone() {
+        // The reported bug: a built .jar had no META-INF/MANIFEST.MF, so it couldn't run outside the app.
+        // A single self-contained module now packages a manifest with Main-Class and runs via `java -jar`.
+        testEnv("jarmanifest") { env ->
+            val dir = env.dir
+            val platform = env.platform
+            ModuleTypeRegistry(platform.extensions).register(JavaLib(), PluginId("java-support"))
+            val store = ProjectModel.open(dir, platform, FacetCodecRegistry())
+            val javaLib = ModuleTypeRegistry(platform.extensions).resolve("java-lib")
+            store.workspace.beginModification().apply { addProject("demo", BuildSystemId.NATIVE, store.vfs.root()); commit() }
+            store.workspace.projects.single().beginModification().apply {
+                addModule("solo", javaLib).addSourceSet(mainSources()); commit()
+            }
+            dir.writeSource("solo/src/main/java/com/example/solo/App.java", SOLO)
+            val project = store.workspace.projects.single()
+
+            // Wire the host's main-class resolver (here a fixed value) — as BuildService does from its Run config.
+            val bs = JavaBuildSystem(mainClassFor = { "com.example.solo.App" })
+            val graph = bs.createBuildGraph(
+                project, BuildRequest(listOf(ModuleId("solo")), VariantSelector("main"), BuildGoal.PACKAGE),
+            )
+            val exec = TaskExecutorImpl(BuildCache(dir.resolve(".caches/build")))
+            val log = StringBuilder()
+            assertTrue(runBlocking { exec.execute(graph, SimpleTaskContext(log = { log.appendLine(it) }), 2) }.succeeded, "build failed:\n$log")
+
+            val jar = jarPath(project.modules.single { it.name == "solo" })
+            java.util.jar.JarFile(jar.toFile()).use { jf ->
+                val mf = jf.manifest ?: error("jar has no META-INF/MANIFEST.MF")
+                assertEquals("1.0", mf.mainAttributes.getValue("Manifest-Version"))
+                assertEquals("com.example.solo.App", mf.mainAttributes.getValue("Main-Class"), "Main-Class must name the module's entry point")
+            }
+            assertTrue("STANDALONE OK" in runJar(jar), "the jar must run standalone via `java -jar`")
+        }
+    }
+
+    @Test
+    fun runsConsoleAppViaTheRunTask() {
+        testEnv("javarun") { env ->
+            val dir = env.dir
+            val platform = env.platform
+            val (_, project) = buildWorkspace(dir, platform)
+            val app = project.modules.first { it.name == "app" }
+            val graph = javaBuildSystem().createInterpretRunGraph(project, app, "com.example.app.Main", VmProgramInterpreter())
+            val exec = TaskExecutorImpl(BuildCache(dir.resolve(".caches/build")))
+            val log = StringBuilder()
+
+            val outcome = runBlocking { exec.execute(graph, SimpleTaskContext(log = { log.appendLine(it) }), 2) }
+            assertTrue(outcome.succeeded, "run failed:\n$log")
+            assertTrue("HELLO, WORLD!" in log.toString(), "the run task should stream program output:\n$log")
+
+            // The compiles are now up-to-date, but the `run` task must execute again (AlwaysRun).
+            val again = runBlocking { exec.execute(graph, SimpleTaskContext(), 2) }
+            assertTrue(again.ranTasks.any { it.value.endsWith(":run") }, "run must always execute: ${again.ranTasks.map { it.value }}")
+        }
+    }
+
+    @Test
+    fun runsAnInteractiveConsoleAppFeedingStdin() {
+        testEnv("javarunio") { env ->
+            val dir = env.dir
+            val platform = env.platform
+            val (_, project) = buildWorkspace(dir, platform)
+            dir.writeSource("app/src/main/java/com/example/app/Echo.java", ECHO)
+            val app = project.modules.first { it.name == "app" }
+            val io = CapturingIo("World\n")
+            val graph = javaBuildSystem().createInterpretRunGraph(project, app, "com.example.app.Echo", VmProgramInterpreter(), programIo = io)
+            val exec = TaskExecutorImpl(BuildCache(dir.resolve(".caches/build")))
+            val log = StringBuilder()
+
+            val outcome = runBlocking { exec.execute(graph, SimpleTaskContext(log = { log.appendLine(it) }), 2) }
+            assertTrue(outcome.succeeded, "interactive run failed:\n$log\nout=${io.out}")
+            assertTrue(io.started, "started() must fire when the program launches")
+            assertTrue(io.exitCode == 0, "program should exit 0, was ${io.exitCode}")
+            // The program printed a prompt (no trailing newline) then echoed the line it read from our stdin.
+            assertTrue("Enter name:" in io.out.toString(), "the prompt should reach stdout:\n${io.out}")
+            assertTrue("Hello, World!" in io.out.toString(), "the program should echo the stdin we fed:\n${io.out}")
+        }
+    }
+
+    @Test
+    fun stopTerminatesANeverEndingProgram() {
+        testEnv("javarunloop") { env ->
+            val dir = env.dir
+            val platform = env.platform
+            val (_, project) = buildWorkspace(dir, platform)
+            dir.writeSource("app/src/main/java/com/example/app/Loop.java", LOOP)
+            val app = project.modules.first { it.name == "app" }
+            val io = CapturingIo("") // never reads input; loops forever printing nothing
+            val graph = javaBuildSystem().createInterpretRunGraph(project, app, "com.example.app.Loop", VmProgramInterpreter(), programIo = io)
+            val exec = TaskExecutorImpl(BuildCache(dir.resolve(".caches/build")))
+            runBlocking {
+                val job = launch { exec.execute(graph, SimpleTaskContext(), 2) }
+                // Wait until the program is actually running (it printed before looping).
+                withTimeout(30_000) { while ("looping" !in io.out.toString()) delay(20) }
+                // Stop == cancel: the interpreter must unwind promptly — the VM's cancellation flag breaks the
+                // interpreted loop and interrupting the program thread breaks the bridged Thread.sleep.
+                withTimeout(10_000) { job.cancelAndJoin() }
+            }
+        }
+    }
+
+    @Test
+    fun daemonThreadDoesNotOutliveTheRun() {
+        testEnv("javarundaemon") { env ->
+            val dir = env.dir
+            val platform = env.platform
+            val (_, project) = buildWorkspace(dir, platform)
+            dir.writeSource("app/src/main/java/com/example/app/Daemon.java", DAEMON)
+            val app = project.modules.first { it.name == "app" }
+            val io = CapturingIo("")
+            val graph = javaBuildSystem().createInterpretRunGraph(project, app, "com.example.app.Daemon", VmProgramInterpreter(), programIo = io)
+            val exec = TaskExecutorImpl(BuildCache(dir.resolve(".caches/build")))
+
+            val outcome = runBlocking { exec.execute(graph, SimpleTaskContext(), 2) }
+            assertTrue(outcome.succeeded, "run failed, out=${io.out}")
+
+            // A real JVM's exit takes the daemon threads with it, and the run is the equivalent boundary here:
+            // a daemon left running would keep interpreting against a classpath whose jars the run has closed.
+            // Cancelling the killer coroutine is what currently delivers this, as a side effect of ending the
+            // run; pinned here so a refactor of that teardown cannot quietly drop it.
+            val leftovers = Thread.getAllStackTraces().keys
+                .filter { it.isAlive && it.threadGroup?.name == "interp-run" }
+            assertTrue(leftovers.isEmpty(), "the run left threads behind: ${leftovers.map { it.name }}")
+        }
+    }
+
+    /** A [ProgramIo] test double: feeds a fixed [input] string as stdin and captures the program's output. */
+    private class CapturingIo(input: String) : ProgramIo {
+        val out = StringBuilder()
+        override val stdin = input.byteInputStream()
+        @Volatile var started = false
+        @Volatile var exitCode: Int? = null
+        override fun stdout(text: String) { synchronized(out) { out.append(text) } }
+        override fun started() { started = true }
+        override fun exited(code: Int) { exitCode = code }
+    }
+
+    private fun runJava(classpath: List<Path>, mainClass: String): String {
+        val javaBin = Path.of(System.getProperty("java.home"), "bin", "java").toString()
+        val proc = ProcessBuilder(javaBin, "-cp", classpath.joinToString(File.pathSeparator), mainClass)
+            .redirectErrorStream(true).start()
+        val text = proc.inputStream.bufferedReader().readText()
+        proc.waitFor()
+        return text.trim()
+    }
+
+    /** Run a jar STANDALONE (`java -jar <jar>`) — relies on the jar's manifest `Main-Class`, no `-cp`. */
+    private fun runJar(jar: Path): String {
+        val javaBin = Path.of(System.getProperty("java.home"), "bin", "java").toString()
+        val proc = ProcessBuilder(javaBin, "-jar", jar.toString()).redirectErrorStream(true).start()
+        val text = proc.inputStream.bufferedReader().readText()
+        proc.waitFor()
+        return text.trim()
+    }
+
+    private companion object {
+        val GREETER = """
+            package com.example.core;
+            public class Greeter {
+                public String greet(String name) { return "Hello, " + name + "!"; }
+            }
+        """
+        val FORMATTER = """
+            package com.example.util;
+            import com.example.core.Greeter;
+            public class Formatter {
+                private final Greeter greeter = new Greeter();
+                public String format(String name) { return greeter.greet(name).toUpperCase(); }
+            }
+        """
+        val MAIN = """
+            package com.example.app;
+            import com.example.util.Formatter;
+            public class Main {
+                public static void main(String[] args) {
+                    System.out.println(new Formatter().format("World"));
+                }
+            }
+        """
+        val SOLO = """
+            package com.example.solo;
+            public class App {
+                public static void main(String[] args) { System.out.println("STANDALONE OK"); }
+            }
+        """
+        val ECHO = """
+            package com.example.app;
+            import java.io.BufferedReader;
+            import java.io.InputStreamReader;
+            public class Echo {
+                public static void main(String[] args) throws Exception {
+                    System.out.print("Enter name: ");
+                    String line = new BufferedReader(new InputStreamReader(System.in)).readLine();
+                    System.out.println("Hello, " + line + "!");
+                }
+            }
+        """
+        val LOOP = """
+            package com.example.app;
+            public class Loop {
+                public static void main(String[] args) throws Exception {
+                    System.out.println("looping");
+                    while (true) Thread.sleep(50);
+                }
+            }
+        """
+        val DAEMON = """
+            package com.example.app;
+            public class Daemon {
+                public static void main(String[] args) throws Exception {
+                    Thread t = new Thread(() -> {
+                        try { while (true) Thread.sleep(20); } catch (InterruptedException ignored) { }
+                    });
+                    t.setDaemon(true);
+                    t.start();
+                    System.out.println("daemon started");
+                }
+            }
+        """
+    }
+}

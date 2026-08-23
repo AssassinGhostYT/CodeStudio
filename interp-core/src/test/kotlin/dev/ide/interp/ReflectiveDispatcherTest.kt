@@ -1,0 +1,569 @@
+package dev.ide.interp
+
+import dev.ide.lang.kotlin.interp.Binding
+import dev.ide.lang.kotlin.interp.CallSiteKey
+import dev.ide.lang.kotlin.interp.DispatchKind
+import dev.ide.lang.kotlin.interp.RArg
+import dev.ide.lang.kotlin.interp.RNode
+import dev.ide.lang.kotlin.interp.RParam
+import dev.ide.lang.kotlin.interp.ResolvedCallable
+import dev.ide.lang.kotlin.interp.ResolvedFunction
+import dev.ide.lang.kotlin.interp.SlotId
+import dev.ide.lang.kotlin.interp.SourceSpan
+import dev.ide.lang.kotlin.symbols.KotlinType
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+/**
+ * The reflective library/member/constructor dispatch path (4a), exercised directly with hand-built
+ * [RNode.Call]s — independent of whether the resolver can resolve `java.*` from a sparse test classpath.
+ * This is the same mechanism the interpreter delegates to for non-source calls.
+ */
+class ReflectiveDispatcherTest {
+
+    private val dispatcher = ReflectiveDispatcher()
+
+    private fun lib(owner: String, name: String, isCtor: Boolean = false, isStatic: Boolean = false) =
+        ResolvedCallable.Library(
+            displayName = name, ownerFqn = owner, methodName = if (isCtor) "<init>" else name,
+            paramTypes = emptyList(), isStatic = isStatic, isConstructor = isCtor, isInline = false,
+            descriptorPrecise = true,
+        )
+
+    private fun call(dispatch: DispatchKind, callee: ResolvedCallable) =
+        RNode.Call(callee, dispatch, receiver = null, args = emptyList(), callSiteKey = CallSiteKey(0), source = SourceSpan(0, 0))
+
+    @Test
+    fun staticTopLevelMethod() {
+        val c = call(DispatchKind.TOP_LEVEL, lib("java.lang.Math", "max", isStatic = true))
+        assertEquals(7, dispatcher.dispatch(c, receiver = null, args = listOf(3, 7)))
+    }
+
+    @Test
+    fun varargStaticMethodPacksTrailingArgsIntoAnArray() {
+        // `String.format("%s-%s", "a", "b")` — the JVM method is `format(String, Object[])` (arity 2, vararg),
+        // so the two trailing args must pack into an Object[] rather than fail the exact-arity match. This is
+        // the `mutableStateListOf("a", "b")` execution path.
+        val c = call(DispatchKind.TOP_LEVEL, lib("java.lang.String", "format", isStatic = true))
+        assertEquals("a-b", dispatcher.dispatch(c, receiver = null, args = listOf("%s-%s", "a", "b")))
+    }
+
+    @Test
+    fun varargWithZeroTrailingArgsStillBinds() {
+        // `String.format("plain")` — the vararg absorbs ZERO trailing args (an empty Object[]).
+        val c = call(DispatchKind.TOP_LEVEL, lib("java.lang.String", "format", isStatic = true))
+        assertEquals("plain", dispatcher.dispatch(c, receiver = null, args = listOf("plain")))
+    }
+
+    @Test
+    fun memberCallOnANonPublicJdkClassResolvesToThePublicInterfaceMethod() {
+        // `listOf("a","b")[1]` → `get(1)`. Kotlin's `listOf` returns a `java.util.Arrays$ArrayList` — a
+        // NON-public, non-exported JDK class. Invoking its own `get` fails under the module system
+        // (IllegalAccessException even after setAccessible); dispatch must re-resolve to the public `List.get`,
+        // whose virtual invoke reaches the real impl. This is the `items[selectedItem]` execution path.
+        val list = java.util.Arrays.asList("a", "b") // an Arrays$ArrayList
+        val c = call(DispatchKind.MEMBER, lib("java.util.List", "get"))
+        assertEquals("b", dispatcher.dispatch(c, receiver = list, args = listOf(1)))
+    }
+
+    @Test
+    fun constructorThenInstanceMember() {
+        val sb = dispatcher.dispatch(call(DispatchKind.CONSTRUCTOR, lib("java.lang.StringBuilder", "StringBuilder", isCtor = true)), null, emptyList())
+        assertTrue(sb is StringBuilder, "constructor should produce a StringBuilder")
+        // Member dispatch reflects on the runtime class — no precise static owner needed.
+        val result = dispatcher.dispatch(call(DispatchKind.MEMBER, lib("java.lang.StringBuilder", "append")), sb, listOf("hi"))
+        assertEquals("hi", (result as StringBuilder).toString())
+    }
+
+    @Test
+    fun valueClassMemberDispatchesToStaticImpl() {
+        // The reported preview crash `no method copy(1) on java.lang.Long`: `Color` is an inline value class, so
+        // its member `copy` compiles to a STATIC `copy-<hash>` taking the UNBOXED receiver — NOT an instance
+        // method on the receiver's runtime class (a `Long`). A MEMBER call on the unboxed value must route to
+        // that static form. Exercised on stdlib's `kotlin.UInt` (unboxed representation = a plain `Int`):
+        // `UInt.toString` compiles to the static `toString-impl(int)` and prints the UNSIGNED value.
+        val c = call(DispatchKind.MEMBER, lib("kotlin.UInt", "toString"))
+        assertEquals("5", dispatcher.dispatch(c, receiver = 5, args = emptyList()))
+        // The discriminator: `-1` as a UInt is 0xFFFFFFFF. Routed to `UInt.toString-impl` it prints unsigned;
+        // a (wrong) `Integer.toString` instance dispatch would print "-1". So this fails without the fix.
+        assertEquals("4294967295", dispatcher.dispatch(c, receiver = -1, args = emptyList()))
+    }
+
+    @Test
+    fun internalMemberMangledWithModuleSuffixIsFoundAndInvoked() {
+        // The reported "material 3 expressive" preview crash `no method `expressive`(0) on
+        // androidx.compose.material3.MotionScheme$Companion`: `MotionScheme.Companion.expressive()` is an
+        // `internal` function, so Kotlin mangles its JVM name to `expressive$material3`. Dispatch must match the
+        // Kotlin name `expressive` against that mangled JVM name. `InternalHolder.reveal()` is `internal`, so it
+        // is mangled `reveal$<module>` exactly like `expressive$material3`.
+        val callee = ResolvedCallable.Library(
+            displayName = "reveal", ownerFqn = InternalHolder::class.java.name, methodName = "reveal",
+            paramTypes = emptyList(), isStatic = false, isConstructor = false, isInline = false, descriptorPrecise = true,
+        )
+        // Guard: the fixture is only meaningful if the compiler actually mangled the name (else the OLD matcher
+        // would already find `reveal` and this wouldn't test the fix).
+        assertTrue(
+            InternalHolder::class.java.methods.none { it.name == "reveal" } &&
+                InternalHolder::class.java.methods.any { it.name.startsWith("reveal\$") },
+            "expected the internal member to be mangled to reveal\$<module>",
+        )
+        assertEquals("secret", dispatcher.dispatch(call(DispatchKind.MEMBER, callee), receiver = InternalHolder(), args = emptyList()))
+    }
+
+    @Test
+    fun mangledNameMatchesHandlesValueClassAndInternalManglings() {
+        // Plain + value-class manglings (unchanged behavior).
+        assertTrue(mangledNameMatches("expressive", "expressive"))
+        assertTrue(mangledNameMatches("Text-Nvy7gAk", "Text"), "value-class name-<hash>")
+        // internal `$<module>` mangling (the MotionScheme case) — and layered on the value-class form.
+        assertTrue(mangledNameMatches("expressive\$material3", "expressive"), "internal name\$module")
+        assertTrue(mangledNameMatches("blur-7f3a2b1\$ui", "blur"), "internal on top of value-class mangling")
+        // A DIFFERENT internal member on the same companion must NOT match.
+        assertTrue(!mangledNameMatches("standard\$material3", "expressive"))
+        // Compiler synthetics that also carry a `$` must NOT be read as the internal form of the base name.
+        assertTrue(!mangledNameMatches("expressive\$default", "expressive"), "\$default is a synthetic, not a member")
+        assertTrue(!mangledNameMatches("getRed\$annotations", "getRed"), "\$annotations is a synthetic")
+        // A multi-segment `$` suffix isn't an internal module suffix (a lambda/accessor synthetic).
+        assertTrue(!mangledNameMatches("foo\$lambda\$0", "foo"))
+    }
+
+    @Test
+    fun mangledNameMatchesBridgesTheFakeConstructorPascalToCamelRename() {
+        // Compose "factory that mimics a constructor" functions are conventionally PascalCase and several were
+        // renamed to camelCase (androidx renamed `SharedTransitionScope.ResizeMode.ScaleToBounds()` →
+        // `scaleToBounds()`). A parse-only preview lowers the SOURCE name verbatim, so a project on the old API
+        // looks up `ScaleToBounds` while the runtime only has `scaleToBounds`. Names differing ONLY in the first
+        // letter's case bridge (both directions), covering the `$default` synthetic once its suffix is stripped.
+        assertTrue(mangledNameMatches("scaleToBounds", "ScaleToBounds"), "camelCase runtime ← PascalCase lookup")
+        assertTrue(mangledNameMatches("ScaleToBounds", "scaleToBounds"), "PascalCase runtime ← camelCase lookup")
+        // The rest of the name must match EXACTLY — a first-letter case bridge can't paper over any other diff.
+        assertTrue(!mangledNameMatches("scaleToBound", "ScaleToBounds"), "differing length is not a case variant")
+        assertTrue(!mangledNameMatches("scaletobounds", "ScaleToBounds"), "an interior case difference is not bridged")
+        assertTrue(!mangledNameMatches("remeasureToBounds", "ScaleToBounds"), "a different name is not bridged")
+        // A leading non-letter (a synthetic prefix) can't be a case variant of a letter.
+        assertTrue(!mangledNameMatches("1caleToBounds", "ScaleToBounds"))
+    }
+
+    @Test
+    fun kotlinJvmNamesResolvesFromMetadataNotNameShape() {
+        // The proper resolution kotlin-reflect uses: read the ACTUAL emitted JVM name out of the class's
+        // `@kotlin.Metadata` (the compiler stores the mangled name there) instead of guessing the shape.
+        val cls = InternalHolder::class.java
+        val emitted = cls.methods.first { it.name.startsWith("reveal\$") }.name // reveal$<this-module>
+        // Authoritative match: the name the compiler really emitted for the internal `reveal` resolves.
+        assertTrue(KotlinJvmNames.matches(cls, emitted, "reveal"), "the emitted internal name must resolve")
+        // Precision the shape heuristic lacks: a DIFFERENT `$module` suffix is not what the compiler emitted,
+        // so metadata rejects it — while `mangledNameMatches` (loosely) accepts any single-segment `$suffix`.
+        assertTrue(mangledNameMatches("reveal\$othermodule", "reveal"), "heuristic accepts any \$module")
+        assertTrue(
+            !KotlinJvmNames.matches(cls, "reveal\$othermodule", "reveal"),
+            "metadata rejects a name the compiler never emitted for `reveal`",
+        )
+        // Graceful fallback: a class with no `@Metadata` (plain Java) has no authoritative answer, so matching
+        // still works through the heuristic — nothing metadata doesn't describe is wrongly rejected.
+        assertTrue(KotlinJvmNames.matches(String::class.java, "length", "length"), "non-Kotlin class falls back")
+    }
+
+    @Test
+    fun kotlinMappedTypeOwnerResolves() {
+        // A Kotlin classifier owner (kotlin.text.StringBuilder) maps to its JVM class for reflection.
+        val sb = dispatcher.dispatch(call(DispatchKind.CONSTRUCTOR, lib("kotlin.text.StringBuilder", "StringBuilder", isCtor = true)), null, emptyList())
+        assertTrue(sb is StringBuilder)
+    }
+
+    @Test
+    fun unloadableOwnerFailsLoudly() {
+        val c = call(DispatchKind.TOP_LEVEL, lib("com.nope.DoesNotExistKt", "f", isStatic = true))
+        assertFailsWith<InterpreterException> { dispatcher.dispatch(c, null, emptyList()) }
+    }
+
+    @Test
+    fun propertyReadGoesThroughTheKotlinGetter() {
+        // A `receiver.value` read resolves to the Kotlin getter `getValue()` — the same path a
+        // `MutableState.value` read takes (which is what registers the snapshot dependency under Compose).
+        val span = SourceSpan(0, 0)
+        val slot = SlotId(0)
+        val body = RNode.PropertyGet(RNode.Name(Binding.Param(slot, "h"), span), Binding.Property("value", null, false), span)
+        val fn = ResolvedFunction("f", listOf(RParam(slot, "h", null)), body, emptyList())
+        assertEquals("hi", Interpreter(emptyMap()).call(fn, listOf(Holder("hi"))))
+    }
+
+    @Test
+    fun trailingLambdaBindsToLastParamForComposableDetection() {
+        // `LazyListScope.items(items, key = …, contentType = …, itemContent: @Composable …)` called as
+        // `items(xs) { … }`: source args [list, lambda] don't line up with declaration order, but the Kotlin
+        // trailing-lambda rule binds the lambda to the LAST value parameter (the composable `itemContent`).
+        val composable = KotlinType("kotlin.Function2", isComposable = true)
+        val plain = KotlinType("kotlin.Function1")
+        val list = KotlinType("kotlin.collections.List")
+        val items = ResolvedCallable.Library(
+            displayName = "items", ownerFqn = "X", methodName = "items",
+            paramTypes = listOf(list, plain, plain, composable),
+            isStatic = false, isConstructor = false, isInline = false,
+        )
+        val lambda = object : InterpretedLambda {
+            override val paramCount = 1
+            override fun invoke(args: List<Any?>): Any? = null
+        }
+        assertEquals(listOf(false, true), composableParamFlags(items, listOf("xs", lambda)))
+        // A non-trailing-lambda call lines up positionally; the extension receiver is skipped.
+        assertEquals(listOf(false, false), composableParamFlags(items, listOf<Any?>("recv", "xs"), leadingReceiver = true))
+    }
+
+    @Test
+    fun composableContentLambdaRoutesThroughTheStrategy() {
+        // The Compose bridge's seam: a lambda bound to a `@Composable` param routes through the injected
+        // strategy with composableParam=true, even though the callee (`forEach`) isn't itself composable.
+        var sawComposable: Boolean? = null
+        val strategy = LambdaProxyStrategy { lam, fi, composable, _ ->
+            sawComposable = composable
+            java.lang.reflect.Proxy.newProxyInstance(fi.classLoader, arrayOf(fi)) { _, m, a ->
+                if (m.name == "accept") lam.invoke(a?.toList() ?: emptyList()) else null
+            }
+        }
+        val collected = ArrayList<Any?>()
+        val lambda = object : InterpretedLambda {
+            override val paramCount = 1
+            override fun invoke(args: List<Any?>): Any? { collected.add(args.getOrNull(0)); return null }
+        }
+        val callee = ResolvedCallable.Library(
+            displayName = "forEach", ownerFqn = "java.util.ArrayList", methodName = "forEach",
+            paramTypes = listOf(KotlinType("kotlin.Function1", isComposable = true)),
+            isStatic = false, isConstructor = false, isInline = false, descriptorPrecise = true,
+        )
+        val c = RNode.Call(callee, DispatchKind.MEMBER, receiver = null, args = emptyList(), callSiteKey = CallSiteKey(0), source = SourceSpan(0, 0))
+        ReflectiveDispatcher(lambdaProxies = strategy).dispatch(c, receiver = arrayListOf(1, 2, 3), args = listOf(lambda))
+        assertEquals(true, sawComposable, "a composable content-lambda param must route through the strategy as composable")
+        assertEquals(listOf<Any?>(1, 2, 3), collected.toList(), "the proxied lambda should receive each element")
+    }
+
+    @Test
+    fun composablePropertyReadFallsBackToTheDispatcherSeam() {
+        // A property with no plain no-arg getter (a `@Composable` getter takes a Composer) — the interpreter
+        // can't read it reflectively, so it delegates to the dispatcher's composable-property seam. Here a stub
+        // dispatcher stands in for the Compose bridge.
+        val span = SourceSpan(0, 0)
+        val slot = SlotId(0)
+        val get = RNode.PropertyGet(RNode.Name(Binding.Param(slot, "h"), span), Binding.Property("themed", null, false), span)
+        val fn = ResolvedFunction("f", listOf(RParam(slot, "h", null)), get, emptyList())
+        val seam = object : Dispatcher {
+            override fun dispatch(call: RNode.Call, receiver: Any?, args: List<Any?>): Any? =
+                throw InterpreterException("not used")
+            override fun readComposableProperty(receiver: Any, propertyName: String): ComposablePropertyValue? =
+                if (propertyName == "themed") ComposablePropertyValue("themed:$receiver") else null
+        }
+        assertEquals("themed:X", Interpreter(emptyMap(), seam).call(fn, listOf("X")))
+    }
+
+    @Test
+    fun propertyWriteGoesThroughTheKotlinSetter() {
+        // `h.value = "bye"` resolves to the Kotlin setter `setValue(x)` — the same path a `MutableState.value`
+        // write takes (which is what invalidates the recompose scope under Compose). The block yields the
+        // re-read value to prove the write landed.
+        val span = SourceSpan(0, 0)
+        val slot = SlotId(0)
+        val ref = { RNode.Name(Binding.Param(slot, "h"), span) }
+        val set = RNode.PropertySet(ref(), Binding.Property("value", null, false), RNode.Const("bye", null, span), span)
+        val read = RNode.PropertyGet(ref(), Binding.Property("value", null, false), span)
+        val fn = ResolvedFunction("f", listOf(RParam(slot, "h", null)), RNode.Block(listOf(set, read), isExpression = true, span), emptyList())
+        val holder = Holder("hi")
+        assertEquals("bye", Interpreter(emptyMap()).call(fn, listOf(holder)))
+        assertEquals("bye", holder.value, "the setter must have mutated the holder")
+    }
+
+    @Test
+    fun memberExtensionDispatchesOnTheScopeInstance() {
+        // `Mod.scoped(5)` where `scoped` is a MEMBER extension declared inside `Scope` (like `RowScope.weight`):
+        // it's an instance method on the scope `scoped(Mod, int)`, so MEMBER_EXTENSION must invoke it on the
+        // scope with the extension receiver (`Mod`) as the first argument.
+        val span = SourceSpan(0, 0)
+        val scopeSlot = SlotId(0)
+        val modSlot = SlotId(1)
+        val callee = ResolvedCallable.Library(
+            displayName = "scoped", ownerFqn = "ignored", methodName = "scoped",
+            paramTypes = emptyList(), isStatic = false, isConstructor = false, isInline = false,
+        )
+        val call = RNode.Call(
+            callee, DispatchKind.MEMBER_EXTENSION,
+            receiver = RNode.Name(Binding.Param(modSlot, "m"), span),
+            args = listOf(RArg(RNode.Const(5, null, span))),
+            callSiteKey = CallSiteKey(0), source = span,
+            dispatchReceiver = RNode.Name(Binding.Param(scopeSlot, "s"), span),
+        )
+        val fn = ResolvedFunction(
+            "f", listOf(RParam(scopeSlot, "s", null), RParam(modSlot, "m", null)),
+            RNode.Block(listOf(call), isExpression = true, span), emptyList(),
+        )
+        assertEquals("scoped:5", Interpreter(emptyMap()).call(fn, listOf(Scope(), Mod())))
+    }
+
+    @Test
+    fun memberExtensionWithDefaultParamOnAnInterfaceScope() {
+        // `RowScope.weight(weight, fill = true)` exactly: a member extension WITH a defaulted param, declared in
+        // an INTERFACE scope. Omitting `fill` needs the `weighted$default` synthetic — which for an interface
+        // member lives on the interface (or its DefaultImpls), NOT the runtime impl class. The dispatch must find
+        // it there. The TodoScreen `Modifier.weight(1f)` case.
+        val span = SourceSpan(0, 0)
+        val scopeSlot = SlotId(0)
+        val modSlot = SlotId(1)
+        val callee = ResolvedCallable.Library(
+            displayName = "weighted", ownerFqn = "ignored", methodName = "weighted",
+            paramTypes = emptyList(), isStatic = false, isConstructor = false, isInline = false,
+        )
+        val call = RNode.Call(
+            callee, DispatchKind.MEMBER_EXTENSION,
+            receiver = RNode.Name(Binding.Param(modSlot, "m"), span),
+            args = listOf(RArg(RNode.Const(5, null, span))), // omit the defaulted `fill`
+            callSiteKey = CallSiteKey(0), source = span,
+            dispatchReceiver = RNode.Name(Binding.Param(scopeSlot, "s"), span),
+        )
+        val fn = ResolvedFunction(
+            "f", listOf(RParam(scopeSlot, "s", null), RParam(modSlot, "m", null)),
+            RNode.Block(listOf(call), isExpression = true, span), emptyList(),
+        )
+        assertEquals("w=5 fill=true", Interpreter(emptyMap()).call(fn, listOf(ScopeImpl(), Mod())))
+    }
+
+    @Test
+    fun constructorOmittingDefaultedParamsRoutesThroughTheInitDefaultSynthetic() {
+        // `Style(c = true)` — a named-arg construction that omits THREE defaulted parameters (interior + trailing).
+        // There's no exact-arity constructor; Kotlin emits an `<init>$default(real…, int mask,
+        // DefaultConstructorMarker)` synthetic that fills the defaults. This is the `SpanStyle(fontWeight = …)`
+        // execution path. The mask must mark a,b,d (bits 0,1,3) as defaulted while c (bit 2) carries the value.
+        val span = SourceSpan(0, 0)
+        val callee = ResolvedCallable.Library(
+            displayName = "Style", ownerFqn = Style::class.java.name, methodName = "<init>",
+            paramTypes = emptyList(), isStatic = false, isConstructor = true, isInline = false,
+            descriptorPrecise = true, paramNames = listOf("a", "b", "c", "d"),
+        )
+        val call = RNode.Call(
+            callee, DispatchKind.CONSTRUCTOR, receiver = null,
+            args = listOf(RArg(RNode.Const(true, null, span), name = "c")),
+            callSiteKey = CallSiteKey(0), source = span,
+        )
+        val result = dispatcher.dispatch(call, receiver = null, args = listOf(true)) as Style
+        assertEquals("da", result.a, "an omitted leading param keeps its default")
+        assertEquals(1, result.b, "an omitted middle param keeps its default")
+        assertEquals(true, result.c, "the supplied named arg lands in its declared slot")
+        assertEquals("dd", result.d, "an omitted trailing param keeps its default")
+    }
+
+    @Test
+    fun constructorPreservesAnExplicitNullOverItsDefault() {
+        // `Style(d = null)` — an explicitly-passed null must NOT be treated as an omitted (defaulted) slot: its
+        // mask bit stays clear so the synthetic uses the null, not the `"dd"` default. (Only the absent a/b/c
+        // are defaulted.)
+        val span = SourceSpan(0, 0)
+        val callee = ResolvedCallable.Library(
+            displayName = "Style", ownerFqn = Style::class.java.name, methodName = "<init>",
+            paramTypes = emptyList(), isStatic = false, isConstructor = true, isInline = false,
+            descriptorPrecise = true, paramNames = listOf("a", "b", "c", "d"),
+        )
+        val call = RNode.Call(
+            callee, DispatchKind.CONSTRUCTOR, receiver = null,
+            args = listOf(RArg(RNode.Const(null, null, span), name = "d")),
+            callSiteKey = CallSiteKey(0), source = span,
+        )
+        val result = dispatcher.dispatch(call, receiver = null, args = listOf<Any?>(null)) as Style
+        assertEquals("da", result.a)
+        assertEquals(1, result.b)
+        assertEquals(false, result.c)
+        assertNull(result.d, "an explicit null overrides the parameter's default")
+    }
+
+    @Test
+    fun instanceCallBoxesAnUnboxedValueClassArgForANullableValueClassParam() {
+        // A non-composable MEMBER call `tagger.describe(Tag(5))` where `describe(t: Tag?)` — a NULLABLE value
+        // class, so its JVM param is the BOXED `Tag`, while the interpreter produced the UNBOXED underlying
+        // `5`. Overload selection (`paramsAccept`) must accept it and `bindArgs` must box it via `box-impl`
+        // before the reflective invoke — the general reflective path, not just the composable ABI / synthetic.
+        val callee = ResolvedCallable.Library(
+            displayName = "describe", ownerFqn = Tagger::class.java.name, methodName = "describe",
+            paramTypes = emptyList(), isStatic = false, isConstructor = false, isInline = false, descriptorPrecise = true,
+        )
+        val call = call(DispatchKind.MEMBER, callee)
+        assertEquals("tag5", dispatcher.dispatch(call, receiver = Tagger(), args = listOf<Any?>(5)))
+        // An explicit null still binds to the nullable param (not boxed, not defaulted).
+        assertEquals("none", dispatcher.dispatch(call, receiver = Tagger(), args = listOf<Any?>(null)))
+    }
+
+    @Test
+    fun collectionOfUnboxedValueClassArgsIsBoxedForAListValueClassParam() {
+        // The reported gradient-preview crash `java.lang.Long cannot be cast to androidx.compose.ui.graphics.Color`:
+        // the interpreter builds `listOf(Color.Red, …)` as a List of UNBOXED value-class values (a value class is
+        // represented by its underlying primitive), then passes it to a `List<Color>` parameter
+        // (`Brush.linearGradient(colors)`). The callee reads the elements back as boxed `Color`s and CCEs at draw.
+        // `Palette.total(tags: List<Tag>)` mirrors it — its body reads each element's `.v`, which fails on a raw
+        // Int. `Tag` is the existing value class (underlying Int). `total` has a defaulted `bonus`, so a one-arg
+        // call routes through the `$default` SYNTHETIC — the exact path `linearGradient(colors)` takes (its
+        // `start`/`end`/`tileMode` are defaulted); a two-arg call takes the plain exact-arity bind. Both must box.
+        val callee = ResolvedCallable.Library(
+            displayName = "total", ownerFqn = Palette::class.java.name, methodName = "total",
+            paramTypes = emptyList(), isStatic = false, isConstructor = false, isInline = false, descriptorPrecise = true,
+        )
+        val call = call(DispatchKind.MEMBER, callee)
+        // args = a List<Int> — the unboxed representation of `listOf(Tag(2), Tag(3), Tag(5))`.
+        assertEquals(10, dispatcher.dispatch(call, receiver = Palette(), args = listOf<Any?>(listOf(2, 3, 5))), "the default-synthetic path must box List<Tag> elements")
+        assertEquals(110, dispatcher.dispatch(call, receiver = Palette(), args = listOf<Any?>(listOf(2, 3, 5), 100)), "the exact-arity bind path must box List<Tag> elements")
+    }
+
+    @Test
+    fun instanceCallUnboxesABoxedValueClassArgForAPrimitiveUnderlyingParam() {
+        // The reported live-edit crash `method OffsetKt.offset-VpY3zN4 argument 2 has type float, got Dp`: a
+        // BOXED value-class value (a `Dp` read from state / an animated value) reaches a parameter typed as its
+        // UNBOXED underlying (the mangled `offset-<hash>(…, float, float)` wants the Dp's `float`). The bind must
+        // unbox it via `unbox-impl` before the invoke — the inverse of the box case above. `Sink.consume(v: Int)`
+        // fed a BOXED `Tag` mirrors it (a value-class instance, as a value-class-typed state read produces).
+        val callee = ResolvedCallable.Library(
+            displayName = "consume", ownerFqn = Sink::class.java.name, methodName = "consume",
+            paramTypes = emptyList(), isStatic = false, isConstructor = false, isInline = false, descriptorPrecise = true,
+        )
+        val call = call(DispatchKind.MEMBER, callee)
+        assertEquals(6, dispatcher.dispatch(call, receiver = Sink(), args = listOf<Any?>(Tag(5))), "a boxed value-class arg must unbox to fit a primitive underlying param")
+    }
+
+    @Test
+    fun instanceCallRecursivelyUnboxesANestedValueClass() {
+        // Found on ART: `colorResource(...)` fed a `RecordColor(color: Color)` (JVM `RecordColor-…(long, …)`)
+        // failed because `Color` is `value class Color(val value: ULong)` — its underlying is ITSELF a value class
+        // over `long`, so a boxed Color reaching a mangled `long` param needs recursive unboxing (Color→ULong→
+        // long), not one level. `Outer(Inner(v))` (a value class wrapping a value class wrapping an Int) fed to a
+        // plain `Int` param mirrors it exactly.
+        val callee = ResolvedCallable.Library(
+            displayName = "consume", ownerFqn = Sink::class.java.name, methodName = "consume",
+            paramTypes = emptyList(), isStatic = false, isConstructor = false, isInline = false, descriptorPrecise = true,
+        )
+        val call = call(DispatchKind.MEMBER, callee)
+        assertEquals(6, dispatcher.dispatch(call, receiver = Sink(), args = listOf<Any?>(Outer(Inner(5)))), "a nested value-class arg must unbox all the way to the primitive")
+    }
+
+    @Test
+    fun boxedValueClassArgFitsADefaultedExtensionSyntheticParam() {
+        // The reported preview crash `no static background(2) on androidx.compose.foundation.BackgroundKt`:
+        // `Modifier.background(color)` where `background(color: Color, shape: Shape = RectangleShape)`. Three
+        // things stack here: (1) `color` arrived BOXED — it was read through `State<Color>.value` (a JVM getter
+        // returning `Object`), whereas a `Color(…)` LITERAL is the UNBOXED `long` and already worked; (2) the
+        // function's value-class param mangles the JVM name to `background-<hash>` and unboxes the param to
+        // `long`; (3) `shape` is DEFAULTED, so the receiver+color call (arity 2) has no exact-arity match
+        // against the arity-3 method and must route through the `background-<hash>$default` synthetic — whose
+        // per-slot fit check rejected the boxed value class (a plain `isInstance` can't see through it), even
+        // though the bind's `coerceArg` would have unboxed it. `StyleTarget.tint(Swatch(5))` mirrors it exactly:
+        // a top-level EXTENSION (a static `…Kt` facade with the receiver first), `Swatch`→`int`, `blend`
+        // defaulted, fed a boxed `Swatch`.
+        val callee = ResolvedCallable.Library(
+            displayName = "tint", ownerFqn = "dev.ide.interp.ReflectiveDispatcherTestKt", methodName = "tint",
+            paramTypes = emptyList(), isStatic = true, isConstructor = false, isInline = false, descriptorPrecise = true,
+        )
+        val call = RNode.Call(callee, DispatchKind.EXTENSION, receiver = null, args = emptyList(), callSiteKey = CallSiteKey(0), source = SourceSpan(0, 0))
+        // `listOf<Any?>(Swatch(5))` BOXES the value class (element type `Any?`), as a value-class-typed state read produces.
+        assertEquals(1 + 5 + 3, dispatcher.dispatch(call, receiver = StyleTarget(1), args = listOf<Any?>(Swatch(5))),
+            "a boxed value-class extension arg must reach a mangled unboxed-underlying param through the \$default synthetic")
+    }
+
+    @Test
+    fun incomparableOverloadsAreBrokenByArgumentRuntimeType() {
+        // Two applicable overloads whose parameter types are pairwise INCOMPARABLE (neither a subtype of the
+        // other) — the `Intent.putExtra(String, CharSequence)` vs `(String, Serializable)` shape. With no
+        // parameter-type-only most-specific overload, the ARGUMENT's runtime type breaks the tie: `Both` reaches
+        // `A2` directly (distance 1) but `B2` only through a superclass (distance 2), so the `A2` overload wins
+        // deterministically instead of relying on JVM getMethods() order.
+        val callee = ResolvedCallable.Library(
+            displayName = "put", ownerFqn = Overloads::class.java.name, methodName = "put",
+            paramTypes = emptyList(), isStatic = false, isConstructor = false, isInline = false, descriptorPrecise = true,
+        )
+        val c = call(DispatchKind.MEMBER, callee)
+        assertEquals("a", dispatcher.dispatch(c, receiver = Overloads(), args = listOf<Any?>(Both())))
+    }
+
+    interface A2
+    interface B2
+    open class HasB2 : B2
+    /** Implements [A2] directly (distance 1) but [B2] only via [HasB2] (distance 2) — so the arg-runtime-type
+     *  tiebreak prefers the [A2] overload among two incomparable applicable overloads. */
+    class Both : HasB2(), A2
+    class Overloads {
+        fun put(a: A2): String = "a"
+        fun put(b: B2): String = "b"
+    }
+
+    /** A Kotlin class with a mutable `value` property → `getValue()`/`setValue(x)` (a `MutableState` stand-in). */
+    class Holder(var value: String)
+
+    /** A class with an `internal` member — Kotlin mangles its JVM name to `reveal$<module>`, exactly like
+     *  Material3's internal `MotionScheme.Companion.expressive()` (`expressive$material3`). */
+    class InternalHolder { internal fun reveal(): String = "secret" }
+
+    /** A method taking a value class's UNBOXED underlying primitive (`Int`), like `offset(…, float, float)` takes
+     *  the `Dp`'s float — a boxed value-class arg must be unboxed to bind. */
+    class Sink { fun consume(v: Int): Int = v + 1 }
+
+    /** A value class wrapping a value class wrapping a primitive (`Color`→`ULong`→`long` in miniature) — a boxed
+     *  [Outer] must unbox through [Inner] to the `Int` for [Sink.consume]. */
+    @JvmInline
+    value class Inner(val v: Int)
+
+    @JvmInline
+    value class Outer(val i: Inner)
+
+    /** An inline value class — its underlying `int` is what the interpreter produces for a `Tag(n)` expression. */
+    @JvmInline
+    value class Tag(val v: Int)
+
+    /** A class with a NULLABLE value-class param (`Tag?` → boxed JVM type): an unboxed underlying arg must be
+     *  boxed by the general reflective path before the invoke. */
+    class Tagger {
+        fun describe(t: Tag?): String = if (t == null) "none" else "tag${t.v}"
+    }
+
+    @Test
+    fun mapOfUnboxedValueClassValuesIsBoxedForAMapValueClassParam() {
+        // Same value-class-container class as the gradient CCE, narrower container: a `Map<String, Tag>` param
+        // fed a `Map<String, Int>` (unboxed Tags). `Palette.sumByKey` reads each value's `.v`, which CCEs on a
+        // raw Int; the bind must box the map's value-class values.
+        val callee = ResolvedCallable.Library(
+            displayName = "sumByKey", ownerFqn = Palette::class.java.name, methodName = "sumByKey",
+            paramTypes = emptyList(), isStatic = false, isConstructor = false, isInline = false, descriptorPrecise = true,
+        )
+        val call = call(DispatchKind.MEMBER, callee)
+        val map = linkedMapOf<Any?, Any?>("a" to 2, "b" to 3, "c" to 5)
+        assertEquals(10, dispatcher.dispatch(call, receiver = Palette(), args = listOf<Any?>(map)), "Map<String, Tag> values must be boxed")
+    }
+
+    /** A `Brush.linearGradient(colors: List<Color>)` stand-in: `total` reads each `List<Tag>` element's value
+     *  class member, so the list elements must arrive BOXED (not raw Ints). `bonus` is defaulted so a one-arg
+     *  call routes through the default-args synthetic. `sumByKey` is the `Map<String, Tag>` analogue. */
+    class Palette {
+        fun total(tags: List<Tag>, bonus: Int = 0): Int = tags.sumOf { it.v } + bonus
+        fun sumByKey(byKey: Map<String, Tag>): Int = byKey.values.sumOf { it.v }
+    }
+
+    /** A class with all-defaulted constructor params (and a nullable trailing one) — a `SpanStyle` stand-in for
+     *  the `<init>$default` synthetic path. */
+    class Style(val a: String = "da", val b: Int = 1, val c: Boolean = false, val d: String? = "dd")
+
+    /** A scope holding a MEMBER extension on [Mod] (`fun Mod.scoped(...)`), mirroring `RowScope.weight`. */
+    class Mod
+    class Scope { fun Mod.scoped(n: Int): String = "scoped:$n" }
+
+    /** An INTERFACE scope with a defaulted-param member extension, exactly like `RowScope.weight`. */
+    interface ScopeIface { fun Mod.weighted(w: Int, fill: Boolean = true): String }
+    class ScopeImpl : ScopeIface { override fun Mod.weighted(w: Int, fill: Boolean): String = "w=$w fill=$fill" }
+}
+
+/** An extension-receiver stand-in for `Modifier` in `Modifier.background(…)`. */
+class StyleTarget(val base: Int)
+
+/** An inline value class whose unboxed underlying is a primitive — `Color`→`long` in miniature (`Swatch`→
+ *  `int`). The interpreter hands `background` a BOXED one (a `State<Color>.value` read returns `Object`). */
+@JvmInline
+value class Swatch(val rgb: Int)
+
+/** Mirrors `Modifier.background(color: Color, shape: Shape = RectangleShape)`: a top-level EXTENSION (→ a
+ *  static `…Kt` facade method taking the receiver first) whose value parameter is an inline value class (→ the
+ *  JVM name is mangled `tint-<hash>` and the param is the unboxed `int`) plus a DEFAULTED trailing param (→ a
+ *  receiver+swatch call has no exact-arity match against the arity-3 method and routes through the
+ *  `tint-<hash>$default` synthetic). The exact shape that produced `no static background(2)`. */
+fun StyleTarget.tint(swatch: Swatch, blend: Int = 3): Int = base + swatch.rgb + blend

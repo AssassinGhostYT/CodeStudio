@@ -1,0 +1,293 @@
+package dev.ide.index
+
+import java.io.DataInput
+import java.io.DataOutput
+
+/**
+ * Value payloads for the v1 indexes, shared by their producers (index-impl, lang-jdt) and consumers
+ * (resolution/completion). Each has a matching [Externalizer] for the on-disk per-artifact cache.
+ */
+
+/** classNames hit: the FQN, where it came from, and its kind (drives the completion badge + auto-import). */
+data class ClassNameValue(val fqn: String, val origin: IndexOrigin, val kind: String)
+
+/**
+ * go-to-symbol hit: declaration name, kind, the source file, and the offset to jump to. The file is stored
+ * as the interned [fileId] (resolve with `IndexService.filePath`), NOT a path string — a file declaring many
+ * symbols would otherwise repeat its full path once per symbol, both in RAM and on disk.
+ */
+data class SymbolValue(val name: String, val kind: String, val fileId: Int, val offset: Int, val container: String?)
+
+/** member hit: member name, owner type FQN, kind (method/field), and a short signature hint. */
+data class MemberValue(val name: String, val owner: String, val kind: String, val signature: String)
+
+/**
+ * Codec for the SHAPE of a project Java SOURCE member, carried in [MemberValue.signature] by the
+ * `java.membersByOwner` index (and the host's live open-buffer provider) so a Kotlin file resolving a
+ * same-project Java class sees real parameter types, the `static` flag, and the return type — not just a
+ * name. The producer (the Java backend) and the consumer (the Kotlin backend) share this contract; a
+ * different language backend never reads it. Type texts are stored AS WRITTEN in the Java source
+ * (`String[]`, `int`, `List<String>`, `String...`) — a resolution-free structural parse can't do better,
+ * and the consumer maps them to Kotlin types leniently. The separators are control characters that cannot
+ * appear in Java type text or identifiers, and an EMPTY signature decodes to null so a member from an old
+ * index segment (or a producer that carried no shape) degrades gracefully to name + kind only.
+ */
+object JavaSourceMemberCodec {
+    private const val FIELD = '\u0001' // between the top-level fields of one member
+    private const val ITEM = '\u0002'  // between parameters
+    private const val PAIR = '\u0003'  // between a parameter's name and its type text
+
+    /** A method's decoded shape; [paramTypes] are positional with [paramNames], [varargIndex] is -1 if none. */
+    data class Method(
+        val static: Boolean,
+        val paramNames: List<String>,
+        val paramTypes: List<String>,
+        val returnType: String?,
+        val varargIndex: Int,
+    )
+
+    /** A field's decoded shape. */
+    data class Field(val static: Boolean, val type: String?)
+
+    fun encodeMethod(
+        static: Boolean,
+        paramNames: List<String>,
+        paramTypes: List<String>,
+        returnType: String?,
+        varargIndex: Int,
+    ): String {
+        val params = paramNames.indices.joinToString(ITEM.toString()) { i ->
+            "${paramNames[i]}$PAIR${paramTypes.getOrElse(i) { "" }}"
+        }
+        return "${if (static) "1" else "0"}$FIELD$varargIndex$FIELD$params$FIELD${returnType ?: ""}"
+    }
+
+    fun encodeField(static: Boolean, type: String?): String = "${if (static) "1" else "0"}$FIELD${type ?: ""}"
+
+    fun decodeMethod(signature: String): Method? {
+        if (signature.isEmpty()) return null
+        val parts = signature.split(FIELD)
+        if (parts.size < 4) return null
+        val names = ArrayList<String>()
+        val types = ArrayList<String>()
+        if (parts[2].isNotEmpty()) for (p in parts[2].split(ITEM)) {
+            val np = p.split(PAIR)
+            names += np.getOrElse(0) { "" }
+            types += np.getOrElse(1) { "" }
+        }
+        return Method(
+            static = parts[0] == "1",
+            paramNames = names,
+            paramTypes = types,
+            returnType = parts[3].ifEmpty { null },
+            varargIndex = parts[1].toIntOrNull() ?: -1,
+        )
+    }
+
+    fun decodeField(signature: String): Field? {
+        if (signature.isEmpty()) return null
+        val parts = signature.split(FIELD)
+        return Field(static = parts[0] == "1", type = parts.getOrNull(1)?.ifEmpty { null })
+    }
+}
+
+/**
+ * source-doc hit: real parameter [names] + cleaned [doc] (javadoc/KDoc) for a method declared on the owner
+ * type the index is keyed by, recovered from attached SOURCES (a compiled artifact carries neither). The
+ * type's own doc is stored as the entry with an empty [name] (and [arity] -1). [arity] picks the overload.
+ */
+data class SourceDocValue(val name: String, val arity: Int, val names: List<String>, val doc: String?)
+
+/**
+ * runnable-entry-point hit: a class the Run action can launch. [fqn] is what the runner loads — a Kotlin file
+ * facade (`com.example.MainKt`), a `@JvmStatic` owner, a Java class, or an instance-main class. [fileId] is the
+ * interned source file (resolve via [IndexService.filePath]) so a hit can be scoped to a module's roots.
+ * [instance] is true when there is no static `main`, so the runner constructs the class (no-arg constructor)
+ * and calls the instance `main` — the JVM launcher can't (it requires a static entry point), but our reflective
+ * runner can (matching Java's newer instance-`main` entry points).
+ */
+data class EntryPointValue(val fqn: String, val fileId: Int, val instance: Boolean)
+
+/**
+ * Shared identifiers for the runnable-entry-point indexes (one per source language). Producers ([the Java and
+ * Kotlin backends]) and the consumer (the run service) agree on the [IndexId]s and the single [KEY] every
+ * entry point is stored under, so a run lookup is `exact(id, KEY)` merged across both.
+ */
+object EntryPointIndex {
+    val JAVA = IndexId("java.mains")
+    val KOTLIN = IndexId("kotlin.mains")
+
+    /** The single term every entry point is keyed by (there is nothing to prefix/fuzzy match — we want them all). */
+    const val KEY = "main"
+}
+
+/**
+ * subtype hit: a DIRECT inheritor of the supertype the index is keyed by — the analog of IntelliJ's
+ * `DirectClassInheritorsIndex` / `KotlinSuperClassIndex`. Keys are the supertype's SHORT name (a
+ * resolution-free source parse can't reliably resolve `extends Foo` to an FQN; IntelliJ keys the same
+ * way); [supertype] carries what the producer knew — the full FQN for a binary, the best-effort resolved
+ * or raw reference text for source — so a consumer can filter exactly or verify through resolution.
+ */
+data class SubtypeValue(
+    /** The SUBTYPE's fully-qualified name. */
+    val fqn: String,
+    /** class / interface / enum / object / annotation. */
+    val kind: String,
+    /** The supertype as the producer knew it (FQN for binaries; resolved-or-raw text for source). */
+    val supertype: String,
+    /** Declaring source file (interned id) for source producers, -1 for binaries. */
+    val fileId: Int = -1,
+)
+
+/**
+ * annotated-declaration hit: a declaration carrying the annotation the index is keyed by — the analog of
+ * `JavaAnnotationIndex` / `KotlinAnnotationsIndex`. Keyed by the annotation's SHORT name (source parses
+ * see `@Composable`, not the FQN); [annotation] carries the producer's best knowledge for exact filtering.
+ */
+data class AnnotatedValue(
+    /** The annotated declaration: a type FQN, or `owner#member` for a member/callable. */
+    val fqn: String,
+    /** class / method / field / function / property. */
+    val kind: String,
+    /** The annotation as the producer knew it (FQN for binaries; resolved-or-raw for source). */
+    val annotation: String,
+    /** Declaring source file (interned id) for source producers, -1 for binaries. */
+    val fileId: Int = -1,
+)
+
+/**
+ * Shared identifiers for the subtype (direct-inheritor) indexes — one per producer language/side, since
+ * each side needs its own parser (ASM for binaries, JDT for Java source, PSI for Kotlin source) and index
+ * ids are one-producer-per-service. Consumers (sealed exhaustiveness, override completion, the K2
+ * `KotlinDirectInheritorsProvider`) query every id and merge.
+ */
+object SubtypeIndex {
+    val BINARY = IndexId("subtypes.binary")
+    val JAVA_SOURCE = IndexId("subtypes.javaSource")
+    val KOTLIN_SOURCE = IndexId("subtypes.kotlinSource")
+    val ALL = listOf(BINARY, JAVA_SOURCE, KOTLIN_SOURCE)
+
+    /** Index key for a supertype: its SHORT name. */
+    fun key(supertypeName: String) = supertypeName.substringAfterLast('.')
+}
+
+/** Shared identifiers for the annotation (annotated-by) indexes; mirrors [SubtypeIndex]'s split. */
+object AnnotationIndex {
+    val BINARY = IndexId("annotations.binary")
+    val JAVA_SOURCE = IndexId("annotations.javaSource")
+    val KOTLIN_SOURCE = IndexId("annotations.kotlinSource")
+    val ALL = listOf(BINARY, JAVA_SOURCE, KOTLIN_SOURCE)
+
+    /** Index key for an annotation: its SHORT name. */
+    fun key(annotationName: String) = annotationName.substringAfterLast('.')
+}
+
+// The workspace class/symbol/package/member indexes are split one-producer-per-language for the SAME reason
+// the subtype/annotation indexes are (index ids are one-producer-per-service, and each source language needs
+// its own parser — JDT/ASM for Java + binaries, PSI for Kotlin source). The `java.*` ids ALSO carry the
+// binary (SDK/library `.class`) side; the `kotlin.*` ids are Kotlin SOURCE only. Consumers query `ALL` and
+// merge (see [exactAll]/[prefixAll]/[fuzzyAll]).
+
+/** Class-name indexes (simple name → [ClassNameValue]) powering auto-import + type-name completion. */
+object ClassNameIndex {
+    val JAVA = IndexId("java.classNames")
+    val KOTLIN = IndexId("kotlin.classNames")
+    val ALL = listOf(JAVA, KOTLIN)
+}
+
+/** Go-to-symbol indexes (declaration name → [SymbolValue]) over project source. */
+object SourceSymbolIndex {
+    val JAVA = IndexId("java.sourceSymbols")
+    val KOTLIN = IndexId("kotlin.sourceSymbols")
+    val ALL = listOf(JAVA, KOTLIN)
+}
+
+/** Package-contents indexes (package FQN → the [ClassNameValue]s directly in it). */
+object PackageTypesIndex {
+    val JAVA = IndexId("java.packageTypes")
+    val KOTLIN = IndexId("kotlin.packageTypes")
+    val ALL = listOf(JAVA, KOTLIN)
+}
+
+/** Package-name indexes (every package prefix → itself) for sub-package completion. */
+object PackagesIndex {
+    val JAVA = IndexId("java.packages")
+    val KOTLIN = IndexId("kotlin.packages")
+    val ALL = listOf(JAVA, KOTLIN)
+}
+
+/** Member indexes (member name → owner/kind/signature [MemberValue]) for member search. */
+object MembersIndex {
+    val JAVA = IndexId("java.members")
+    val KOTLIN = IndexId("kotlin.members")
+    val ALL = listOf(JAVA, KOTLIN)
+}
+
+object SubtypeExternalizer : Externalizer<SubtypeValue> {
+    override fun write(out: DataOutput, value: SubtypeValue) {
+        out.writeUTF(value.fqn); out.writeUTF(value.kind); out.writeUTF(value.supertype); out.writeInt(value.fileId)
+    }
+    override fun read(inp: DataInput) = SubtypeValue(inp.readUTF(), inp.readUTF(), inp.readUTF(), inp.readInt())
+}
+
+object AnnotatedExternalizer : Externalizer<AnnotatedValue> {
+    override fun write(out: DataOutput, value: AnnotatedValue) {
+        out.writeUTF(value.fqn); out.writeUTF(value.kind); out.writeUTF(value.annotation); out.writeInt(value.fileId)
+    }
+    override fun read(inp: DataInput) = AnnotatedValue(inp.readUTF(), inp.readUTF(), inp.readUTF(), inp.readInt())
+}
+
+object EntryPointExternalizer : Externalizer<EntryPointValue> {
+    override fun write(out: DataOutput, value: EntryPointValue) {
+        out.writeUTF(value.fqn); out.writeInt(value.fileId); out.writeBoolean(value.instance)
+    }
+    override fun read(inp: DataInput) = EntryPointValue(inp.readUTF(), inp.readInt(), inp.readBoolean())
+}
+
+object ClassNameExternalizer : Externalizer<ClassNameValue> {
+    override fun write(out: DataOutput, value: ClassNameValue) {
+        out.writeUTF(value.fqn); out.writeByte(value.origin.ordinal); out.writeUTF(value.kind)
+    }
+    override fun read(inp: DataInput) =
+        ClassNameValue(inp.readUTF(), IndexOrigin.entries[inp.readByte().toInt()], inp.readUTF())
+}
+
+object StringExternalizer : Externalizer<String> {
+    override fun write(out: DataOutput, value: String) = out.writeUTF(value)
+    override fun read(inp: DataInput): String = inp.readUTF()
+}
+
+object SymbolExternalizer : Externalizer<SymbolValue> {
+    override fun write(out: DataOutput, value: SymbolValue) {
+        out.writeUTF(value.name); out.writeUTF(value.kind); out.writeInt(value.fileId)
+        out.writeInt(value.offset); out.writeBoolean(value.container != null)
+        if (value.container != null) out.writeUTF(value.container)
+    }
+    override fun read(inp: DataInput): SymbolValue {
+        val name = inp.readUTF(); val kind = inp.readUTF(); val fileId = inp.readInt(); val off = inp.readInt()
+        val container = if (inp.readBoolean()) inp.readUTF() else null
+        return SymbolValue(name, kind, fileId, off, container)
+    }
+}
+
+object MemberExternalizer : Externalizer<MemberValue> {
+    override fun write(out: DataOutput, value: MemberValue) {
+        out.writeUTF(value.name); out.writeUTF(value.owner); out.writeUTF(value.kind); out.writeUTF(value.signature)
+    }
+    override fun read(inp: DataInput) = MemberValue(inp.readUTF(), inp.readUTF(), inp.readUTF(), inp.readUTF())
+}
+
+object SourceDocExternalizer : Externalizer<SourceDocValue> {
+    override fun write(out: DataOutput, value: SourceDocValue) {
+        out.writeUTF(value.name)
+        out.writeInt(value.arity)
+        out.writeInt(value.names.size); value.names.forEach { out.writeUTF(it) }
+        out.writeBoolean(value.doc != null); if (value.doc != null) out.writeUTF(value.doc)
+    }
+    override fun read(inp: DataInput): SourceDocValue {
+        val name = inp.readUTF(); val arity = inp.readInt()
+        val names = List(inp.readInt()) { inp.readUTF() }
+        val doc = if (inp.readBoolean()) inp.readUTF() else null
+        return SourceDocValue(name, arity, names, doc)
+    }
+}

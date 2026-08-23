@@ -1,0 +1,95 @@
+package dev.ide.jvm
+
+/**
+ * Runs a Kotlin **library reified inline function** (`filterIsInstance<R>`, `filterIsInstanceTo<R, C>`, and any
+ * other `inline fun <reified R>` in a compiled facade) that cannot be dispatched reflectively — its JVM method
+ * body is a `reifiedOperationMarker` stub that throws when called directly, because the real type only exists
+ * after the compiler inlines it at the call site.
+ *
+ * This reproduces the compiler's reification transform at runtime: it INTERPRETS the function's bytecode on a
+ * dedicated [Vm] that (a) treats each `reifiedOperationMarker` as an instruction to substitute the concrete
+ * type argument into the following `INSTANCEOF`/`CHECKCAST`/`ANEWARRAY` (see [Interpreter]), and (b) bridges
+ * everything the body touches (the receiver, `java.util` collections, iterators) to the real runtime. One
+ * mechanism therefore covers every library reified inline, rather than a hand-written intrinsic per function.
+ *
+ * The [Vm]'s policy interprets only Kotlin **file facades** (classes whose simple name ends with `Kt`, where
+ * top-level and extension functions live, plus their `@JvmMultifileClass` parts) and bridges all other
+ * classes, so a reified facade function runs interpreted while its body's calls into `kotlin`/`java` stay real.
+ */
+/**
+ * Whether an interpreted [method] is the compiler's emission of Kotlin [kotlinName]. A host with
+ * `@kotlin.Metadata` access injects an authoritative matcher (reading the mangled JVM name the compiler
+ * recorded, as kotlin-reflect does); the built-in default reads only the name SHAPE (the inline value-class
+ * `name-<hash>` form) so the VM stays dependency-free when embedded standalone.
+ */
+fun interface JvmNameMatcher {
+    fun matches(method: VmMethodView, kotlinName: String): Boolean
+}
+
+class ReifiedInlineExecutor(
+    /** Extra class bytes (a project's library jars) tried before the host classpath — for a reified inline that
+     *  lives in a dependency rather than the standard library. */
+    extraSource: ClassBytesSource? = null,
+    private val loader: ClassLoader = ReifiedInlineExecutor::class.java.classLoader,
+    peerFactory: PeerFactory = AsmPeerFactory(),
+    /** How a VM method name is matched to a Kotlin name. Defaults to the shape check; a metadata-backed host
+     *  ([dev.ide.interp.compose.VmLibraryExecutor]) injects the authoritative resolver so the whole VM library
+     *  path resolves mangled names the one way. */
+    private val nameMatcher: JvmNameMatcher = JvmNameMatcher { m, k -> shapeNameMatches(m.name, k) },
+    /** Classes this executor should interpret IN ADDITION to Kotlin facades — the host's own interpret policy
+     *  (internal name form). A reified-inline body may `new` a non-facade class (e.g. a project Compose type)
+     *  that the host interprets in its main [Vm]; without this, that class bridges here (resolve → null →
+     *  bridgeConstruct → ClassNotFound) even though the main VM interprets it. Defaults to none (standalone). */
+    private val alsoInterpret: (String) -> Boolean = { false },
+) {
+    private val classpath = ClassBytesSource.fromClasspath(loader)
+
+    private val vm = Vm(
+        source = { name -> extraSource?.bytesFor(name) ?: classpath.bytesFor(name) },
+        policy = { name -> isKotlinFacade(name) || alsoInterpret(name) },
+        peerFactory = peerFactory,
+    )
+
+    /** A Kotlin file facade or one of its multifile parts (`CollectionsKt`, `CollectionsKt___CollectionsKt`) —
+     *  the only classes this executor interprets. Everything else is bridged to the real runtime. */
+    private fun isKotlinFacade(internalName: String): Boolean =
+        internalName.substringAfterLast('/').substringBefore('$').endsWith("Kt")
+
+    /**
+     * Invoke reified inline [name] on facade [ownerFqn], applying [reifiedTypes] (type-parameter name → the JVM
+     * internal name of the concrete type argument) to the body's reified operations. [args] is the full JVM
+     * argument list the static method expects (for an extension function the receiver is already [args]`[0]`).
+     *
+     * Returns a [Box] holding the result (which may legitimately be null), or null when this executor cannot run
+     * it: the facade is not on the classpath, no matching method exists, or the body uses a reified operation
+     * kind that is not modeled (a [VmUnsupportedException] from the interpreter). A genuine error thrown by the
+     * function itself propagates.
+     */
+    fun invoke(ownerFqn: String, name: String, reifiedTypes: Map<String, String>, args: List<Any?>): Box? {
+        val view = methodsFor(ownerFqn).firstOrNull {
+            it.isStatic && !it.isAbstract && nameMatcher.matches(it, name) && it.paramDescriptors.size == args.size
+        } ?: return null
+        return try {
+            Box(vm.withReifiedTypes(reifiedTypes) { view.invoke(null, args) })
+        } catch (e: VmUnsupportedException) {
+            null // an unmodeled reified kind / unbound type → let the caller fall back to its honest boundary
+        }
+    }
+
+    /** The interpreted static methods of [ownerFqn], plus those of its conventional `@JvmMultifileClass` part
+     *  (`<Facade>___<Facade>`) when the facade itself only delegates. */
+    private fun methodsFor(ownerFqn: String): List<VmMethodView> {
+        val facade = vm.interpretedMethods(ownerFqn)
+        val simple = ownerFqn.substringAfterLast('.')
+        val part = vm.interpretedMethods(ownerFqn + "___" + simple)
+        return facade + part
+    }
+
+    /** A result box so a legitimately-null return is distinct from "could not run" (a null [Box]). */
+    class Box(val value: Any?)
+}
+
+/** The dependency-free default: [jvmName] is Kotlin [kotlinName], allowing the inline value-class mangling
+ *  `name-<hash>` (the hash never contains `$`, so a `$` excludes the compiler synthetics). */
+internal fun shapeNameMatches(jvmName: String, kotlinName: String): Boolean =
+    jvmName == kotlinName || (jvmName.startsWith("$kotlinName-") && '$' !in jvmName)

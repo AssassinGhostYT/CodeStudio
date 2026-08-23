@@ -1,0 +1,342 @@
+package dev.ide.jvm
+
+import java.lang.reflect.Constructor
+import java.lang.reflect.Field
+import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Method
+import java.lang.reflect.Modifier
+import java.lang.reflect.Proxy
+import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * The boundary between interpreted code and classes the interpreter does not run (the platform and standard
+ * library, and any class the [Vm]'s policy excludes). Every call, field access, or construction the interpreter
+ * cannot resolve to a [VmClass] is routed here, so a host can mediate all access to the outside world at one
+ * point.
+ *
+ * Values crossing this boundary use the interpreter's conventions (see [Descriptors]). A [VmObject] cannot
+ * cross yet and is rejected; a [VmLambda] is wrapped in a real proxy of its functional interface.
+ */
+interface NativeBridge {
+    fun invokeStatic(owner: String, name: String, descriptor: String, args: List<Any?>): Any?
+    fun invokeVirtual(receiver: Any, name: String, descriptor: String, args: List<Any?>): Any?
+    fun getStatic(owner: String, name: String, descriptor: String): Any?
+    fun putStatic(owner: String, name: String, descriptor: String, value: Any?)
+    fun getField(receiver: Any, name: String, descriptor: String): Any?
+    fun putField(receiver: Any, name: String, descriptor: String, value: Any?)
+    fun construct(owner: String, descriptor: String, args: List<Any?>): Any?
+}
+
+/**
+ * A [NativeBridge] that forwards to the real JVM by reflection. It marshals arguments and results between the
+ * interpreter's representation and reflection: an `int` parameter is a Kotlin [Int] the reflection layer
+ * autoboxes; a `boolean` parameter is materialized from `0`/`1`; a returned `char` comes back as an [Int]. A
+ * [VmLambda] argument is wrapped in a [Proxy] of the target functional interface whose calls re-enter the
+ * interpreter. A [VmObject] argument has no real counterpart and is rejected.
+ */
+class ReflectiveBridge(
+    private val loader: ClassLoader = ReflectiveBridge::class.java.classLoader,
+    /** When set, an exception thrown while running an interpreted lambda invoked by platform code through a
+     *  [Proxy] is reported here and the proxied method returns a zero value, instead of propagating into the
+     *  platform caller. A preview host sets this so a buggy async callback (e.g. a `Runnable` a view posts to a
+     *  Looper, running outside the render's error boundary) degrades instead of crashing the process; a console
+     *  run leaves it null so failures propagate. */
+    private val proxyExceptionSink: ((Throwable) -> Unit)? = null,
+    /** When set, supplies the value a guarded proxy method returns after a failure (given the method, the real
+     *  arguments, and the error) — for a caller that cannot tolerate the type's zero value. A Compose measure
+     *  lambda whose zero (null `MeasureResult`) would NPE the layout pass hands back an empty result instead.
+     *  Return null to fall back to [zeroReturn]. Consulted after [proxyExceptionSink]. */
+    private val proxyFallback: ((java.lang.reflect.Method, Array<Any?>, Throwable) -> Any?)? = null,
+) : NativeBridge {
+
+    // Reflection resolution is deterministic given the class + name + descriptor and is repeated on every
+    // bridged call (a composable makes many per recomposition), so cache each lookup. Real classes are
+    // immutable, so the caches never need invalidation.
+    private val classCache = ConcurrentHashMap<String, Class<*>>()
+    private val paramClassCache = ConcurrentHashMap<String, Array<Class<*>>>()
+    private val paramDescCache = ConcurrentHashMap<String, List<String>>()
+    private val methodCache = ConcurrentHashMap<Class<*>, ConcurrentHashMap<String, MethodRef>>()
+    private val ctorCache = ConcurrentHashMap<Class<*>, ConcurrentHashMap<String, CtorRef>>()
+    private val fieldCache = ConcurrentHashMap<Class<*>, ConcurrentHashMap<String, Field>>()
+    private class MethodRef(val m: Method?)
+    private class CtorRef(val c: Constructor<*>?)
+
+    private fun loadClass(internal: String): Class<*> =
+        classCache.getOrPut(internal) { Class.forName(internal.replace('/', '.'), false, loader) }
+
+    /** Whether [internal] is loadable on the host at all — false for a project-only type (e.g. a newer Compose
+     *  class the bundled runtime lacks) that is interpreted, never bridged. */
+    private fun classLoadable(internal: String): Boolean =
+        classCache.containsKey(internal) || runCatching { loadClass(internal) }.isSuccess
+
+    /** Parameter [Class]es for a method descriptor, cached (the parse and class loads otherwise repeat per call). */
+    private fun paramClasses(descriptor: String): Array<Class<*>> =
+        paramClassCache.getOrPut(descriptor) { Descriptors.paramTypes(descriptor).map { classFor(it) }.toTypedArray() }
+
+    private fun paramDescs(descriptor: String): List<String> =
+        paramDescCache.getOrPut(descriptor) { Descriptors.paramTypes(descriptor) }
+
+    /** The method for (class, name+descriptor), resolved once and made accessible; null cached too. The RETURN
+     *  type disambiguates overloads with identical params: a class can declare two methods with the same name
+     *  and parameter types but different return types (Kotlin does — e.g. `RememberSaveableKt.rememberSaveable`
+     *  has `(…Function0;Composer;I)Object` AND `(…Function0;Composer;I)MutableState`), which the invoked
+     *  bytecode distinguishes by the full descriptor. Matching params-only would pick between them by
+     *  `Class.getDeclaredMethods()` order (unspecified, varies per JVM/ART run) — and invoking the wrong overload
+     *  (whose body casts its result, e.g. to `MutableState`) throws a `ClassCastException`. Falls back to a
+     *  params-only match when no return-type match exists (a covariant/bridge return the descriptor names more
+     *  precisely than the reflected method reports). */
+    private fun resolveMethod(cls: Class<*>, name: String, descriptor: String): Method? =
+        methodCache.getOrPut(cls) { ConcurrentHashMap() }.getOrPut(name + descriptor) {
+            val params = paramClasses(descriptor)
+            val ret = returnClass(descriptor)
+            // Prefer a return-type match; retry params-only only when the return type was known AND matched nothing.
+            val m = findMethod(cls, name, params, ret) ?: if (ret != null) findMethod(cls, name, params, null) else null
+            MethodRef(m?.also { runCatching { it.isAccessible = true } })
+        }.m
+
+    /** The real [Class] the [descriptor]'s return type names (`Void.TYPE` for `V`), or null when it isn't
+     *  loadable here — then return-type disambiguation is skipped and resolution falls back to params-only. */
+    private fun returnClass(descriptor: String): Class<*>? = runCatching {
+        val r = Descriptors.returnType(descriptor)
+        if (r == "V") Void.TYPE else classFor(r)
+    }.getOrNull()
+
+    /** The constructor for (class, descriptor), resolved once and made accessible; null cached too. */
+    private fun resolveConstructor(cls: Class<*>, descriptor: String): Constructor<*>? =
+        ctorCache.getOrPut(cls) { ConcurrentHashMap() }.getOrPut(descriptor) {
+            val pt = paramClasses(descriptor)
+            CtorRef(cls.declaredConstructors.firstOrNull { paramsMatch(it.parameterTypes, pt) }?.also { runCatching { it.isAccessible = true } })
+        }.c
+
+    /** The field [name] on [cls] or a supertype, resolved once. */
+    private fun resolveField(cls: Class<*>, name: String): Field =
+        fieldCache.getOrPut(cls) { ConcurrentHashMap() }.getOrPut(name) { findField(cls, name) }
+
+    /** The [Class] a single type descriptor names: primitive classes for primitives, loaded classes for refs. */
+    private fun classFor(descriptor: String): Class<*> = when (descriptor[0]) {
+        'I' -> Int::class.javaPrimitiveType!!
+        'J' -> Long::class.javaPrimitiveType!!
+        'F' -> Float::class.javaPrimitiveType!!
+        'D' -> Double::class.javaPrimitiveType!!
+        'Z' -> Boolean::class.javaPrimitiveType!!
+        'B' -> Byte::class.javaPrimitiveType!!
+        'C' -> Char::class.javaPrimitiveType!!
+        'S' -> Short::class.javaPrimitiveType!!
+        'L' -> loadClass(descriptor.substring(1, descriptor.length - 1))
+        '[' -> java.lang.reflect.Array.newInstance(classFor(descriptor.substring(1)), 0).javaClass
+        else -> error("bad type descriptor: $descriptor")
+    }
+
+    /** Convert an interpreter value into the form reflection expects for a parameter of [descriptor]. A lambda
+     *  passed through an Object-typed parameter (stored in a container, an AtomicReference) is proxied as its
+     *  OWN functional interface from the lambda's call site, since Object names no interface to implement. */
+    private fun marshalIn(value: Any?, descriptor: String): Any? = when {
+        value is VmLambda -> {
+            val target = if (descriptor == "Ljava/lang/Object;") "L${value.interfaceType};" else descriptor
+            // A host-absent interface (a project Compose type the bundled runtime lacks, e.g. foundation.style.Style):
+            // no host code can INVOKE the SAM — it holds no reference to the interface — so it can only store the
+            // value and hand it back to interpreted code. Pass the interpreted lambda through opaquely rather than
+            // fail building a Proxy of a class that isn't on the host. (A VmObject already passes through, below.)
+            if (target.startsWith("L") && !classLoadable(target.substring(1, target.length - 1))) value
+            else proxyFor(value, target)
+        }
+        descriptor == "Z" -> (value as Int) != 0
+        descriptor == "B" -> (value as Int).toByte()
+        descriptor == "C" -> (value as Int).toChar()
+        descriptor == "S" -> (value as Int).toShort()
+        else -> value // int/long/float/double pass as-is; references pass through
+    }
+
+    /** Convert a reflection result back to the interpreter's representation by the STATIC result type: a
+     *  primitive boolean/byte/char/short takes the computational-int form; a reference result passes through
+     *  as the real object (a peer handed back is resolved to the interpreted instance it stands for). */
+    private fun marshalOut(value: Any?, resultDescriptor: String): Any? = Marshalling.realToVm(value, resultDescriptor)
+
+    private fun marshalArgs(descriptor: String, args: List<Any?>): Array<Any?> =
+        paramDescs(descriptor).mapIndexed { i, d -> marshalIn(args[i], d) }.toTypedArray()
+
+    /** Interpreted objects and arrays are converted to their real forms before reaching the bridge; this guards
+     *  the invariant so a missed conversion fails clearly instead of reaching reflection as an interpreter type. */
+    private fun rejectVmObjects(args: List<Any?>) {
+        require(args.none { it is VmObject || it is VmArray }) {
+            "an interpreted value reached the bridge without conversion"
+        }
+    }
+
+    override fun invokeStatic(owner: String, name: String, descriptor: String, args: List<Any?>): Any? {
+        rejectVmObjects(args)
+        val m = resolveMethod(loadClass(owner), name, descriptor) ?: throw VmUnsupportedException("no static $owner.$name$descriptor")
+        return marshalOut(invoked { m.invoke(null, *marshalArgs(descriptor, args)) }, Descriptors.returnType(descriptor))
+    }
+
+    override fun invokeVirtual(receiver: Any, name: String, descriptor: String, args: List<Any?>): Any? {
+        if (receiver is VmObject) throw VmUnsupportedException("virtual call `$name` on an interpreted object requires a real peer")
+        rejectVmObjects(args)
+        val m = resolveMethod(receiver.javaClass, name, descriptor)
+            ?: throw VmUnsupportedException("no method $name$descriptor on ${receiver.javaClass.name}")
+        return marshalOut(invoked { m.invoke(receiver, *marshalArgs(descriptor, args)) }, Descriptors.returnType(descriptor))
+    }
+
+    override fun construct(owner: String, descriptor: String, args: List<Any?>): Any {
+        rejectVmObjects(args)
+        val ctor = resolveConstructor(loadClass(owner), descriptor)
+            ?: throw VmUnsupportedException("no constructor $owner$descriptor")
+        return invoked { ctor.newInstance(*marshalArgs(descriptor, args)) }!!
+    }
+
+    /** Run a reflective invocation, converting the exception a real method threw into a [VmException] so an
+     *  interpreted `try/catch` can match it by its real type. A [VmException] surfacing from nested interpreted
+     *  code (an interpreted lambda invoked by the platform) is rethrown as-is rather than wrapped again. */
+    private fun invoked(action: () -> Any?): Any? =
+        try {
+            action()
+        } catch (e: InvocationTargetException) {
+            when (val target = e.targetException) {
+                is VmException -> throw target
+                null -> throw e
+                else -> throw VmException(target)
+            }
+        }
+
+    override fun getStatic(owner: String, name: String, descriptor: String): Any? =
+        marshalOut(resolveField(loadClass(owner), name).get(null), descriptor)
+
+    override fun putStatic(owner: String, name: String, descriptor: String, value: Any?) {
+        resolveField(loadClass(owner), name).set(null, marshalIn(value, descriptor))
+    }
+
+    override fun getField(receiver: Any, name: String, descriptor: String): Any? =
+        marshalOut(resolveField(receiver.javaClass, name).get(receiver), descriptor)
+
+    override fun putField(receiver: Any, name: String, descriptor: String, value: Any?) {
+        resolveField(receiver.javaClass, name).set(receiver, marshalIn(value, descriptor))
+    }
+
+    /** A field [name] declared on [cls] or a supertype, made accessible (covers protected/private fields a
+     *  subclass reaches, which `getField` would not return). */
+    private fun findField(cls: Class<*>, name: String): java.lang.reflect.Field {
+        var c: Class<*>? = cls
+        while (c != null) {
+            c.declaredFields.firstOrNull { it.name == name }?.let { runCatching { it.isAccessible = true }; return it }
+            c = c.superclass
+        }
+        throw VmUnsupportedException("no field $name on ${cls.name}")
+    }
+
+    /**
+     * Wrap [lambda] in a real proxy of the functional interface named by [descriptor], so platform code that
+     * expects that interface can call it. Each abstract-method call marshals its arguments into the
+     * interpreter's representation, runs the lambda, and marshals the result back to the method's return type.
+     */
+    private fun proxyFor(lambda: VmLambda, descriptor: String): Any {
+        require(descriptor.startsWith("L")) { "a lambda argument must target an interface type, got $descriptor" }
+        val iface = loadClass(descriptor.substring(1, descriptor.length - 1))
+        require(iface.isInterface) { "${iface.name} is not a functional interface" }
+        return Proxy.newProxyInstance(loader, arrayOf(iface)) { proxy, method, callArgs ->
+            when (method.name) {
+                "toString" -> lambda.toString()
+                "hashCode" -> System.identityHashCode(lambda)
+                "equals" -> callArgs?.getOrNull(0) === proxy
+                else -> {
+                    val paramTypes = method.parameterTypes
+                    val vmArgs = (callArgs ?: emptyArray()).mapIndexed { i, a -> realArgToVm(a, paramTypes[i]) }
+                    // invokeSamReal (not invokeSam): the result crosses to platform code here, so an interpreted
+                    // object return (e.g. a `DisposableEffectResult` from an inlined `onDispose { }`) is converted
+                    // to its real peer — else the raw VmObject reaches the caller and ClassCastExceptions there.
+                    val guarded = proxyExceptionSink != null || proxyFallback != null
+                    if (!guarded) marshalReturn(lambda.invokeSamReal(vmArgs), method.returnType)
+                    else try {
+                        marshalReturn(lambda.invokeSamReal(vmArgs), method.returnType)
+                    } catch (t: Throwable) {
+                        proxyExceptionSink?.invoke(t)
+                        proxyFallback?.invoke(method, callArgs ?: emptyArray(), t) ?: zeroReturn(method.returnType)
+                    }
+                }
+            }
+        }
+    }
+
+    /** A type-correct zero for [returnType], returned when a guarded proxy call fails (see [proxyExceptionSink]). */
+    private fun zeroReturn(returnType: Class<*>): Any? = when (returnType) {
+        Void.TYPE -> null
+        Boolean::class.javaPrimitiveType -> false
+        Char::class.javaPrimitiveType -> ' '
+        Byte::class.javaPrimitiveType -> 0.toByte()
+        Short::class.javaPrimitiveType -> 0.toShort()
+        Int::class.javaPrimitiveType -> 0
+        Long::class.javaPrimitiveType -> 0L
+        Float::class.javaPrimitiveType -> 0f
+        Double::class.javaPrimitiveType -> 0.0
+        else -> null
+    }
+
+    /** Convert a real argument passed from platform code by its declared parameter type: a primitive position
+     *  takes the computational form, a reference position only unwraps a peer. */
+    private fun realArgToVm(value: Any?, type: Class<*>): Any? =
+        if (type.isPrimitive) Marshalling.realPrimToVm(value) else Marshalling.realToVm(value)
+
+    /** Convert an interpreter value back to what a proxy method of [returnType] must return. */
+    private fun marshalReturn(value: Any?, returnType: Class<*>): Any? = when (returnType) {
+        Void.TYPE -> null
+        Boolean::class.javaPrimitiveType -> (value as Int) != 0
+        Char::class.javaPrimitiveType -> (value as Int).toChar()
+        Byte::class.javaPrimitiveType -> (value as Int).toByte()
+        Short::class.javaPrimitiveType -> (value as Int).toShort()
+        else -> value
+    }
+
+    /**
+     * A method [name] with matching [paramTypes], preferring one declared on a public class or interface whose
+     * members are actually reachable, so it can be invoked without [Method.setAccessible]. A concrete platform
+     * class is often not public (`java.util.stream.IntPipeline`) or not exported by its module
+     * (`sun.java2d.SunGraphics2D`, the runtime class of every `Graphics2D` Swing hands a `paintComponent`), so
+     * the public supertype method it overrides (`IntStream.map`, `java.awt.Graphics2D.setRenderingHint`) is
+     * used instead: reflection resolves the declaring class, and invoking a supertype's method still
+     * dispatches virtually to the real one. Falls back to any matching method up the hierarchy.
+     */
+    private fun findMethod(cls: Class<*>, name: String, paramTypes: Array<Class<*>>, returnType: Class<*>?): Method? {
+        publicMethod(cls, name, paramTypes, returnType)?.let { return it }
+        var c: Class<*>? = cls
+        while (c != null) {
+            c.declaredMethods.firstOrNull { matches(it, name, paramTypes, returnType) }?.let { return it }
+            c = c.superclass
+        }
+        return cls.methods.firstOrNull { matches(it, name, paramTypes, returnType) }
+    }
+
+    /** A matching method declared on a public, reachable type in [cls]'s hierarchy (superclasses and
+     *  interfaces), or null. */
+    private fun publicMethod(cls: Class<*>, name: String, paramTypes: Array<Class<*>>, returnType: Class<*>?): Method? {
+        val seen = HashSet<Class<*>>()
+        val queue = ArrayDeque<Class<*>>()
+        queue.add(cls)
+        while (queue.isNotEmpty()) {
+            val c = queue.removeFirst()
+            if (!seen.add(c)) continue
+            if (Modifier.isPublic(c.modifiers)) {
+                c.declaredMethods.firstOrNull {
+                    Modifier.isPublic(it.modifiers) && matches(it, name, paramTypes, returnType) && openable(it)
+                }?.let { return it }
+            }
+            c.superclass?.let { queue.add(it) }
+            c.interfaces.forEach { queue.add(it) }
+        }
+        return null
+    }
+
+    /** Whether [m] can actually be invoked from here, decided by trying the access rather than by reading
+     *  modifiers: a `public` method of a `public` class in a package its module does not export
+     *  (`sun.java2d.SunGraphics2D.setRenderingHint`, `sun.nio.cs.UTF_8.newDecoder`) passes every modifier check
+     *  but throws `InaccessibleObjectException` here and `IllegalAccessException` from `invoke`. Asking the
+     *  runtime keeps this correct on ART too, which enforces no module boundaries and answers true throughout.
+     *  Resolution is cached per (class, name+descriptor), so the probe runs once per call site. */
+    private fun openable(m: Method): Boolean = runCatching { m.isAccessible = true }.isSuccess
+
+    /** Name + parameter types must match; the [returnType] must match too when given (null = don't constrain it,
+     *  the params-only fallback). This is what separates two overloads that differ ONLY by return type. */
+    private fun matches(m: Method, name: String, paramTypes: Array<Class<*>>, returnType: Class<*>?): Boolean =
+        m.name == name && paramsMatch(m.parameterTypes, paramTypes) && (returnType == null || m.returnType == returnType)
+
+    private fun paramsMatch(actual: Array<Class<*>>, expected: Array<Class<*>>): Boolean =
+        actual.size == expected.size && actual.indices.all { actual[it] == expected[it] }
+}

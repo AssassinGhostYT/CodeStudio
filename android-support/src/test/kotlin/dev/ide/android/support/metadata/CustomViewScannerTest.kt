@@ -1,0 +1,122 @@
+package dev.ide.android.support.metadata
+
+import dev.ide.testkit.TestJars
+import dev.ide.testkit.withTempDir
+import org.objectweb.asm.Opcodes
+import java.nio.file.Files
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+class CustomViewScannerTest {
+
+    private val PUBLIC = Opcodes.ACC_PUBLIC
+    private val ABSTRACT = Opcodes.ACC_PUBLIC or Opcodes.ACC_ABSTRACT
+
+    @Test
+    fun findsLibraryViewSubclassesByFqnAndDetectsViewGroups() {
+        // android.view.View / ViewGroup are not in the jar (they live in android.jar / the framework); the
+        // scanner walks whatever ancestry it can see, so a class extending View directly is found.
+        val jar = TestJars.buildJar {
+            asmClass("com/google/android/material/button/MaterialButton", "android/widget/Button", PUBLIC)
+            asmClass("com/example/MyView", "android/view/View", PUBLIC)
+            asmClass("com/example/MyLayout", "android/view/ViewGroup", PUBLIC)
+        }
+
+        val widgets = CustomViewScanner.scan(listOf(jar))
+        val byTag = widgets.associateBy { it.tag }
+
+        assertTrue("com.example.MyView" in byTag, "direct View subclass should be found by FQN")
+        assertEquals(false, byTag["com.example.MyView"]!!.isViewGroup)
+        assertTrue("com.example.MyLayout" in byTag, "ViewGroup subclass should be found")
+        assertEquals(true, byTag["com.example.MyLayout"]!!.isViewGroup, "ViewGroup subclass should be flagged")
+    }
+
+    @Test
+    fun seedsFrameworkBaseClassesAbsentFromJars() {
+        // The realistic shape: a library view extends a framework base class (android.widget.Button) that is
+        // NOT packaged in the jar. Only the framework-widget seed lets the scanner recognise it as a View.
+        val jar = TestJars.buildJar {
+            asmClass("com/google/android/material/button/MaterialButton", "android/widget/Button", PUBLIC)
+            asmClass("com/example/MyFrame", "android/widget/FrameLayout", PUBLIC)
+        }
+        val seed = mapOf("Button" to false, "FrameLayout" to true)
+
+        val none = CustomViewScanner.scan(listOf(jar)) // no seed → framework ancestry invisible
+        assertTrue(none.isEmpty(), "without the framework seed nothing resolves: ${none.map { it.tag }}")
+
+        val byTag = CustomViewScanner.scan(listOf(jar), seed).associateBy { it.tag }
+        assertTrue("com.google.android.material.button.MaterialButton" in byTag, "seeded View subclass found")
+        assertEquals(false, byTag["com.google.android.material.button.MaterialButton"]!!.isViewGroup)
+        assertEquals(true, byTag["com.example.MyFrame"]!!.isViewGroup, "FrameLayout descendant is a ViewGroup")
+    }
+
+    @Test
+    fun resolvesViewAncestryAcrossJars() {
+        // appcompat.jar: AppCompatButton extends the framework View.
+        val appcompat = TestJars.buildJar {
+            asmClass("androidx/appcompat/widget/AppCompatButton", "android/view/View", PUBLIC)
+        }
+        // material.jar: MaterialButton extends AppCompatButton (defined in the *other* jar).
+        val material = TestJars.buildJar {
+            asmClass("com/google/android/material/button/MaterialButton", "androidx/appcompat/widget/AppCompatButton", PUBLIC)
+        }
+
+        val tags = CustomViewScanner.scan(listOf(appcompat, material)).map { it.tag }
+        assertTrue("com.google.android.material.button.MaterialButton" in tags,
+            "a subclass whose View ancestor lives in another jar must still be recognised")
+        assertTrue("androidx.appcompat.widget.AppCompatButton" in tags)
+    }
+
+    @Test
+    fun scanAllReportsTheViewAncestryBySimpleName() {
+        val appcompat = TestJars.buildJar {
+            asmClass("androidx/appcompat/widget/AppCompatButton", "android/widget/Button", PUBLIC)
+        }
+        val material = TestJars.buildJar {
+            asmClass("com/google/android/material/button/MaterialButton", "androidx/appcompat/widget/AppCompatButton", PUBLIC)
+        }
+        val supers = CustomViewScanner.scanAll(listOf(appcompat, material), mapOf("Button" to false)).superNames
+        // Chain by simple name: MaterialButton → AppCompatButton → (framework) Button. Lets app: attr lookup
+        // walk a view's ancestry across jars; the framework simple name terminates it.
+        assertEquals("AppCompatButton", supers["MaterialButton"])
+        assertEquals("Button", supers["AppCompatButton"])
+    }
+
+    @Test
+    fun excludesFrameworkAbstractInnerAndNonViewClasses() {
+        val jar = TestJars.buildJar {
+            // Framework package — covered by SDK metadata, must be excluded.
+            asmClass("android/widget/TextView", "android/view/View", PUBLIC)
+            // Abstract custom view — not directly usable as a tag.
+            asmClass("com/example/AbstractView", "android/view/View", ABSTRACT)
+            // Inner class — not a usable tag.
+            asmClass("com/example/Outer\$Inner", "android/view/View", PUBLIC)
+            // Not a View at all.
+            asmClass("com/example/Helper", "java/lang/Object", PUBLIC)
+        }
+
+        val tags = CustomViewScanner.scan(listOf(jar)).map { it.tag }
+        assertFalse("android.widget.TextView" in tags, "framework views are excluded")
+        assertFalse("com.example.AbstractView" in tags, "abstract views are excluded")
+        assertFalse(tags.any { it.contains('$') }, "inner classes are excluded")
+        assertFalse("com.example.Helper" in tags, "non-View classes are excluded")
+    }
+
+    @Test
+    fun cachedReusesScanUntilFingerprintChanges() = withTempDir("cvs") { tmp ->
+        val jar = TestJars.buildJar {
+            asmClass("com/example/MyView", "android/view/View", PUBLIC)
+        }
+        val cache = tmp.resolve("cache/views.txt")
+
+        val first = CustomViewScanner.cached(listOf(jar), cache)
+        assertTrue(Files.isRegularFile(cache), "cache file is written")
+        assertEquals(listOf("com.example.MyView"), first.map { it.tag })
+
+        // Second call with the same (unchanged) jar reads the cache and yields the same result.
+        val second = CustomViewScanner.cached(listOf(jar), cache)
+        assertEquals(first.map { it.tag }, second.map { it.tag })
+    }
+}

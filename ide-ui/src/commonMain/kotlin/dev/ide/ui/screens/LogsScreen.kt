@@ -1,0 +1,304 @@
+package dev.ide.ui.screens
+
+import dev.ide.ui.theme.Ide
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import dev.ide.ui.backend.FileActions
+import dev.ide.ui.backend.IdeBackend
+import dev.ide.ui.backend.UiLogEntry
+import dev.ide.ui.components.PeekTimestampReveal
+import dev.ide.ui.components.clipForClipboard
+import dev.ide.ui.generated.resources.Res
+import dev.ide.ui.generated.resources.logs_copy_all
+import dev.ide.ui.generated.resources.logs_empty
+import dev.ide.ui.generated.resources.logs_filter_all
+import dev.ide.ui.generated.resources.logs_filter_all_plugins
+import dev.ide.ui.generated.resources.logs_filter_errors
+import dev.ide.ui.generated.resources.logs_filter_hint
+import dev.ide.ui.generated.resources.logs_filter_warnings
+import dev.ide.ui.generated.resources.logs_no_match
+import dev.ide.ui.generated.resources.logs_pause
+import dev.ide.ui.generated.resources.logs_resume
+import dev.ide.ui.generated.resources.logs_title
+import dev.ide.ui.generated.resources.refresh
+import dev.ide.ui.generated.resources.share
+import dev.ide.ui.icons.CaIcons
+import dev.ide.ui.theme.Ca
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
+
+/** Which severities the Logs viewer shows. */
+internal enum class LogFilter(val labelRes: StringResource, val keep: (String) -> Boolean) {
+    All(Res.string.logs_filter_all, { true }),
+    Warnings(Res.string.logs_filter_warnings, { it == "WARN" || it == "ERROR" }),
+    Errors(Res.string.logs_filter_errors, { it == "ERROR" }),
+}
+
+/**
+ * The in-app Logs viewer: a live tail of the logging facade's ring buffer — editor, analysis, indexing,
+ * build, and crash activity — so a user can see *what actually went wrong* when a feature "does nothing".
+ * Newest first; filter by severity or text; tap a record with an exception to expand its stack trace; copy
+ * the whole view or share it as a file ([FileActions.share]). Opened from the More menu.
+ */
+@Composable
+fun LogsScreen(
+    backend: IdeBackend,
+    fileActions: FileActions,
+    modifier: Modifier = Modifier,
+) {
+    val state = rememberLogsScreenState(backend)
+    val clipboard = LocalClipboardManager.current
+    val shown = state.shown
+
+    Column(modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        // Header: title + actions
+        Row(
+            Modifier.fillMaxWidth().padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Icon(CaIcons.terminal, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(Res.string.logs_title), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text("${shown.size}", color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 4.dp))
+            Box(Modifier.weight(1f))
+            HeaderAction(if (state.paused) CaIcons.play else CaIcons.stop, if (state.paused) stringResource(Res.string.logs_resume) else stringResource(Res.string.logs_pause), state.paused) { state.togglePaused() }
+            HeaderAction(CaIcons.refresh, stringResource(Res.string.refresh)) { state.refresh() }
+            HeaderAction(CaIcons.copy, stringResource(Res.string.logs_copy_all)) {
+                clipboard.setText(AnnotatedString(clipForClipboard(shown.joinToString("\n\n") { renderForCopy(it) })))
+            }
+            if (fileActions.canShare) {
+                HeaderAction(CaIcons.share, stringResource(Res.string.share)) { state.export(fileActions::share) }
+            }
+        }
+
+        // Search field
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Ca.radius.control))
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(Ca.radius.control))
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Icon(CaIcons.search, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+            Box(Modifier.weight(1f)) {
+                if (state.query.isEmpty()) Text(stringResource(Res.string.logs_filter_hint), color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.bodyLarge)
+                BasicTextField(
+                    value = state.query,
+                    onValueChange = state::updateQuery,
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+
+        // Severity filter chips
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            LogFilter.entries.forEach { f -> FilterChip(stringResource(f.labelRes), f == state.filter) { state.selectFilter(f) } }
+        }
+
+        // Per-plugin filter chips — only shown once some record carries a source (a plugin logged something).
+        if (state.sources.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                FilterChip(stringResource(Res.string.logs_filter_all_plugins), state.activeSource == null) { state.selectSource(null) }
+                state.sources.forEach { s ->
+                    FilterChip(s, state.activeSource == s) { state.selectSource(if (state.activeSource == s) null else s) }
+                }
+            }
+        }
+
+        Box(Modifier.fillMaxWidth().height(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
+
+        // Records
+        if (shown.isEmpty()) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(
+                    if (state.all.isEmpty()) stringResource(Res.string.logs_empty) else stringResource(Res.string.logs_no_match),
+                    color = MaterialTheme.colorScheme.outline,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        } else {
+            PeekTimestampReveal(TimeSlotWidth, Modifier.weight(1f).fillMaxWidth()) { reveal, slotPx ->
+                LazyColumn(Modifier.fillMaxSize().padding(horizontal = 8.dp)) {
+                    itemsIndexed(
+                        shown,
+                        key = { index, it -> "$index:${it.timestampMs}:${it.tag}:${it.message.hashCode()}" },
+                    ) { _, it -> LogRow(it, reveal, slotPx) }
+                }
+            }
+        }
+    }
+}
+
+/** Width reserved for the peek-on-drag timestamp gutter (mobile); sized for the `codeSmall` time label. */
+private val TimeSlotWidth = 96.dp
+
+@Composable
+private fun LogRow(entry: UiLogEntry, reveal: (() -> Float)?, slotPx: Float) {
+    var expanded by remember(entry) { mutableStateOf(false) }
+    val color = levelColor(entry.level)
+    val hasTrace = entry.stackTrace != null
+    Box(Modifier.fillMaxWidth()) {
+        Column(
+            Modifier.fillMaxWidth()
+                .padding(vertical = 2.dp)
+                .let { if (hasTrace) it.clickable { expanded = !expanded } else it }
+                .padding(horizontal = 6.dp, vertical = 5.dp)
+                .let { if (reveal != null) it.graphicsLayer { translationX = reveal() } else it },
+        ) {
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Desktop shows the timestamp inline; on mobile it's the peek overlay below instead.
+                if (reveal == null) Text(entry.timeLabel, color = MaterialTheme.colorScheme.outline, style = Ide.type.codeSmall)
+                LevelBadge(entry.level, color)
+                Column(Modifier.weight(1f)) {
+                    Text(entry.message, color = MaterialTheme.colorScheme.onSurface, style = Ide.type.codeSmall)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        entry.source?.let { SourceBadge(it) }
+                        Text(
+                            entry.tag,
+                            color = MaterialTheme.colorScheme.outline,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+                if (hasTrace) {
+                    Icon(
+                        if (expanded) CaIcons.chevronDown else CaIcons.chevronRight,
+                        null,
+                        Modifier.size(14.dp).padding(top = 2.dp),
+                        tint = MaterialTheme.colorScheme.outline,
+                    )
+                }
+            }
+            if (expanded && entry.stackTrace != null) {
+                Text(
+                    entry.stackTrace!!,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = Ide.type.codeSmall,
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp, start = 4.dp)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Ca.radius.sm)).padding(8.dp),
+                )
+            }
+        }
+        // Mobile: the timestamp parked off the left edge (top/start matched to the row's first line above),
+        // sliding in as the row body is dragged right.
+        if (reveal != null && entry.timeLabel.isNotEmpty()) {
+            Text(
+                entry.timeLabel,
+                color = MaterialTheme.colorScheme.outline,
+                style = Ide.type.codeSmall,
+                maxLines = 1,
+                modifier = Modifier.align(Alignment.TopStart)
+                    .padding(top = 7.dp, start = 6.dp)
+                    .graphicsLayer { translationX = reveal() - slotPx },
+            )
+        }
+    }
+}
+
+/** A small pill naming the plugin that emitted a record, so plugin output is visually distinct from IDE logs. */
+@Composable
+private fun SourceBadge(source: String) {
+    Box(
+        Modifier.background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(Ca.radius.sm)).padding(horizontal = 5.dp, vertical = 1.dp),
+    ) {
+        Text(source, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, maxLines = 1)
+    }
+}
+
+@Composable
+private fun LevelBadge(level: String, color: Color) {
+    Box(
+        Modifier.background(color.copy(alpha = 0.16f), RoundedCornerShape(Ca.radius.sm)).padding(horizontal = 5.dp, vertical = 1.dp),
+    ) {
+        Text(level, color = color, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun HeaderAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, active: Boolean = false, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    Box(
+        Modifier.size(32.dp)
+            .background(if (active) MaterialTheme.colorScheme.primaryContainer else Color.Transparent, RoundedCornerShape(Ca.radius.sm))
+            .clickable(interaction, indication = null, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, label, Modifier.size(17.dp), tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun FilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Ca.radius.pill))
+            .border(1.dp, if (selected) Color.Transparent else MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(Ca.radius.pill))
+            .clickable(MutableInteractionSource(), indication = null, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 5.dp),
+    ) {
+        Text(
+            label,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+@Composable
+private fun levelColor(level: String): Color = when (level) {
+    "ERROR" -> MaterialTheme.colorScheme.error
+    "WARN" -> Ide.colors.warning
+    "INFO" -> Ide.colors.info
+    else -> MaterialTheme.colorScheme.outline
+}
+
+private fun renderForCopy(e: UiLogEntry): String = buildString {
+    val origin = e.source?.let { "$it/" } ?: ""
+    append("${e.timeLabel} [${e.level}] $origin${e.tag} (${e.thread}): ${e.message}")
+    e.stackTrace?.let { append('\n').append(it) }
+}

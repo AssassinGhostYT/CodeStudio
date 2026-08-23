@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?><!-- The package/namespace comes from android.namespace in build.gradle.kts (AGP 9.x). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Maven dependency resolution downloads artifacts from Maven Central (the Dependencies screen). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Package visibility (Android 11+/API 30): the android "Run" installs the user's APK and then
+         launches it. getLaunchIntentForPackage / queryIntentActivities are filtered unless the target is
+         visible; the installer already sees what it installs, but declaring the MAIN/LAUNCHER query makes
+         that resolution robust (and is the standard fix for getLaunchIntentForPackage returning null). -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
+    <!-- The android "Run" builds a debug APK and installs it via PackageInstaller; the OS shows its own
+         install-confirmation. The user must also grant "install unknown apps" to CodeAssist (we deep-link
+         to that Settings screen when it isn't granted yet). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- The build/run daemon (:build process) promotes to a foreground service while a build or program is
+         running, so the OS won't kill it if the user switches away mid-build (docs/build-process-isolation.md).
+         "specialUse": a code build/run is a long-running, user-initiated task that fits no other FGS category
+         (not data sync / media / location / …); the justification is declared on the <service> below for Play.
+         POST_NOTIFICATIONS (API 33+) lets the ongoing "Building…" notification show. Being a runtime permission
+         on API 33+, it must be REQUESTED at runtime (declaring it here alone is not enough); the app asks at the
+         FIRST build (BuildNotificationGate in :ide-ui), and without the grant builds run in-process instead of
+         the separate daemon. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- The bundled aapt2/zipalign (lib*.so) must be EXTRACTED into nativeLibraryDir at install so they can
+         be exec'd (ART forbids executing binaries from anywhere else). That extraction is driven by
+         packaging.jniLibs.useLegacyPackaging=true in build.gradle.kts (which sets extractNativeLibs on the
+         merged manifest); declaring it here too is redundant, so AGP owns it. -->
+    <!-- largeHeap: this app runs kotlinc/D8/R8 in-process (no `java` to fork on ART), so it needs far more
+         heap than a normal app. largeHeap raises the per-app cap (device-dependent, often 2-4x) — the single
+         biggest lever against OOM during on-device builds; the dexer also bounds its parallelism to the heap
+         (see DexConcurrency). -->
+    <application
+            android:allowBackup="true"
+            android:largeHeap="true"
+            android:icon="@mipmap/ic_launcher"
+            android:roundIcon="@mipmap/ic_launcher_round"
+            android:label="@string/app_name"
+            android:supportsRtl="true"
+            android:networkSecurityConfig="@xml/network_security_config"
+            android:theme="@android:style/Theme.Material.NoActionBar">
+        <!-- AdMob application id, injected per build type (build.gradle.kts): debug/profile use Google's TEST
+             app id, release uses the real one. Required by the ads SDK, which crashes on initialize() if absent. -->
+        <meta-data
+                android:name="com.google.android.gms.ads.APPLICATION_ID"
+                android:value="${admobAppId}" />
+        <activity
+                android:name=".MainActivity"
+                android:exported="true"
+                android:launchMode="singleTop"
+                android:windowSoftInputMode="adjustResize"
+                android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation|uiMode|density|fontScale|smallestScreenSize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- "Open with CodeAssist": another app hands us a single file to import into the project. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="text/*" />
+                <data android:mimeType="application/json" />
+                <data android:mimeType="application/xml" />
+            </intent-filter>
+            <!-- "Share to CodeAssist": receive a shared file from another app. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="text/*" />
+                <data android:mimeType="application/json" />
+                <data android:mimeType="application/xml" />
+            </intent-filter>
+            <!-- Import a shared CodeAssist project package (.caproj) via "Open with". Best-effort: matches
+                 the application/x-caproj MIME and file:// paths by extension; content:// URIs don't expose an
+                 extension, so those are imported via the in-app Import button instead. Deliberately only VIEW
+                 (open-with), NOT SEND — a SEND filter would list CodeAssist in its own .caproj share sheet. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="application/x-caproj" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:host="*" />
+                <data android:mimeType="*/*" />
+                <data android:pathPattern=".*\\.caproj" />
+            </intent-filter>
+        </activity>
+
+        <!-- Phase-2 build-process-isolation skeleton (docs/build-process-isolation.md): the build/run daemon
+             runs in its own ":build" OS process so a build OOM or a user-program crash kills only it, not
+             the IDE. A plain bound service for now; the foreground service + notification is Phase 5. -->
+        <service
+                android:name=".daemon.BuildDaemonService"
+                android:process=":build"
+                android:exported="false"
+                android:foregroundServiceType="specialUse">
+            <!-- Play requires a justification for specialUse FGS. Declare the use case here; you also enter
+                 it in the Play Console at submission (Google reviews specialUse case-by-case). -->
+            <property
+                    android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                    android:value="Compiling and running the user's on-device software project — a long-running, user-initiated build that must continue if the user navigates away from the IDE." />
+        </service>
+
+        <!-- Real-view layout-preview renderer in its own ":preview" OS process (layout-preview Step 3): it
+             inflates + draws arbitrary library/user View code off the IDE's heap, so a render crash/OOM kills
+             only this process (the client falls back to in-process rendering). A plain bound service. -->
+        <service
+                android:name=".preview.PreviewRenderService"
+                android:process=":preview"
+                android:exported="false" />
+
+        <!-- Compose @Preview renderer, sharing the ":preview" OS process (docs/compose-preview-isolation.md):
+             it interprets + renders the lowered preview off-screen (VirtualDisplay + Presentation) against the
+             bundled Compose, so a runaway recomposition or crash pegs/kills only :preview and the IDE stays
+             responsive (the client links a DeathRecipient and falls back to the in-process host). -->
+        <service
+                android:name=".preview.ComposePreviewSessionService"
+                android:process=":preview"
+                android:exported="false" />
+
+        <!-- Java AWT/Swing program runner, sharing the ":preview" OS process: it interprets the user's program
+             with its java.awt/javax.swing references remapped onto the owned :awt-toolkit, paints the result
+             into a Bitmap, and streams the frames to the Run console. A GUI program is arbitrary code with a
+             UI thread, so an infinite loop in `paintComponent` must peg only this process; the IDE links a
+             DeathRecipient and ends the run if it dies. Console runs stay in ":build" — only GUI runs come
+             here, because only they need a surface to draw on. -->
+        <service
+                android:name=".preview.SwingRunSessionService"
+                android:process=":preview"
+                android:exported="false" />
+
+        <!-- App-log sink: the debug-only log bridge woven into a built app (a SEPARATE untrusted app) binds to
+             this over Binder and pushes its logs to the IDE's Logcat console tab. A LocalSocket can't cross the
+             untrusted-app boundary (SELinux denies connectto), so this is exported and resolved by the SINK
+             action. Unauthenticated by design (the built app is signed with a different key); the channel gates
+             every frame on the currently-launched package, so a stray bind contributes nothing. -->
+        <service
+                android:name=".applog.AppLogSinkService"
+                android:exported="true">
+            <intent-filter>
+                <action android:name="dev.ide.applog.SINK" />
+            </intent-filter>
+        </service>
+
+        <!-- Exposes a single project file to other apps as a content:// URI for Share / "Open with",
+             without FileUriExposedException. Folder-level browsing is handled by the DocumentsProvider below. -->
+        <provider
+                android:name="androidx.core.content.FileProvider"
+                android:authorities="${applicationId}.fileprovider"
+                android:exported="false"
+                android:grantUriPermissions="true">
+            <meta-data
+                    android:name="android.support.FILE_PROVIDER_PATHS"
+                    android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- Surfaces the whole app directory as a browsable, read/write root in the system Files app and
+             any SAF file manager — so users can drop in icons/layouts/assets and edit project files from a
+             file manager without the All-Files-Access permission (issues #1010 / #1016). The platform requires
+             this provider be exported and protected by the system-only MANAGE_DOCUMENTS permission. -->
+        <provider
+                android:name=".ProjectsDocumentsProvider"
+                android:authorities="${applicationId}.documents"
+                android:exported="true"
+                android:grantUriPermissions="true"
+                android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+    </application>
+
+</manifest>

@@ -1,0 +1,125 @@
+rootProject.name = "codeassist"
+
+pluginManagement {
+    // build-logic hosts plugins that depend on AGP (the `dev.ide.kotlinc-art` Kotlin-compiler-on-ART
+    // instrumentation) — they must share AGP's classloader, which buildSrc can't provide.
+    includeBuild("build-logic")
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+        google()
+    }
+}
+plugins {
+    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
+}
+
+dependencyResolutionManagement {
+    // Modules must not declare their own repositories; all resolution flows through here.
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        mavenCentral()
+        google() // Compose Multiplatform / AndroidX artifacts
+        // :kotlin-compiler-deps only: the unshaded `-for-ide` compiler and the un-relocated IntelliJ platform
+        // it needs. Not on Maven Central; JetBrains-only repos. Scoped so normal resolution never consults them.
+        maven("https://redirector.kotlinlang.org/maven/kotlin-ide-plugin-dependencies") {
+            content { includeGroup("org.jetbrains.kotlin") }
+        }
+        maven("https://packages.jetbrains.team/maven/p/ij/intellij-dependencies") {
+            content {
+                includeGroupByRegex("org\\.jetbrains\\.intellij.*")
+                includeGroup("org.jetbrains.kotlin")
+                includeModule("org.jetbrains.kotlinx", "kotlinx-coroutines-core-jvm") // JB coroutines fork (…-intellij-N)
+            }
+        }
+        maven("https://cache-redirector.jetbrains.com/intellij-repository/releases") {
+            content {
+                includeGroupByRegex("com\\.jetbrains\\.intellij.*")
+                includeModule("org.jetbrains.kotlinx", "kotlinx-coroutines-core-jvm") // JB coroutines fork
+            }
+        }
+        // AdMob mediation (:ide-android only). The Google-Maven adapter artifacts (com.google.ads.mediation:*)
+        // pull each network's underlying SDK, and Pangle/Mintegral host theirs in their OWN Maven repos (not on
+        // Maven Central or Google Maven — per Google's mediation setup docs). Scoped by group so normal
+        // resolution never consults them. (Meta's SDK IS on Maven Central, so it needs no extra repo.)
+        maven("https://artifact.bytedance.com/repository/pangle") {
+            content { includeGroupByRegex("com\\.pangle\\..*") }
+        }
+        maven("https://dl-maven-android.mintegral.com/repository/mbridge_android_sdk_oversea") {
+            content { includeGroupByRegex("com\\.mbridge\\..*") }
+        }
+    }
+}
+
+// Dependency direction points downward only (acyclic) — see README.md / docs.
+//   platform-core  <- vfs-api <- project-model-api <- { build-api, language-api }
+//   project-model-api <- deps-api
+//   language-api <- { index-api, analysis-api } ; index-api <- analysis-api (diagnostics/analyzers/fixes)
+//   language-api <- block-api ; block-api <- block-impl (projectional/block editor)
+//   ide-ui (Compose Multiplatform UI) <- { ide-desktop (JVM launcher), ide-android (Android launcher) }
+
+// The pure-Kotlin/JVM framework — builds and tests with no Android SDK or Compose toolchain.
+include(
+    ":platform-core",
+    ":vfs-api",
+    ":project-model-api",
+    ":project-model-impl",
+    ":build-api",
+    ":build-engine",
+    ":android-support",
+    ":android-sdk-metadata", // build-time generator: SDK attrs.xml + android.jar → bundled metadata asset
+    ":applog-runtime", // tiny Java runtime injected into DEBUG apps: a ContentProvider that forwards the app's logs to the IDE
+
+    ":language-api",
+    ":index-api",
+    ":index-impl",
+    ":analysis-api",
+    ":analysis-impl",
+    ":lang-jdt",
+    ":lang-java", // IntelliJ-PSI Java LanguageBackend: IntelliJ Java parser + native resolution/inference (replaces lang-jdt in the editor)
+    ":lang-xml",
+    ":lang-kotlin-index", // pure, compiler-free Kotlin symbol/index layer shared by the Kotlin editor backend
+    ":kotlin-compiler-deps", // the ONE unshaded Kotlin compiler + IntelliJ platform dependency set (no embeddable)
+    ":intellij-psi-host", // the ONE shared IntelliJ platform env both lang-kotlin + lang-xml parse against
+    ":lang-kotlin", // editor-only Kotlin LanguageBackend (PSI parse + our own symbols/inference/completion)
+    ":lang-dart", // Dart & Flutter language backend
+    ":lang-ksp", // KSP2 source generation: KspSourceGenerator (SourceGenerator SPI) runs KotlinSymbolProcessing over a module → generated sources
+
+    ":decompiler", // navigate-into-library: read a classpath class → attached source, else decompile (Vineflower for Java, @Metadata stub for Kotlin)
+    ":jvm-build", // JVM-language build system: JavaBuildSystem/JavaPlugin compose lang-jdt+lang-kotlin compile tasks over build-engine
+    ":interp-core", // on-device Kotlin interpreter: tree-walks lang-kotlin's ResolvedTree (Compose interpreter, step 3)
+    ":jvm-interp", // PoC: standalone .class bytecode-interpreting VM + Android/native bridge seam (Play dynamic-code compliance spike)
+    ":deps-api",
+    ":deps-impl",
+    ":analytics-api", // opt-in usage-analytics SPI (event model + AnalyticsService/AnalyticsSink ports)
+    ":analytics-impl", // the engine: durable batch buffer + Supabase PostgREST sink + scrubbed crash reporter
+    ":block-api",
+    ":block-impl",
+    ":plugin-api",  // UI extensibility SPI: the lean action model (IdeAction/ActionGroup + places) + EPs
+    ":plugin-impl", // ActionManager: resolves UI_ACTION_EP/ACTION_GROUP_EP into places/menus, dispatches
+    ":agent-api",   // agentic-coding SPI: provider-neutral LLM client + AgentTool + AgentWorkspace engine port
+    ":agent-impl",  // the agent engine: OkHttp/SSE transport, Anthropic/OpenAI/Gemini providers, loop, built-in tools
+    ":agent-mcp",   // Model Context Protocol server: exposes the agent's tools over stdio JSON-RPC to external clients
+    ":layout-preview-api",  // owned XML-layout preview: render contracts (RCanvas/RenderNode/Renderer), android-free
+    ":layout-preview-impl", // the preview engine: resource value resolver, inflater, built-in renderers, ASM bridge remapper
+    ":awt-toolkit", // owned java.awt/javax.swing over RCanvas + the ASM remapper that points a program at it
+    ":bench-support", // test-only: shared regression/benchmark harness (consumed via testImplementation)
+    ":test-support",  // test-only: shared fixtures/infrastructure (temp dirs, stubs, jars, contexts) — auto-wired
+)
+
+// The IDE shells (Compose Multiplatform + AGP). These apply the Android Gradle plugin / Compose KMP plugin,
+// which require the Android SDK even to *configure*. CI sets CI_CORE_ONLY=true to build just the framework
+// above (the part with the unit tests + regression suites) without provisioning an Android SDK; a normal
+// local build leaves it unset and includes everything. Nothing in the framework depends on these, so
+// excluding them is safe and keeps the acyclic graph intact.
+if (System.getenv("CI_CORE_ONLY") != "true") {
+    include(
+        ":interp-compose", // Compose bridge + render surface (KMP: desktop+android) — needs the Compose plugin
+        ":ide-ui-api", // neutral IdeBackend port + DTOs + UI-contribution model, shared by :ide-ui and :ide-core
+        ":ide-ui",
+        ":agent-ui", // the AI agent's Compose UI as a self-contained plugin module (chat panel + provider sheet + permission overlay)
+        ":ide-core",
+        ":ide-desktop",
+        ":ide-android",
+    )
+}

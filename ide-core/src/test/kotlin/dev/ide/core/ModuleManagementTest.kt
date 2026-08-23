@@ -1,0 +1,132 @@
+package dev.ide.core
+
+import dev.ide.testkit.withTempDir
+import dev.ide.model.ModuleDependency
+import java.nio.file.Files
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+
+/**
+ * Exercises module management surfaced to the Modules screen: enumerating creatable module types, creating
+ * and removing a module, module-on-module dependencies (incl. cycle prevention), and custom repositories.
+ * Runs over the pure-Java demo (core ← util ← app), so no Android SDK is needed.
+ */
+class ModuleManagementTest {
+
+    @Test
+    fun availableTypesIncludeJavaAndAndroid() = withTempDir("ide-modtypes") { dir ->
+        IdeServices.bootstrapJavaDemo(dir).use { ide ->
+            val ids = ide.moduleService.availableModuleTypes().map { it.id }
+            assertTrue("java-lib" in ids, "java-lib is creatable")
+            assertTrue("android-app" in ids && "android-lib" in ids, "android types are creatable")
+            val javaLib = ide.moduleService.availableModuleTypes().first { it.id == "java-lib" }
+            assertTrue(javaLib.languageLevels.isNotEmpty() && javaLib.defaultFacets.isEmpty(), "java-lib has levels and no facets")
+        }
+        dir.toFile().deleteRecursively()
+    }
+
+    @Test
+    fun createModuleAddsItWithSourceDirs() = withTempDir("ide-createmod") { dir ->
+        IdeServices.bootstrapJavaDemo(dir).use { ide ->
+            val r = ide.moduleService.createModule("newlib", "java-lib", "JAVA_17", emptyMap())
+            assertTrue(r.success, r.message)
+            assertTrue(ide.modules().any { it.name == "newlib" }, "module is in the model")
+            assertTrue(ide.moduleService.configurableModules().any { it.name == "newlib" }, "module is in the settings list")
+            val mod = ide.modules().first { it.name == "newlib" }
+            val srcDir = mod.sourceSets.flatMap { it.contentRoots }.firstOrNull()
+            assertNotNull(srcDir, "the default source set has a content root")
+            assertTrue(Files.isDirectory(java.nio.file.Paths.get(srcDir.dir.path)), "its directory exists on disk")
+
+            // duplicate + invalid names are rejected
+            assertFalse(ide.moduleService.createModule("newlib", "java-lib", null, emptyMap()).success, "duplicate rejected")
+            assertFalse(ide.moduleService.createModule("1bad name", "java-lib", null, emptyMap()).success, "invalid name rejected")
+        }
+        dir.toFile().deleteRecursively()
+    }
+
+    @Test
+    fun androidModuleMaterializesOnlyMainRoots() {
+        // A freshly-created Android module declares main/debug/release source sets, but only `main`'s primary
+        // source dir + res are laid down on disk — the empty variant sets and optional roots (a second-language
+        // dir, assets) stay uncreated so the tree isn't cluttered with a dozen empty folders.
+        withTempDir("ide-androidmod") { dir ->
+        IdeServices.bootstrapJavaDemo(dir).use { ide ->
+            val r = ide.moduleService.createModule("feature", "android-lib", "JAVA_17", emptyMap())
+            assertTrue(r.success, r.message)
+            val mod = ide.modules().first { it.name == "feature" }
+            val moduleRoot = assertNotNull(ide.moduleRoot(mod), "the module root resolves")
+            assertTrue(Files.isDirectory(moduleRoot.resolve("src/main/java")), "src/main/java is materialized")
+            assertTrue(Files.isDirectory(moduleRoot.resolve("src/main/res")), "src/main/res is materialized")
+            assertFalse(Files.exists(moduleRoot.resolve("src/debug")), "the empty debug source set is not created")
+            assertFalse(Files.exists(moduleRoot.resolve("src/release")), "the empty release source set is not created")
+            assertFalse(Files.exists(moduleRoot.resolve("src/main/kotlin")), "the empty second-language dir is not created")
+            assertFalse(Files.exists(moduleRoot.resolve("src/main/assets")), "the empty assets dir is not created")
+        }
+        }
+    }
+
+    @Test
+    fun moduleDependencyAddRemoveAndCycleGuard() = withTempDir("ide-moddep") { dir ->
+        IdeServices.bootstrapJavaDemo(dir).use { ide ->
+            // app already depends on util (→ core). app may additionally depend on core, but not the reverse.
+            val targets = ide.dependencies.moduleDependencyTargets("app")
+            assertTrue("core" in targets, "core is an eligible target for app")
+            assertFalse("util" in targets, "util is already a dependency, so excluded")
+            assertFalse("app" in targets, "a module is never its own target")
+
+            // core → app would cycle (app transitively depends on core) and is blocked.
+            assertFalse(ide.dependencies.addModuleDependency("core", "app", "implementation").success, "cycle is rejected")
+
+            // app → core is fine.
+            assertTrue(ide.dependencies.addModuleDependency("app", "core", "implementation").success)
+            assertTrue(ide.modules().first { it.name == "app" }.dependencies
+                .filterIsInstance<ModuleDependency>().any { it.target.value == "core" }, "the module dep was recorded")
+
+            // removable via removeDependency (target name as the coordinate).
+            assertTrue(ide.dependencies.removeDependency("app", "core"))
+            assertFalse(ide.modules().first { it.name == "app" }.dependencies
+                .filterIsInstance<ModuleDependency>().any { it.target.value == "core" }, "the module dep was removed")
+
+            // an `api` scope is exported; `implementation` is not (Gradle semantics, derived from scope).
+            assertTrue(ide.dependencies.addModuleDependency("app", "core", "api").success)
+            val edge = ide.modules().first { it.name == "app" }.dependencies
+                .filterIsInstance<ModuleDependency>().first { it.target.value == "core" }
+            assertTrue(edge.exported, "an api module dependency is exported")
+        }
+        dir.toFile().deleteRecursively()
+    }
+
+    @Test
+    fun removeModuleDropsDependersEdges() = withTempDir("ide-rmmod") { dir ->
+        IdeServices.bootstrapJavaDemo(dir).use { ide ->
+            // util depends on core; removing core must also drop util's edge onto it.
+            assertTrue(ide.moduleService.removeModule("core"))
+            assertFalse(ide.modules().any { it.name == "core" }, "core is gone from the model")
+            assertFalse(ide.modules().first { it.name == "util" }.dependencies
+                .filterIsInstance<ModuleDependency>().any { it.target.value == "core" }, "util's edge onto core was dropped")
+        }
+        dir.toFile().deleteRecursively()
+    }
+
+    @Test
+    fun customRepositoriesPersistAndDedup() = withTempDir("ide-repos") { dir ->
+        IdeServices.bootstrapJavaDemo(dir).use { ide ->
+            val builtins = ide.dependencies.repositories()
+            assertTrue(builtins.all { it.builtin } && builtins.size >= 2, "the built-in repos are present and locked")
+
+            assertTrue(ide.dependencies.addRepository("Internal", "https://repo.example.com/maven"))
+            assertTrue(ide.dependencies.repositories().any { !it.builtin && it.url == "https://repo.example.com/maven" })
+
+            assertFalse(ide.dependencies.addRepository("dup", "https://repo.example.com/maven/"), "a trailing-slash duplicate is rejected")
+            assertFalse(ide.dependencies.addRepository("bad", "ftp://nope"), "a non-http URL is rejected")
+            assertFalse(ide.dependencies.removeRepository(builtins.first().url), "a built-in repo can't be removed")
+
+            assertTrue(ide.dependencies.removeRepository("https://repo.example.com/maven"))
+            assertTrue(ide.dependencies.repositories().none { it.url == "https://repo.example.com/maven" })
+        }
+        dir.toFile().deleteRecursively()
+    }
+}

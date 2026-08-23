@@ -1,0 +1,34 @@
+{
+  "version": "1.0.0",
+  "agents": [
+    {
+      "id": "opencode",
+      "name": "OpenCode AI Agent",
+      "version": "1.17.8",
+      "description": "OpenCode web server for AI code editing",
+      "authors": ["Anomaly"],
+      "license": "MIT",
+      "distribution": {
+        "binary": {
+          "linux-aarch64": {
+            "archiveUrl": "https://github.com/anomalyco/opencode/releases/download/v1.17.8/opencode-linux-arm64.tar.gz",
+            "sha256": "cfb34a6a9a40f9a2adb0d0f3ab387b97307823d075572bfb54a553228adcebbd",
+            "checksumSource": "official-release",
+            "sizeBytes": 54570182,
+            "architecture": "aarch64",
+            "os": "linux",
+            "license": "MIT",
+            "sourceUrl": "https://github.com/anomalyco/opencode/releases/tag/v1.17.8",
+            "verified": true,
+            "verificationStatus": "verified",
+            "dependencies": ["glibc", "proot", "ubuntu-aarch64-rootfs"],
+            "relativePath": "agents/opencode/1.17.8/opencode",
+            "cmd": "./opencode",
+            "args": ["web"]
+          }
+        }
+      }
+    }
+  ],
+  "extensions": []
+}

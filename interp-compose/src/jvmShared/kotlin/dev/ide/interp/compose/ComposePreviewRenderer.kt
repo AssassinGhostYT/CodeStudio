@@ -1,0 +1,260 @@
+package dev.ide.interp.compose
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.currentComposer
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalInspectionMode
+import dev.ide.interp.InterpProfile
+import dev.ide.interp.Interpreter
+import dev.ide.interp.InterpreterException
+import dev.ide.interp.InterpreterHooks
+import dev.ide.interp.LibraryExecutor
+import dev.ide.interp.PreviewResourceResolver
+import dev.ide.lang.kotlin.interp.ResolvedClass
+import dev.ide.lang.kotlin.interp.ResolvedFunction
+import java.util.logging.Logger
+
+/**
+ * A `@PreviewParameter` provider resolved for rendering: the provider to instantiate ([providerClass] when it
+ * is project source, else [providerFqn] for a library class) and how many of its sample values to render.
+ */
+data class PreviewParameterBinding(
+    val providerClass: ResolvedClass?,
+    val providerFqn: String?,
+    val limit: Int,
+)
+
+/**
+ * Renders a lowered `@Preview` composable as real Compose UI — the device render surface for the editor's
+ * Compose preview (see `docs/compose-interpreter.md`). It hosts the interpreter + [ComposeDispatcher] +
+ * [ComposeRuntime] inside the IDE's own composition (so it gets a real `Composer`, window, and Recomposer):
+ * [Render] threads the ambient composer into the interpreter, which walks the [ResolvedFunction] tree and
+ * composes its `Text`/`Column`/… calls into the live tree. State reads recompose through the real runtime.
+ *
+ * The interpreter half is device-proven (`ComposeLambdaSpikeTest`, `ComposeRecompositionSpikeTest`); this
+ * packages it as a reusable composable the preview panel embeds.
+ */
+class ComposePreviewRenderer(
+    /** The project's library [ClassLoader] (device preview) — see [ComposeDispatcher.loader]. Null on desktop
+     *  (library composables resolve against the IDE's bundled Compose-for-Desktop). */
+    private val loader: ClassLoader? = null,
+
+    /** When true (the editor default), a single unsupported/failed construct is SKIPPED so the rest of the
+     *  preview still renders. Pass false to make the first failure THROW to [Render]'s boundary → [onError] →
+     *  a visible error instead of a silently-empty preview (used by Learn lessons, whose snippets we author
+     *  and want to fail loudly if a construct doesn't dispatch). */
+    private val tolerateGaps: Boolean = true,
+
+    /** Resolves the previewed project's resources (`R.string.x`, `stringResource(…)`, …). Null (desktop/lessons)
+     *  leaves resource access degrading as before. */
+    private val resources: PreviewResourceResolver? = null,
+
+    /** The preview sandbox (see [dev.ide.interp.InterpreterHooks]): mediates the interpreter's escapes into
+     *  real code, file/network/Android-system/process calls per the project's settings. Null = unrestricted.
+     *  The host owns the instance (a [dev.ide.interp.PreviewSandboxPolicy]) so it can read the findings. */
+    private val hooks: InterpreterHooks? = null,
+
+    /** Executes library classes only the project's jars carry — the bytecode VM ([VmLibraryExecutor]) — so
+     *  dependency code runs interpreted instead of through a DexClassLoader. Null → such classes keep the
+     *  honest "cannot load" boundary. */
+    private val libraryExecutor: LibraryExecutor? = null,
+) {
+
+    private val dispatcher =
+        ComposeDispatcher(loader = loader, resources = resources, libraryExecutor = libraryExecutor)
+    private val runtime = ComposeRuntime(dispatcher)
+    private val log = Logger.getLogger("ComposePreviewRenderer")
+
+    /**
+     * Compose the preview [entry] (looked-up source calls resolved against [program]) into the current slot.
+     * If the interpreter fails at runtime (an unsupported construct, an unresolved call, a dispatch error),
+     * the failure is caught and handed to [onError] — so the panel shows an investigable error view instead
+     * of letting the exception abort the IDE's composition. The restart group is balanced first
+     * ([ComposeRuntime]) so the slot table stays consistent.
+     *
+     * Content-lambda errors (exceptions thrown inside lazy content like `LazyColumn { items { … } }`) are
+     * swallowed by [ComposeDispatcher] so they don't kill the host thread, but the first one is captured in
+     * [ComposeDispatcher.contentLambdaError]. After every composition pass a [SideEffect] reads that field,
+     * resets it, and calls [onPartialError] (null = no error this pass, non-null = partial render failure) so
+     * the host can surface a chip-level warning without replacing the (partial) preview content.
+     */
+    /**
+     * The sample values a `@PreviewParameter` [binding] yields (instantiating its provider against [program]/
+     * [classes]). Non-composable: the host calls this once (in a `remember`) to learn how many entries to lay
+     * out, then renders one [Render] per value. Empty when the provider can't be built (the host falls back to
+     * a single argument-less render).
+     */
+    fun parameterValues(
+        program: Map<String, ResolvedFunction>,
+        classes: List<ResolvedClass>,
+        binding: PreviewParameterBinding,
+    ): List<Any?> = runCatching {
+        Interpreter(
+            program,
+            dispatcher,
+            runtime,
+            classLoader = loader,
+            classes = classes,
+            tolerateGaps = tolerateGaps,
+            resources = resources,
+            hooks = hooks,
+            libraryFallback = libraryExecutor
+        )
+            .previewParameterValues(binding.providerClass, binding.providerFqn, binding.limit)
+    }.getOrElse {
+        log.warning("Compose preview @PreviewParameter resolution failed: ${it::class.simpleName}: ${it.message}")
+        emptyList()
+    }
+
+    @Composable
+    fun Render(
+        entry: ResolvedFunction,
+        program: Map<String, ResolvedFunction>,
+        classes: List<ResolvedClass> = emptyList(),
+        /** Arguments to invoke [entry] with — a single `@PreviewParameter` sample value, or empty for a plain
+         *  preview. The host wraps each value's Render in a distinct `key(...)` so their slots don't collide. */
+        args: List<Any?> = emptyList(),
+        onError: @Composable (Throwable) -> Unit = {},
+        onPartialError: (Throwable?) -> Unit = {},
+    ) {
+        // Live edit: the lowerer REUSES the ResolvedFunction instance for a function whose text is unchanged, so
+        // the set of functions that actually changed since the last render is exactly those whose instance now
+        // differs — an identity diff of consecutive program maps. A changed function always gets a fresh instance
+        // (no false negatives → no stale body); if the pipeline ever copies instances, everything just looks
+        // dirty and re-runs (still correct — state survives via the edit-stable call-site keys). First render:
+        // empty (a fresh composition skips nothing anyway).
+        val prevProgram = remember { arrayOfNulls<Map<String, ResolvedFunction>>(1) }
+        val dirtyCallees = remember(program) {
+            val prev = prevProgram[0]
+            (if (prev == null) emptySet() else program.keys.filterTo(HashSet()) { program[it] !== prev[it] })
+                .also { prevProgram[0] = program }
+        }
+        // Single-instance storage for top-level `val`/`var`s, REMEMBERED with no key so it OUTLIVES the interpreter
+        // below: `remember(program, classes)` rebuilds the Interpreter whenever program/classes identity churns
+        // (the isolated `:preview` render re-supplies them across recompositions), and a fresh per-interpreter map
+        // would re-mint a `staticCompositionLocalOf { }` in a top-level `val` per interpreter — breaking project
+        // CompositionLocal identity (`provides`/`.current` land on different instances → "No X provided", the grey
+        // out-of-process custom-theme preview). Sharing the store keeps a top-level val's one instance stable.
+        val topLevelStore = remember { HashMap<String, Any?>() }
+        val interpreter = remember(program, classes) {
+            // tolerateGaps: a single unsupported construct skips rather than blanking the whole preview (the
+            // editor default); a lesson passes false so a gap surfaces as a visible error instead of a blank.
+            Interpreter(
+                program,
+                dispatcher,
+                runtime,
+                classLoader = loader,
+                classes = classes,
+                tolerateGaps = tolerateGaps,
+                dirtyCallees = dirtyCallees,
+                resources = resources,
+                hooks = hooks,
+                libraryFallback = libraryExecutor,
+                topLevelPropertyStore = topLevelStore,
+            )
+        }
+        // Phase label for the profiler: the very first composition, an edit that dirtied some functions
+        // (live-edit re-render), or a plain re-render. State-driven recompositions of a single child scope are
+        // measured separately (they don't re-run Render — see ComposeRuntime's updateScope trace).
+        val firstPass = remember { booleanArrayOf(true) }
+        val phase = when {
+            firstPass[0] -> "first"
+            dirtyCallees.isNotEmpty() -> "liveEdit"
+            else -> "render"
+        }
+        firstPass[0] = false
+        // Runaway-recomposition breaker: a library composable that keeps invalidating itself (writing a state it
+        // reads during composition — e.g. a preview-overlay library that walks the LIVE host view's semantics)
+        // recomposes nonstop and freezes the IDE. [ComposeDispatcher] detects that on the content-lambda path and
+        // fires [onRunaway]; here that flips a state THIS composable reads, so on the next pass we DON'T compose
+        // the interpreter subtree — removing (disposing) the offending composable so its effects/state-writes
+        // stop and the loop ends. Reset per program so an edit retries. The render then reports the failure.
+        val aborted = remember(program) { mutableStateOf(false) }
+        DisposableEffect(dispatcher) {
+            val listener = { aborted.value = true }
+            dispatcher.addRunawayListener(listener)
+            onDispose { dispatcher.removeRunawayListener(listener) }
+        }
+        if (aborted.value) {
+            onError(InterpreterException("preview stopped: runaway recomposition (a library kept invalidating the composition, e.g. by writing state it reads while composing). Remove or guard that composable."))
+            return
+        }
+        // A @Preview with a REQUIRED, non-nullable parameter that [args] doesn't supply (no `@PreviewParameter`,
+        // no default) can't be invoked safely: the interpreter would bind it to `null`, which then NPEs deep in a
+        // library's MEASURE/DRAW pass (e.g. `LazyColumn(contentPadding = null)` — `PaddingValues` is non-null),
+        // and that pass runs OUTSIDE this composition try/catch (in the host view's layout/draw), so it crashes
+        // the IDE rather than failing the preview. Android Studio likewise won't render such a preview. Surface a
+        // clear error during composition (caught here) instead. Only a confidently non-nullable, defaultless,
+        // uncovered, non-vararg parameter trips this — a nullable one keeps working (null is a valid value), and
+        // an untyped one is left alone (never over-fires on a well-formed preview, which has no such parameter).
+        val unsatisfied = entry.params.drop(args.size).filter { it.default == null && !it.vararg && it.type?.nullable == false }
+        if (unsatisfied.isNotEmpty()) {
+            val names = unsatisfied.joinToString(", ") { "`${it.name}: ${it.type?.qualifiedName?.substringAfterLast('.') ?: "?"}`" }
+            onError(InterpreterException("preview `${entry.name}` needs a value for parameter $names — a @Preview parameter must be annotated @PreviewParameter or have a default (it can't be called with a missing non-null argument)"))
+            return
+        }
+        // We're inside the IDE's composition: thread its composer, then drive the preview through its own
+        // restart group so state changes recompose just the preview subtree.
+        dispatcher.composer = currentComposer
+        // Render under LocalInspectionMode = true, exactly as Android Studio's @Preview / ComposeViewAdapter do.
+        // Inspection-aware components then behave for tooling instead of for a live device: a Popup / Dialog /
+        // DropdownMenu composes its content INLINE rather than opening a real OS window (which the in-composition
+        // preview has no host window for — it froze/threw), AndroidView shows a placeholder, and animations
+        // settle to their target. Without it, `DropdownMenu(expanded = true)` tried to open a real popup window
+        // and hung the preview. The try/catch lives INSIDE the provider (Compose forbids it AROUND a composable
+        // call like CompositionLocalProvider); `invokeComposable` itself is a plain function, so wrapping it is
+        // fine.
+        var failure: Throwable? = null
+        CompositionLocalProvider(LocalInspectionMode provides true) {
+            failure = try {
+                // The preview root is never skipped (restartable=false → always re-runs): it only recomposes when
+                // state IT read changed, in which case it must run. Skipping is a win for the CHILD composables it
+                // invokes (each routed through the interpreter's restartable=returnsUnit path), not the root itself.
+                InterpProfile.trace("interp.render", phase) {
+                    runtime.invokeComposable(
+                        entry.name.hashCode(),
+                        restartable = false,
+                        force = false,
+                        args = emptyList()
+                    ) {
+                        interpreter.call(entry, args)
+                    }
+                }
+                null
+            } catch (t: Throwable) {
+                // Surface the real cause, not a reflection `InvocationTargetException` wrapper (belt-and-suspenders
+                // for any ITE that reaches here from a non-dispatch reflective path — constructor/getter).
+                val real = unwrapInvocationTarget(t)
+                log.warning("Compose preview render failed: ${real::class.simpleName}: ${real.message}")
+                real
+            }
+        }
+        // After each composition pass, drain the content-lambda error (LazyColumn/Scaffold bodies that threw
+        // mid-subcompose, outside this try/catch). Reset the field so the NEXT pass starts clean; always call
+        // onPartialError so the host knows when the error clears (null) after a fix.
+        SideEffect {
+            val partial = dispatcher.contentLambdaError?.let { unwrapInvocationTarget(it) }
+            if (partial != null) {
+                log.warning("Compose preview partial render error: ${partial::class.simpleName}: ${partial.message}")
+                dispatcher.contentLambdaError = null
+            }
+            onPartialError(partial)
+        }
+        val f = failure
+        if (f != null) onError(f)
+    }
+}
+
+/** Peel [java.lang.reflect.InvocationTargetException] wrappers to the innermost real cause, so a preview error
+ *  shows the underlying exception (a user `NullPointerException`, `IllegalStateException`, …) with its message
+ *  and stack — not the opaque reflection wrapper. */
+private fun unwrapInvocationTarget(thrown: Throwable): Throwable {
+    var cur = thrown
+    while (cur is java.lang.reflect.InvocationTargetException) cur =
+        cur.targetException ?: cur.cause ?: return cur
+    return cur
+}

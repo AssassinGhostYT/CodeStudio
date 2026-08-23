@@ -1,0 +1,269 @@
+package dev.ide.ui.icons
+
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.unit.dp
+
+/**
+ * The custom rounded line-icon set, recreated as Compose [ImageVector]s on
+ * a 24-grid (stroke 1.7, round caps/joins). Each vector is drawn in opaque black so callers can recolor
+ * it with `Icon(tint = …)`. Multi-shape glyphs (a circle + a stroke, etc.) are composed from sub-paths;
+ * circles/rounded-rects are emitted as SVG arc paths so one parser handles everything.
+ */
+object CaIcons {
+    private class Sub(val d: String, val filled: Boolean)
+
+    private fun s(d: String) = Sub(d, false)
+    private fun f(d: String) = Sub(d, true)
+
+    private fun num(v: Float): String =
+        if (v == v.toLong().toFloat()) v.toLong().toString() else v.toString()
+
+    /** A full circle as an SVG arc path (two semicircle arcs). */
+    private fun circle(cx: Float, cy: Float, r: Float, filled: Boolean = false): Sub {
+        val d = "M${num(cx - r)} ${num(cy)} a ${num(r)} ${num(r)} 0 1 0 ${num(2 * r)} 0 " +
+            "a ${num(r)} ${num(r)} 0 1 0 ${num(-2 * r)} 0 Z"
+        return Sub(d, filled)
+    }
+
+    private fun roundRect(x: Float, y: Float, w: Float, h: Float, rx: Float, filled: Boolean = false): Sub {
+        val d = "M${num(x + rx)} ${num(y)} h ${num(w - 2 * rx)} a ${num(rx)} ${num(rx)} 0 0 1 ${num(rx)} ${num(rx)} " +
+            "v ${num(h - 2 * rx)} a ${num(rx)} ${num(rx)} 0 0 1 ${num(-rx)} ${num(rx)} " +
+            "h ${num(-(w - 2 * rx))} a ${num(rx)} ${num(rx)} 0 0 1 ${num(-rx)} ${num(-rx)} " +
+            "v ${num(-(h - 2 * rx))} a ${num(rx)} ${num(rx)} 0 0 1 ${num(rx)} ${num(-rx)} Z"
+        return Sub(d, filled)
+    }
+
+    private fun build(name: String, vararg subs: Sub): ImageVector {
+        val b = ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f)
+        for (sub in subs) {
+            val nodes = PathParser().parsePathString(sub.d).toNodes()
+            if (sub.filled) {
+                b.addPath(nodes, fill = SolidColor(Color.Black))
+            } else {
+                b.addPath(
+                    nodes,
+                    stroke = SolidColor(Color.Black),
+                    strokeLineWidth = 1.7f,
+                    strokeLineCap = StrokeCap.Round,
+                    strokeLineJoin = StrokeJoin.Round,
+                )
+            }
+        }
+        return b.build()
+    }
+
+    val chevronRight = build("chevron-right", s("M9 6l6 6-6 6"))
+    val chevronLeft = build("chevron-left", s("M15 6l-6 6 6 6"))
+    val chevronDown = build("chevron-down", s("M6 9l6 6 6-6"))
+    val chevronUp = build("chevron-up", s("M6 15l6-6 6 6"))
+    /** Fullscreen / expand: opposite corner brackets (top-left + bottom-right). */
+    val expand = build("expand", s("M10 4H4v6"), s("M14 20h6v-6"))
+    /** Exit fullscreen / collapse: opposite corner brackets pointing inward. */
+    val collapse = build("collapse", s("M4 10h6V4"), s("M20 14h-6v6"))
+    val caretRight = build("caret-right", f("M10 7l5 5-5 5z"))
+    val caretDown = build("caret-down", f("M7 10l5 5 5-5z"))
+    val close = build("close", s("M6 6l12 12M18 6L6 18"))
+    val check = build("check", s("M5 12.5l4.5 4.5L19 6.5"))
+    val plus = build("plus", s("M12 5v14M5 12h14"))
+    val search = build("search", circle(11f, 11f, 6.5f), s("M16 16l4.5 4.5"))
+    val command = build(
+        "command",
+        s("M8 8a2.5 2.5 0 1 0-2.5 2.5H18a2.5 2.5 0 1 1-2.5 2.5V8.5A2.5 2.5 0 1 1 18 11H6a2.5 2.5 0 1 0 2.5 2.5V8z"),
+    )
+    val play = build("play", f("M8 5.5l11 6.5-11 6.5z"))
+    val save = build(
+        "save",
+        s("M5 5h10l4 4v10H5Z"), // body with a folded top-right corner
+        s("M9 5v4h5V5"),        // write-protect slot
+        s("M8 19v-6h8v6"),      // label area
+    )
+    val stop = build("stop", roundRect(7f, 7f, 10f, 10f, 2.5f, filled = true))
+    val copy = build(
+        "copy",
+        roundRect(8.5f, 8.5f, 12f, 12f, 2.5f),                                          // front sheet
+        s("M15.5 8.5V6a2.5 2.5 0 0 0-2.5-2.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5"), // back sheet
+    )
+    val terminal = build("terminal", roundRect(3.5f, 4.5f, 17f, 15f, 3f), s("M7 9l3 2.5L7 14M12.5 14.5h4"))
+    val gear = build(
+        "gear",
+        // A proper cog: a toothed ring (rounded tooth corners as small arcs) plus the hub circle.
+        s("M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"),
+        circle(12f, 12f, 3f),
+    )
+    val folder = build("folder", s("M3.5 7.5a2 2 0 0 1 2-2h3l2 2h6a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2z"))
+    val folderOpen = build(
+        "folder-open",
+        s("M3.5 7.5a2 2 0 0 1 2-2h3l2 2h6a2 2 0 0 1 2 2v1h-13l-2 6.5"),
+        s("M4.5 18.5h12.8l2.2-7H6.7z"),
+    )
+    val file = build(
+        "file",
+        s("M6.5 3.5h7l5 5v10a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 5 18.5v-13A1.5 1.5 0 0 1 6.5 3.5z"),
+        s("M13 3.5V8.5h5"),
+    )
+    val docText = build(
+        "doc-text",
+        s("M6.5 3.5h7l5 5v10a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 5 18.5v-13A1.5 1.5 0 0 1 6.5 3.5z"),
+        s("M13 3.5V8.5h5M8.5 12.5h7M8.5 15.5h7"),
+    )
+    val ellipsis = build("ellipsis", circle(5.5f, 12f, 1.4f, true), circle(12f, 12f, 1.4f, true), circle(18.5f, 12f, 1.4f, true))
+    val error = build("error", circle(12f, 12f, 8.5f), s("M9 9l6 6M15 9l-6 6"))
+    val warning = build("warning", s("M12 4.5l8.5 14.5h-17z"), s("M12 10v4.5"), circle(12f, 17f, 0.6f, true))
+    val info = build("info", circle(12f, 12f, 8.5f), s("M12 11v5.5"), circle(12f, 8f, 0.7f, true))
+    val dot = build("dot", circle(12f, 12f, 3.5f, true))
+    val lightbulb = build(
+        "lightbulb",
+        s("M8.5 14a5 5 0 1 1 7 0c-.8.8-1.2 1.4-1.3 2.5h-4.4c-.1-1.1-.5-1.7-1.3-2.5z"),
+        s("M9.7 19.5h4.6M10.3 21.5h3.4"),
+    )
+    val refresh = build("refresh", s("M19 7a8 8 0 1 0 1.5 5M19 4v3.5h-3.5"))
+    /** A clock face with hands — relative "last opened" timestamps. */
+    val clock = build("clock", circle(12f, 12f, 8.5f), s("M12 7.5V12l3 2"))
+    /** A crescent moon — the night-mode toggle. */
+    val moon = build("moon", f("M12 3 a 9 9 0 1 0 9 9 a 7 7 0 0 1 -9 -9 z"))
+    val undo = build("undo", s("M4 12h8.5a5.5 5.5 0 0 1 5.5 5.5"), s("M8 8l-4 4 4 4"))
+    val redo = build("redo", s("M20 12h-8.5a5.5 5.5 0 0 0-5.5 5.5"), s("M16 8l4 4-4 4"))
+    val arrowRight = build("arrow-right", s("M5 12h13M13 6l6 6-6 6"))
+    /** Arrow into a tray — import files from outside the app. */
+    val download = build("download", s("M12 4v10M8 10.5l4 4 4-4"), s("M5 18.5h14"))
+    /** Arrow up out of a tray — share/export a file to another app. */
+    val share = build("share", s("M12 16V4.5M8 8l4-4 4 4"), s("M6 12v6.5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V12"))
+    val sidebar = build("sidebar", roundRect(3.5f, 5f, 17f, 14f, 3f), s("M9.5 5v14"))
+    val panelRight = build("panel-right", roundRect(3.5f, 5f, 17f, 14f, 3f), s("M15 5v14"))
+    val split = build("split", roundRect(3.5f, 5f, 17f, 14f, 3f), s("M12 5v14"))
+    val layers = build("layers", s("M12 4l8 4-8 4-8-4zM4 12l8 4 8-4M4 16l8 4 8-4"))
+    val code = build("code", s("M9 8l-4 4 4 4M15 8l4 4-4 4"))
+    val eye = build("eye", s("M2.5 12s3.4-6.3 9.5-6.3S21.5 12 21.5 12 18.1 18.3 12 18.3 2.5 12 2.5 12z"), circle(12f, 12f, 2.7f))
+    val gitBranch = build("git-branch", circle(7f, 6f, 2.5f), circle(7f, 18f, 2.5f), circle(17f, 9f, 2.5f), s("M7 8.5v7M17 11.5c0 3-4 2.5-7 4"))
+    /** Arrow up out of a tray — push changes to the remote. */
+    val upload = build("upload", s("M12 16V4.5M8 8l4-4 4 4"), s("M5 12v6.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V12"))
+    /** Git merge: two source circles joined into one target. */
+    val merge = build(
+        "merge",
+        circle(6.5f, 6.5f, 2.4f),
+        circle(6.5f, 17.5f, 2.4f),
+        circle(18f, 12f, 2.4f),
+        s("M6.5 8.9v6.2M8.8 9.4c.3 3.2 3 4.9 7.6 4.2M8.9 16.8c2.8-.6 6.7.2 7.5 1.2"),
+    )
+    /** An archive box with a lid line — stashes. */
+    val archive = build(
+        "archive",
+        s("M4.5 6h15v3.5H4.5z"),
+        s("M6.5 9.5v8a1.5 1.5 0 0 0 1.5 1.5h8a1.5 1.5 0 0 0 1.5-1.5v-8"),
+        s("M10 13.5h4"),
+    )
+    /** A chain link — connect a remote repository. */
+    val link = build("link", s("M9.5 14.5l5-5M8 11.5L6.2 13.3a3.2 3.2 0 0 0 4.5 4.5l1.8-1.8M16 12.5l1.8-1.8a3.2 3.2 0 0 0-4.5-4.5L11.5 8"), s("M11.5 8l1.8-1.8") )
+    /** The official GitHub mark (simple-icons path), filled — the remote/GitHub affordance. */
+    val github = build(
+        "github",
+        f(
+            "M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12",
+        ),
+    )
+    val pin = build("pin", s("M9 4h6l-.8 5 2.3 2.5h-9L9.8 9z"), s("M12 13.5V20"))
+    /** A closed padlock (shackle latched on both sides) — the preview "lock the view" toggle when active. */
+    val lock = build("lock", roundRect(5f, 11f, 14f, 9f, 2f), s("M8 11V8a4 4 0 0 1 8 0v3"))
+    /** An open padlock (shackle raised, right leg unlatched) — the "unlock" state of the same toggle. */
+    val lockOpen = build("lock-open", roundRect(5f, 11f, 14f, 9f, 2f), s("M8 11V8a4 4 0 0 1 8 0"))
+    /** A four-point concave star — code completion. */
+    val sparkle = build(
+        "sparkle",
+        s("M12 3.5C12.8 9 15 11.2 20.5 12 15 12.8 12.8 15 12 20.5 11.2 15 9 12.8 3.5 12 9 11.2 11.2 9 12 3.5Z"),
+        s("M18.5 4.2c.2 1.5.6 1.9 2.1 2.1-1.5.2-1.9.6-2.1 2.1-.2-1.5-.6-1.9-2.1-2.1 1.5-.2 1.9-.6 2.1-2.1z"),
+    )
+    /** Curly braces `{ }` — the block/projectional editor. */
+    val braces = build(
+        "braces",
+        s("M9.5 4.5c-1.6 0-2.3.9-2.3 2.6 0 1.2.1 2.1-1.4 2.9 1.5.8 1.4 1.7 1.4 2.9 0 1.7.7 2.6 2.3 2.6"),
+        s("M14.5 4.5c1.6 0 2.3.9 2.3 2.6 0 1.2-.1 2.1 1.4 2.9-1.5.8-1.4 1.7-1.4 2.9 0 1.7-.7 2.6-2.3 2.6"),
+    )
+    /** A mallet/hammer — build & run. */
+    val hammer = build("hammer", roundRect(4.5f, 4.5f, 15f, 5f, 2f), s("M12 9.5V19.5"))
+    /** A solid heart — the "Support" affordance. */
+    val heart = build(
+        "heart",
+        f(
+            "M12 20.3 c-.35 0-.7 -.13 -.97 -.4 C6.8 16.1 4 13.4 4 10.1 4 7.7 5.9 5.8 8.3 5.8" +
+                " c1.45 0 2.8 .68 3.7 1.83 .9 -1.15 2.25 -1.83 3.7 -1.83 C18.1 5.8 20 7.7 20 10.1" +
+                " c0 3.3 -2.8 6 -7.03 9.8 -.27 .27 -.62 .4 -.97 .4 z",
+        ),
+    )
+    /** A five-point star — the "Star on GitHub" affordance. */
+    val star = build(
+        "star",
+        s("M12 4 l2.35 4.76 5.25 .76 -3.8 3.7 .9 5.23 -4.7 -2.47 -4.7 2.47 .9 -5.23 -3.8 -3.7 5.25 -.76 z"),
+    )
+
+    /** A 2x2 rounded grid — the Projects Store / browse destination. */
+    val grid = build(
+        "grid",
+        roundRect(4f, 4f, 7f, 7f, 1.8f),
+        roundRect(13f, 4f, 7f, 7f, 1.8f),
+        roundRect(4f, 13f, 7f, 7f, 1.8f),
+        roundRect(13f, 13f, 7f, 7f, 1.8f),
+    )
+
+    // ---- file-tree node icons (resolved by TreeIcons) ----
+    /** A package: a square divided into a grid. */
+    val pkg = build("pkg", roundRect(4.5f, 4.5f, 15f, 15f, 2.5f), s("M12 4.5v15M4.5 12h15"))
+    // A key: round bow + diagonal shaft with two teeth (signing keystores).
+    val key = build("key", circle(8f, 8f, 3.5f), s("M10.5 10.5L20 20"), s("M16 16l1.6-1.6"), s("M18.5 18.5l1.6-1.6"))
+    /** The Android robot head — for android modules and the manifest. */
+    val androidLogo = build(
+        "android-logo",
+        s("M5 13.5a7 7 0 0 1 14 0z"),
+        s("M8 6.5l1.7 2.6M16 6.5l-1.7 2.6"),
+        circle(9.6f, 10.5f, 0.75f, true),
+        circle(14.4f, 10.5f, 0.75f, true),
+    )
+    /** A framed picture (sun + mountain) — Android `res/`. */
+    val image = build(
+        "image",
+        roundRect(3.5f, 5f, 17f, 14f, 3f),
+        circle(8.5f, 9.5f, 1.4f),
+        s("M5 17.5l4-4.5 3 3 3.5-4 4.5 5"),
+    )
+    /** An isometric box — `assets/`. */
+    val box = build(
+        "box",
+        s("M12 3.3l7.5 4.2v9.2L12 20.9 4.5 16.7V7.5z"),
+        s("M4.6 7.5l7.4 4.2 7.4-4.2M12 11.7v9.2"),
+    )
+    /** Three stacked bars — generic resources. */
+    val resources = build("resources", s("M5 7.5h14M5 12h14M5 16.5h9"))
+
+    /** The Discord wordmark glyph (the rounded game-controller face) — the community link.
+     *  This is the official simple-icons Discord path, but with every arc command's flags written
+     *  space-separated (`0 0 0` instead of the source's packed `000`); Compose's [PathParser] does not
+     *  decode packed SVG arc flags and renders a mangled shape otherwise. */
+    val discord = build(
+        "discord",
+        f(
+            "M20.317 4.3698a19.7913 19.7913 0 0 0 -4.8851 -1.5152 .0741 .0741 0 0 0 -.0785 .0371" +
+                "c-.211 .3753 -.4447 .8648 -.6083 1.2495 -1.8447 -.2762 -3.68 -.2762 -5.4868 0" +
+                "-.1636 -.3933 -.4058 -.8742 -.6177 -1.2495a.077 .077 0 0 0 -.0785 -.037" +
+                " 19.7363 19.7363 0 0 0 -4.8852 1.515 .0699 .0699 0 0 0 -.0321 .0277" +
+                "C.5334 9.0458 -.319 13.5799 .0992 18.0578a.0824 .0824 0 0 0 .0312 .0561" +
+                "c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777 .0777 0 0 0 .0842 -.0276" +
+                "c.4616 -.6304 .8731 -1.2952 1.226 -1.9942a.076 .076 0 0 0 -.0416 -.1057" +
+                "c-.6528 -.2476 -1.2743 -.5495 -1.8722 -.8923a.077 .077 0 0 1 -.0076 -.1277" +
+                "c.1258 -.0943 .2517 -.1923 .3718 -.2914a.0743 .0743 0 0 1 .0776 -.0105" +
+                "c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739 .0739 0 0 1 .0785 .0095" +
+                "c.1202 .099 .246 .1981 .3728 .2924a.077 .077 0 0 1 -.0066 .1276" +
+                " 12.2986 12.2986 0 0 1 -1.873 .8914 .0766 .0766 0 0 0 -.0407 .1067" +
+                "c.3604 .698 .7719 1.3628 1.225 1.9932a.076 .076 0 0 0 .0842 .0286" +
+                "c1.961 -.6067 3.9495 -1.5219 6.0023 -3.0294a.077 .077 0 0 0 .0313 -.0552" +
+                "c.5004 -5.177 -.8382 -9.6739 -3.5485 -13.6604a.061 .061 0 0 0 -.0312 -.0286" +
+                "zM8.02 15.3312c-1.1825 0 -2.1569 -1.0857 -2.1569 -2.419 0 -1.3332 .9555 -2.4189 2.157 -2.4189" +
+                " 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332 -.9555 2.4189 -2.1569 2.4189" +
+                "zm7.9748 0c-1.1825 0 -2.1569 -1.0857 -2.1569 -2.419 0 -1.3332 .9554 -2.4189 2.1569 -2.4189" +
+                " 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332 -.9461 2.4189 -2.1568 2.4189Z",
+        ),
+    )
+}

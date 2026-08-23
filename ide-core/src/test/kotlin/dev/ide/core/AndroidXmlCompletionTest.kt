@@ -1,0 +1,350 @@
+package dev.ide.core
+
+import dev.ide.android.support.metadata.AndroidSdkMetadata
+import dev.ide.android.support.metadata.AttrsXmlParser
+import dev.ide.android.support.resources.ResourceItem
+import dev.ide.android.support.resources.ResourceRepository
+import dev.ide.android.support.resources.ResourceType
+import dev.ide.lang.completion.CompletionRequest
+import dev.ide.lang.completion.CompletionTrigger
+import dev.ide.lang.incremental.DocumentSnapshot
+import dev.ide.lang.xml.completion.XmlCompletion
+import dev.ide.lang.xml.completion.XmlCompletionKind
+import dev.ide.lang.xml.completion.XmlCompletionPosition
+import dev.ide.lang.dom.TextRange
+import dev.ide.lang.completion.complete
+import dev.ide.lang.completion.CompletionItem
+import dev.ide.testkit.TestDocument
+import dev.ide.testkit.virtualFile
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+
+/**
+ * Proves the Android XML completion adapter wires the widget catalog + a resource repository into the
+ * neutral [XmlCompletion] contributor seam — the end-to-end path the editor exercises, minus the
+ * SDK (the repository is hand-built so the test needs no Android SDK).
+ */
+class AndroidXmlCompletionTest {
+
+    private val repo = ResourceRepository(
+        listOf(
+            ResourceItem(ResourceType.STRING, "app_name"),
+            ResourceItem(ResourceType.STRING, "greeting"),
+            ResourceItem(ResourceType.DRAWABLE, "ic_launcher"),
+        )
+    )
+    private fun localResources(r: ResourceRepository): (ResourceType) -> List<ResourceCandidate> =
+        { type -> r.names(type).map { ResourceCandidate(it) } }
+
+    private val service = XmlCompletion(contributors = { listOf(AndroidXmlContributor(resources = localResources(repo))) })
+
+    // runTest returns a TestResult (not the lambda's value), so collect the labels into a local instead.
+    private fun complete(src: String, path: String = "res/layout/a.xml", svc: XmlCompletion = service): List<String> =
+        completeItems(src, path, svc).map { it.label }
+
+    private fun completeItems(src: String, path: String = "res/layout/a.xml", svc: XmlCompletion = service): List<CompletionItem> {
+        var items: List<CompletionItem> = emptyList()
+        runTest {
+            val offset = src.indexOf('|')
+            val text = src.removeRange(offset, offset + 1)
+            items = svc.complete(CompletionRequest(Doc(text, path), offset, CompletionTrigger.Explicit)).items
+        }
+        return items
+    }
+
+    @Test
+    fun usesSdkMetadataWhenProvided() {
+        val parsed = AttrsXmlParser.parse(
+            """<resources>
+                 <attr name="text" format="string"/>
+                 <declare-styleable name="View"><attr name="id" format="reference"/></declare-styleable>
+                 <declare-styleable name="TextView"><attr name="text"/></declare-styleable>
+               </resources>"""
+        )
+        val sdk = AndroidSdkMetadata(34, parsed.attrs, parsed.styleables,
+            mapOf("Button" to "TextView", "TextView" to "View"),
+            listOf(AndroidSdkMetadata.WidgetInfo("Button", false)))
+        val svc = XmlCompletion(contributors = {
+            listOf(AndroidXmlContributor(resources = localResources(repo), layout = { sdk }))
+        })
+        // <Button> inherits TextView.text and View.id from the SDK class hierarchy.
+        val labels = complete("<Button android:|", svc = svc)
+        assertTrue("android:text" in labels && "android:id" in labels, "got $labels")
+    }
+
+    private fun valuePos(tag: String, parent: String, attr: String, path: String) = XmlCompletionPosition(
+        kind = XmlCompletionKind.ATTRIBUTE_VALUE, tag = tag, parentTag = parent, attributeName = attr,
+        existingAttributes = emptySet(), prefix = "", replacementRange = TextRange(0, 0), filePath = path,
+    )
+
+    @Test
+    fun describeValueGivesBooleanParameterHint() {
+        val c = AndroidXmlContributor(resources = localResources(repo))
+        val info = c.describeValue(valuePos("application", "manifest", "android:hardwareAccelerated", "app/src/main/AndroidManifest.xml"))
+        assertNotNull(info, "expected a parameter hint inside the value")
+        assertTrue("true | false" in info.label, "boolean hint expected; got '${info.label}'")
+    }
+
+    @Test
+    fun describeValueListsEnumMembers() {
+        val c = AndroidXmlContributor(resources = localResources(repo))
+        val info = c.describeValue(valuePos("activity", "application", "android:launchMode", "app/src/main/AndroidManifest.xml"))
+        assertNotNull(info)
+        assertTrue("singleTop" in info.label, "enum members expected; got '${info.label}'")
+    }
+
+    @Test
+    fun customViewInheritsFrameworkSuperclassAttributes() {
+        // Framework metadata knows Button -> TextView -> View (with text/id styleables).
+        val parsed = AttrsXmlParser.parse(
+            """<resources>
+                 <attr name="text" format="string"/>
+                 <declare-styleable name="View"><attr name="id" format="reference"/></declare-styleable>
+                 <declare-styleable name="TextView"><attr name="text"/></declare-styleable>
+               </resources>"""
+        )
+        val framework = AndroidSdkMetadata(34, parsed.attrs, parsed.styleables,
+            mapOf("Button" to "TextView", "TextView" to "View"),
+            listOf(AndroidSdkMetadata.WidgetInfo("Button", false)))
+        // A custom view's ancestry (as CustomViewScanner would report it): MaterialButton -> Button.
+        val bridged = framework.withCustomHierarchy(mapOf("MaterialButton" to "Button"))
+        val svc = XmlCompletion(contributors = {
+            listOf(AndroidXmlContributor(resources = localResources(repo), layout = { bridged }))
+        })
+        // The custom view inherits Button's chain → TextView.text + View.id, by its fully-qualified tag.
+        val labels = complete("<com.google.android.material.button.MaterialButton android:|", svc = svc)
+        assertTrue("android:text" in labels && "android:id" in labels, "got $labels")
+    }
+
+    @Test
+    fun mergesCustomViewAttributes() {
+        val custom = AttrsXmlParser.parse(
+            """<resources><declare-styleable name="MyView"><attr name="customColor" format="color"/></declare-styleable></resources>"""
+        )
+        val customMeta = AndroidSdkMetadata(0, custom.attrs, custom.styleables, emptyMap(), emptyList(), attrPrefix = "app:")
+        val svc = XmlCompletion(contributors = {
+            listOf(AndroidXmlContributor(resources = localResources(repo), customAttrs = { customMeta }))
+        })
+        assertTrue("app:customColor" in complete("<com.example.MyView app:|", svc = svc), "custom attr should appear")
+    }
+
+    @Test
+    fun appCompatSubstitutionSurfacesAppAttrsOnPlainTags() {
+        val custom = AttrsXmlParser.parse(
+            """<resources><declare-styleable name="AppCompatImageView"><attr name="srcCompat" format="reference"/></declare-styleable></resources>"""
+        )
+        val customMeta = AndroidSdkMetadata(0, custom.attrs, custom.styleables, emptyMap(), emptyList(),
+            attrPrefix = "app:", viewSubstitutions = AndroidSdkMetadata.APPCOMPAT_SUBSTITUTIONS)
+        val svc = XmlCompletion(contributors = {
+            listOf(AndroidXmlContributor(resources = localResources(repo), customAttrs = { customMeta }))
+        })
+        // A plain <ImageView> is inflated as AppCompatImageView, so its app:srcCompat completes on the typed tag.
+        assertTrue("app:srcCompat" in complete("<ImageView app:|", svc = svc), "srcCompat should appear on <ImageView>")
+    }
+
+    @Test
+    fun completesWidgetTags() {
+        val labels = complete("<LinearLayout>\n  <T|\n</LinearLayout>")
+        assertTrue("TextView" in labels && "TableLayout" in labels, "got $labels")
+    }
+
+    @Test
+    fun completesCustomViewTagsFromLibrariesByFqnAndSimpleName() {
+        val views = listOf(
+            dev.ide.android.support.metadata.Widget("com.google.android.material.button.MaterialButton", false),
+            dev.ide.android.support.metadata.Widget("androidx.constraintlayout.widget.ConstraintLayout", true),
+        )
+        val svc = XmlCompletion(contributors = {
+            listOf(AndroidXmlContributor(resources = localResources(repo), customViews = { views }))
+        })
+        // Typing the simple name matches the fully-qualified custom view (which is what gets inserted).
+        assertTrue("com.google.android.material.button.MaterialButton" in complete("<Material|", svc = svc),
+            "library custom view should be suggested by its simple name")
+        // Framework widgets and custom views coexist.
+        val all = complete("<C|", svc = svc)
+        assertTrue("androidx.constraintlayout.widget.ConstraintLayout" in all, "got $all")
+    }
+
+    @Test
+    fun completesAttributeNames() {
+        val labels = complete("<TextView android:tex|")
+        assertTrue("android:text" in labels, "got $labels")
+    }
+
+    @Test
+    fun acceptingAndroidAttributeAutoDeclaresXmlnsAndroid() {
+        // The root <TextView> has no xmlns:android; accepting android:text should add it.
+        val item = completeItems("<TextView android:|").first { it.label == "android:text" }
+        val edit = item.additionalEdits.single()
+        assertEquals(" xmlns:android=\"http://schemas.android.com/apk/res/android\"", edit.newText)
+        assertEquals("<TextView".length, edit.range.start) // spliced just after the root tag name
+        assertEquals(edit.range.start, edit.range.end)      // a pure insertion
+    }
+
+    @Test
+    fun namespacedAttributeDoesNotReDeclareAnExistingXmlns() {
+        val custom = AttrsXmlParser.parse(
+            """<resources><declare-styleable name="MyView"><attr name="customColor" format="color"/></declare-styleable></resources>"""
+        )
+        val customMeta = AndroidSdkMetadata(0, custom.attrs, custom.styleables, emptyMap(), emptyList(), attrPrefix = "app:")
+        val svc = XmlCompletion(contributors = {
+            listOf(AndroidXmlContributor(resources = localResources(repo), customAttrs = { customMeta }))
+        })
+        // Missing xmlns:app → the create edit is attached…
+        val missing = completeItems("<com.example.MyView app:|", svc = svc).first { it.label == "app:customColor" }
+        assertEquals(" xmlns:app=\"http://schemas.android.com/apk/res-auto\"", missing.additionalEdits.single().newText)
+        // …but not when it's already declared on the root.
+        val declared = completeItems(
+            "<com.example.MyView xmlns:app=\"http://schemas.android.com/apk/res-auto\" app:|", svc = svc
+        ).first { it.label == "app:customColor" }
+        assertTrue(declared.additionalEdits.isEmpty())
+    }
+
+    @Test
+    fun completesEnumAttributeValues() {
+        val labels = complete("<View android:layout_width=\"|\"")
+        assertTrue("match_parent" in labels && "wrap_content" in labels, "got $labels")
+    }
+
+    @Test
+    fun completesResourceReferences() {
+        val labels = complete("<TextView android:text=\"@string/|\"")
+        assertTrue("@string/app_name" in labels && "@string/greeting" in labels, "got $labels")
+        assertTrue("@string/ic_launcher" !in labels, "should not offer a drawable for a string attr: $labels")
+    }
+
+    @Test
+    fun resourceReferenceShowsResolvedValueAsHint() {
+        // The value comes from the resource candidate (index-backed in production); a null value falls back
+        // to the resource type as the popup hint.
+        val svc = XmlCompletion(contributors = {
+            listOf(AndroidXmlContributor(resources = { type ->
+                if (type == ResourceType.STRING) listOf(ResourceCandidate("app_name", "CodeAssist"), ResourceCandidate("greeting"))
+                else emptyList()
+            }))
+        })
+        val items = completeItems("<TextView android:text=\"@string/|\"", svc = svc)
+        // The resolved value is the popup hint…
+        assertEquals("CodeAssist", items.first { it.label == "@string/app_name" }.detail)
+        // …and an unresolved one falls back to the resource type.
+        assertEquals("string", items.first { it.label == "@string/greeting" }.detail)
+    }
+
+    @Test
+    fun completesFrameworkResourcesOnlyAfterTypingAtAndroid() {
+        val svc = XmlCompletion(contributors = {
+            listOf(AndroidXmlContributor(
+                resources = localResources(repo),
+                frameworkResources = { type -> if (type == ResourceType.STRING) listOf("ok", "cancel", "yes") else emptyList() },
+            ))
+        })
+        // Typing `@android:string/` offers framework strings…
+        val fw = complete("<TextView android:text=\"@android:string/|\"", svc = svc)
+        assertTrue("@android:string/ok" in fw && "@android:string/cancel" in fw, "got $fw")
+        // …but a plain local reference never surfaces the (large) framework set.
+        val local = complete("<TextView android:text=\"@string/|\"", svc = svc)
+        assertTrue(local.none { it.startsWith("@android:") }, "framework resources must not flood a local ref: $local")
+        assertTrue("@string/app_name" in local, "local resources still complete: $local")
+    }
+
+    @Test
+    fun completesThemeAttributeReferences() {
+        val svc = XmlCompletion(contributors = {
+            listOf(AndroidXmlContributor(
+                resources = { type ->
+                    if (type == ResourceType.ATTR) listOf(ResourceCandidate("colorPrimary"), ResourceCandidate("colorSurface"))
+                    else localResources(repo)(type)
+                },
+                frameworkResources = { type -> if (type == ResourceType.ATTR) listOf("actionBarSize", "colorPrimaryDark") else emptyList() },
+            ))
+        })
+        // Typing `?` on a reference-accepting attribute offers the app/library theme attrs…
+        val theme = complete("<TextView android:textColor=\"?|\"", svc = svc)
+        assertTrue("?attr/colorPrimary" in theme && "?attr/colorSurface" in theme, "got $theme")
+        // …the (large) framework theme-attr set stays behind the extra `?android` opt-in…
+        assertTrue(theme.none { it.startsWith("?android:attr/") }, "framework theme attrs must not flood `?`: $theme")
+        val fw = complete("<TextView android:textColor=\"?android:attr/|\"", svc = svc)
+        assertTrue("?android:attr/actionBarSize" in fw, "got $fw")
+        // …and a plain value never surfaces theme attrs.
+        val plain = complete("<TextView android:textColor=\"|\"", svc = svc)
+        assertTrue(plain.none { it.startsWith("?") }, "theme attrs must not appear without `?`: $plain")
+    }
+
+    @Test
+    fun completesIdReferencesAndDeclaration() {
+        val idRepo = ResourceRepository(listOf(ResourceItem(ResourceType.ID, "header"), ResourceItem(ResourceType.ID, "ok_button")))
+        val svc = XmlCompletion(contributors = {
+            listOf(AndroidXmlContributor(resources = localResources(idRepo)))
+        })
+        // layout_below references an id; the bundled SDK metadata maps it (RelativeLayout_Layout, reference→ID).
+        val refs = complete("<RelativeLayout><Button android:layout_below=\"@id/|\"/></RelativeLayout>", svc = svc)
+        assertTrue("@id/header" in refs && "@id/ok_button" in refs, "got $refs")
+        // The `@+id/` declaration form is offered when declaring (e.g. typing `android:id="@+|"`).
+        val decl = complete("<Button android:id=\"@+|\"/>", svc = svc)
+        assertTrue("@+id/" in decl, "declaration form offered: $decl")
+    }
+
+    @Test
+    fun completesToolsDesignTimeAttributes() {
+        // Typing the tools: namespace offers curated design-time attrs + a tools: mirror of the element's attrs.
+        val labels = complete("<TextView tools:|")
+        assertTrue("tools:context" in labels, "got $labels")  // curated
+        assertTrue("tools:visibility" in labels)              // curated
+        assertTrue("tools:text" in labels)                    // mirror of android:text
+    }
+
+    @Test
+    fun completesToolsListItemOnlyOnListContainers() {
+        assertTrue("tools:listitem" in complete("<androidx.recyclerview.widget.RecyclerView tools:|"))
+        assertTrue("tools:listitem" !in complete("<TextView tools:|"), "listitem is not offered on a plain view")
+    }
+
+    @Test
+    fun completesToolsAttributeValues() {
+        // tools:visibility reuses the android:visibility enum…
+        assertTrue("gone" in complete("<TextView tools:visibility=\"|\""))
+        // …and tools:text reuses the @string references of android:text.
+        assertTrue("@string/app_name" in complete("<TextView tools:text=\"@string/|\""))
+    }
+
+    @Test
+    fun completesXmlnsNamespaceDeclarations() {
+        val items = completeItems("<LinearLayout xmlns:|").associateBy { it.label }
+        assertTrue(items.keys.containsAll(setOf("xmlns:android", "xmlns:app", "xmlns:tools")), "got ${items.keys}")
+        assertEquals("xmlns:app=\"http://schemas.android.com/apk/res-auto\"", items["xmlns:app"]!!.insertText)
+        // An already-declared namespace isn't re-offered.
+        val afterAndroid = completeItems(
+            "<LinearLayout xmlns:android=\"http://schemas.android.com/apk/res/android\" xmlns:|"
+        ).map { it.label }
+        assertTrue("xmlns:android" !in afterAndroid && "xmlns:tools" in afterAndroid, "got $afterAndroid")
+    }
+
+    @Test
+    fun completesXmlnsUriValue() {
+        assertTrue("http://schemas.android.com/apk/res-auto" in complete("<LinearLayout xmlns:app=\"|\""))
+        assertTrue("http://schemas.android.com/tools" in complete("<View xmlns:tools=\"|\""))
+    }
+
+    @Test
+    fun completesManifestElements() {
+        val path = "src/main/AndroidManifest.xml"
+        val labels = complete("<manifest>\n  <app|\n</manifest>", path)
+        assertTrue("application" in labels, "got $labels")
+        // Layout widgets must NOT leak into the manifest.
+        assertTrue("TextView" !in labels, "got $labels")
+    }
+
+    @Test
+    fun completesManifestAttributesAndEnumValues() {
+        val path = "src/main/AndroidManifest.xml"
+        assertTrue("android:launchMode" in complete("<activity android:lau|", path))
+        val launch = complete("<activity android:launchMode=\"|\"", path)
+        assertTrue("singleTop" in launch && "standard" in launch, "got $launch")
+        assertTrue("true" in complete("<activity android:exported=\"|\"", path), "boolean values")
+    }
+
+    private class Doc(text: CharSequence, path: String) : DocumentSnapshot by TestDocument(text, virtualFile(path))
+}

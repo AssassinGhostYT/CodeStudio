@@ -1,0 +1,319 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
+package dev.ide.ui.screens
+
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import dev.ide.ui.backend.IdeBackend
+import dev.ide.ui.backend.UiProjectTemplate
+import dev.ide.ui.backend.UiTemplateParam
+import dev.ide.ui.components.PrimaryButton
+import dev.ide.ui.components.entranceSlideUp
+import dev.ide.ui.components.pressScale
+import dev.ide.ui.generated.resources.Res
+import dev.ide.ui.generated.resources.back
+import dev.ide.ui.generated.resources.toggle_off
+import dev.ide.ui.generated.resources.toggle_on
+import dev.ide.ui.generated.resources.choose_start_point
+import dev.ide.ui.generated.resources.create_project
+import dev.ide.ui.generated.resources.creating
+import dev.ide.ui.generated.resources.new_project
+import dev.ide.ui.generated.resources.no_templates_available
+import dev.ide.ui.generated.resources.package_name
+import dev.ide.ui.generated.resources.project_name
+import dev.ide.ui.icons.CaIcons
+import dev.ide.ui.icons.TreeIcon
+import dev.ide.ui.icons.TreeIcons
+import dev.ide.ui.theme.resolveTint
+import dev.ide.ui.theme.Ca
+import org.jetbrains.compose.resources.stringResource
+
+/**
+ * The Create-Project flow: a template gallery (cards grouped by category, from
+ * [IdeBackend.projectTemplates]) followed by a configure step whose form is driven entirely by the
+ * chosen template's [UiTemplateParam]s — so a new template contributes its own fields with no UI change.
+ * On success the backend swaps the active project and [onCreated] fires; [onCancel] backs out.
+ */
+@Composable
+fun CreateProjectScreen(
+    backend: IdeBackend,
+    onCancel: () -> Unit,
+    onCreated: () -> Unit,
+    /** Pre-select a template (e.g. opened from a Projects Store item) and jump straight to its configure step. */
+    initialTemplateId: String? = null,
+) {
+    val templates = remember { backend.projects.projectTemplates() }
+    // Sample projects (weather, notes, the Compose games…) belong to the Explore page only; the
+    // Create-Project gallery lists starter templates. They keep the `sample-` id prefix the store
+    // partitions on. A sample can still be created here when deep-linked from Explore, since
+    // `initialTemplateId` resolves against the full list below.
+    val galleryTemplates = remember(templates) { templates.filterNot { it.id.startsWith("sample-") } }
+    var selected by remember(initialTemplateId) {
+        mutableStateOf(initialTemplateId?.let { id -> templates.firstOrNull { it.id == id } })
+    }
+    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.TopCenter) {
+        Column(
+            Modifier.widthIn(max = 640.dp).fillMaxSize().padding(horizontal = 24.dp, vertical = 32.dp),
+        ) {
+            val sel = selected
+            if (sel == null) {
+                Gallery(
+                    templates = galleryTemplates,
+                    onBack = onCancel,
+                    onPick = { selected = it },
+                )
+            } else {
+                Configure(
+                    backend = backend,
+                    template = sel,
+                    onBack = { selected = null },
+                    onCreated = onCreated,
+                )
+            }
+        }
+    }
+}
+
+// ---- step 1: gallery ----
+
+@Composable
+private fun ColumnScope.Gallery(templates: List<UiProjectTemplate>, onBack: () -> Unit, onPick: (UiProjectTemplate) -> Unit) {
+    Header(title = stringResource(Res.string.new_project), subtitle = stringResource(Res.string.choose_start_point), onBack = onBack)
+    Spacer(Modifier.height(20.dp))
+    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        if (templates.isEmpty()) {
+            Text(stringResource(Res.string.no_templates_available), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
+        }
+        var index = 0
+        templates.groupBy { it.category }.forEach { (category, group) ->
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(category.uppercase(), color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                group.forEach { t ->
+                    TemplateCard(t, delayMillis = (index++) * 50, onClick = { onPick(t) })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TemplateCard(template: UiProjectTemplate, delayMillis: Int, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    Row(
+        Modifier
+            .entranceSlideUp(delayMillis)
+            .fillMaxWidth()
+            .pressScale(interaction)
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(Ca.radius.lg))
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(Ca.radius.lg))
+            .clickable(interaction, indication = null, onClick = onClick)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        TemplateGlyph(template.iconId)
+        Column(Modifier.weight(1f)) {
+            Text(template.displayName, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium)
+            Text(template.description, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+        }
+        Icon(CaIcons.chevronRight, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.outline)
+    }
+}
+
+// ---- step 2: configure ----
+
+@Composable
+private fun ColumnScope.Configure(
+    backend: IdeBackend,
+    template: UiProjectTemplate,
+    onBack: () -> Unit,
+    onCreated: () -> Unit,
+) {
+    val state = rememberCreateProjectFormState(backend, template)
+
+    Header(title = template.displayName, subtitle = template.description, onBack = onBack)
+    Spacer(Modifier.height(20.dp))
+    Column(
+        Modifier.weight(1f).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        FormField(stringResource(Res.string.project_name), state.name, "MyProject", onChange = state::updateName)
+        FormField(stringResource(Res.string.package_name), state.packageName, "com.example.app", onChange = state::updatePackage)
+        template.parameters.forEach { p ->
+            ParamControl(p, value = state.paramValues[p.key] ?: defaultValue(p), onChange = { state.updateParam(p.key, it) })
+        }
+        state.error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
+    }
+    Spacer(Modifier.height(16.dp))
+    PrimaryButton(
+        text = stringResource(if (state.busy) Res.string.creating else Res.string.create_project),
+        onClick = { state.create(onCreated) },
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun ParamControl(param: UiTemplateParam, value: String, onChange: (String) -> Unit) {
+    when (param) {
+        is UiTemplateParam.Text -> FormField(param.label, value, param.placeholder, onChange)
+        is UiTemplateParam.Choice -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            FieldLabel(param.label)
+            // FlowRow wraps the chips onto further lines on a narrow (phone) screen instead of squishing
+            // them into a single overflowing row.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                param.options.forEach { opt ->
+                    Chip(opt.label, selected = value == opt.value, onClick = { onChange(opt.value) })
+                }
+            }
+        }
+        is UiTemplateParam.Toggle -> Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(param.label, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyLarge)
+            val on = value.toBooleanStrictOrNull() ?: false
+            Box(
+                Modifier
+                    .background(if (on) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(Ca.radius.pill))
+                    .clickable { onChange((!on).toString()) }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+            ) {
+                Text(if (on) stringResource(Res.string.toggle_on) else stringResource(Res.string.toggle_off), color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+            }
+        }
+    }
+}
+
+// ---- shared bits ----
+
+@Composable
+private fun Header(title: String, subtitle: String, onBack: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        val interaction = remember { MutableInteractionSource() }
+        Box(
+            Modifier
+                .size(36.dp)
+                .pressScale(interaction)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Ca.radius.sm))
+                .clickable(interaction, indication = null, onClick = onBack),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(CaIcons.chevronLeft, stringResource(Res.string.back), Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Column {
+            Text(title, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.headlineSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+private fun FormField(label: String, value: String, placeholder: String, onChange: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        FieldLabel(label)
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Ca.radius.control))
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(Ca.radius.control))
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            if (value.isEmpty()) Text(placeholder, color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.bodyMedium)
+            BasicTextField(
+                value = value,
+                onValueChange = onChange,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSurface),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FieldLabel(text: String) {
+    Text(text, color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+}
+
+@Composable
+private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val fill = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHighest
+    val fg = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    Box(
+        Modifier
+            .background(fill, RoundedCornerShape(Ca.radius.pill))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(label, color = fg, style = MaterialTheme.typography.bodyMedium, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
+    }
+}
+
+/** Render a template's icon id through the shared [TreeIcons] registry (same icons as the file tree). */
+@Composable
+private fun TemplateGlyph(iconId: String) {
+    Box(Modifier.size(44.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Ca.radius.md)), contentAlignment = Alignment.Center) {
+        when (val ic = TreeIcons.resolve(iconId)) {
+            is TreeIcon.Glyph -> Icon(ic.image, null, Modifier.size(24.dp), tint = resolveTint(ic.tint))
+            is TreeIcon.Folder -> Icon(ic.closed, null, Modifier.size(24.dp), tint = resolveTint(ic.tint))
+            is TreeIcon.Badge -> Text(ic.text, color = ic.color, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+internal fun defaultName(template: UiProjectTemplate): String = when {
+    template.id.contains("android-app") -> "My App"
+    template.id.contains("android-library") -> "My Library"
+    template.id.contains("console") -> "My App"
+    template.id.contains("library") -> "My Library"
+    else -> "My Project"
+}
+
+internal fun defaultValue(p: UiTemplateParam): String = when (p) {
+    is UiTemplateParam.Text -> p.default
+    is UiTemplateParam.Choice -> p.options.getOrNull(p.defaultIndex)?.value ?: p.options.firstOrNull()?.value ?: ""
+    is UiTemplateParam.Toggle -> p.default.toString()
+}
+
+internal fun slug(name: String): String =
+    name.trim().lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-')

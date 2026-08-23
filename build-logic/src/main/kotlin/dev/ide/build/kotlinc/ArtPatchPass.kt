@@ -1,0 +1,101 @@
+package dev.ide.build.kotlinc
+
+import org.objectweb.asm.ClassVisitor
+
+/**
+ * One ART-compatibility rewrite of a Kotlin-compiler class.
+ *
+ * The Kotlin compiler (`kotlin-compiler-embeddable`, K2/2.4.0 here) is built for a desktop JVM and uses a
+ * handful of APIs that are absent or behave differently on Android's ART runtime — `sun.misc.Unsafe`, the
+ * NIO `jar:`/zip `FileSystemProvider`, JDK-internal reflection, class-file versions newer than the device's
+ * ART verifier accepts, `MethodHandle`/`invokedynamic` shapes, etc. CodeAssist's original `build-tools/kotlinc`
+ * solved this by hand-maintaining patched *source* copies of the broken classes and shadowing them on the
+ * classpath. We do it as **surgical ASM rewrites** applied during the Android build instead, so there is no
+ * forked source to keep in sync with the compiler version.
+ *
+ * Each pass declares the classes it touches ([handles]) and returns a [ClassVisitor] that performs the
+ * rewrite ([visitor]). Passes are applied by [KotlincArtPatchFactory] via AGP's bytecode-instrumentation
+ * API (scope = ALL), so they reach the compiler classes wherever they end up dexed — which means the SAME
+ * rewrite also fixes the editor's standalone PSI parse-host (`:lang-kotlin`), since both run the same dexed
+ * classes on device.
+ *
+ * ## Authoring loop (see docs/kotlin-compiler-on-art.md)
+ * The set of breakages is discovered empirically, not guessed: run [KotlinCompilerArtSpikeTest] on a real
+ * device, read the failing class + cause from logcat (a `LinkageError`/`VerifyError`/`NoClassDefFoundError`/
+ * `ExceptionInInitializerError`), then add one pass here targeting exactly that class. Re-run until the
+ * sample compiles. Until the first failure is found, [ALL] is intentionally empty and the instrumentation
+ * is a no-op (every class reports `isInstrumentable == false`, so AGP routes nothing through us).
+ */
+interface ArtPatchPass {
+    /** A short identifier for logging, e.g. `"unsafe-field-offset"`. */
+    val name: String
+
+    /**
+     * Whether this pass rewrites the class named [classFqn] (a dotted fully-qualified name, e.g.
+     * `org.jetbrains.kotlin.com.intellij.util.io.PersistentHashMap`). Must be cheap and side-effect-free —
+     * AGP calls it for every class on the build's runtime classpath to decide what to route through us.
+     */
+    fun handles(classFqn: String): Boolean
+
+    /**
+     * The rewriting visitor, chained ahead of [next] (which writes the final bytes). Called only when
+     * [handles] returned true for [classFqn].
+     */
+    fun visitor(classFqn: String, next: ClassVisitor): ClassVisitor
+}
+
+/**
+ * The ordered registry of [ArtPatchPass]es applied to the bundled Kotlin compiler.
+ *
+ * **Empty by design until the device spike reports its first failure** — see [ArtPatchPass]. New passes are
+ * appended to [ALL]; when several passes [handle][ArtPatchPass.handles] the same class they are chained in
+ * declaration order.
+ */
+object ArtPatchPasses {
+
+    val ALL: List<ArtPatchPass> = listOf(
+        // One pass per confirmed ART breakage, discovered via KotlinCompilerArtSpikeTest.
+        ManagementStubPass(),    // java.lang.management.* absent on ART (PerformanceManager + 5 more)
+        UnsafeFindTolerantPass(), // platform Unsafe wrapper's copyMemory handle absent on ART → null, not Error
+        PathUtilSelfLocatePass(), // PathUtil.getResourcePathForClass → the runtime-provisioned resource dir
+        FastJarCleanerArtPass(),  // enable the mmap-backed fast JAR FS (ART can't unmap → no-op cleaner)
+        // The IntelliJ-core icon API (javax.swing.Icon, absent on ART) is NOT patched here — it is fixed by
+        // *shipping* the type instead: :ide-android dexes the real javax.swing.Icon from the JBR (see
+        // generateSwingApiJar). Stripping it from bytecode (an earlier SwingIconArtPass) only made the marker
+        // interfaces load, then broke verification of Icon-returning methods on stricter ART verifiers.
+        // Same instrumentation (scope = ALL) also reaches the dexed Eclipse jars, so an ecj fix rides here too.
+        EcjInputStreamArtPass(),  // InputStream.readAllBytes/readNBytes (API 33) absent on ART → shim call sites
+        // Same instrumentation reaches the merged IntelliJ-platform jar (:kotlin-compiler-deps).
+        ClassValueArtPass(),      // MethodHandleCache extends java.lang.ClassValue (absent on ART) → shim superclass
+        VarHandleArtPass(),       // VarHandle polymorphic calls VerifyError on strict ART → sun.misc.Unsafe shim
+                                  // (AtomicFieldUpdater + the ConcurrentHashMap forks + ConcurrentBitSetImpl)
+        IntrospectorArtPass(),    // java.beans.Introspector absent on ART → decapitalize/flushCaches shim
+                                  // (unbreaks PsiMethod.findSuperMethods on device: StringUtil/PropertyUtilBase/
+                                  //  ExtensibleQueryFactory/GCUtil)
+        EdtHeadlessArtPass(),     // com.intellij.util.ui.EDT.isCurrentThreadEdt → java.awt.EventQueue (absent on
+                                  // ART) → return false (headless); on KSP2's AA write-action path (KspArtSpikeTest)
+        CaffeineStripedBufferArtPass(), // caffeine StripedBuffer's Thread.threadLocalRandomProbe reflection (a
+                                  // non-SDK field) fails on a strict device → NoClassDefFoundError: BoundedBuffer
+                                  // from every bounded cache; first hit by KSP2's standalone AA. Reaches the
+                                  // separate caffeine jar (scope = ALL), unlike the merged-jar passes above.
+    )
+
+    /** True if any registered pass rewrites [classFqn]. */
+    fun handles(classFqn: String): Boolean = ALL.any { it.handles(classFqn) }
+
+    /**
+     * Chain every pass that handles [classFqn] ahead of [next], or return `null` if none do (so the caller
+     * can pass [next] through untouched). Passes compose in registration order.
+     */
+    fun visitorFor(classFqn: String, next: ClassVisitor): ClassVisitor? {
+        var chained = next
+        var any = false
+        for (pass in ALL) {
+            if (pass.handles(classFqn)) {
+                chained = pass.visitor(classFqn, chained)
+                any = true
+            }
+        }
+        return if (any) chained else null
+    }
+}

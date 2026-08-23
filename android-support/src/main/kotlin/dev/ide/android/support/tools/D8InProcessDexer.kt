@@ -1,0 +1,175 @@
+package dev.ide.android.support.tools
+
+import com.android.tools.r8.CompilationMode
+import com.android.tools.r8.D8
+import com.android.tools.r8.D8Command
+import com.android.tools.r8.Diagnostic
+import com.android.tools.r8.DiagnosticsHandler
+import com.android.tools.r8.OutputMode
+import dev.ide.android.support.tasks.InProcessDexGate
+import java.nio.file.Files
+import java.nio.file.Path
+import java.util.concurrent.Executors
+
+/**
+ * Dexes in-process by calling the D8 API directly (`com.android.tools.r8.D8`), the on-device path.
+ * On ART there is no `java` launcher to fork, so D8 (pure Java) must be statically
+ * linked into the app and run in-process; this same impl runs on the desktop JVM, so the desktop test
+ * exercises exactly the on-device code. Inputs are jars/class files (the [dev.ide.android.support.tasks]
+ * DexTask jars the compiled classes first); `android.jar` is the library (bootclasspath) for desugaring.
+ *
+ * Contrast [D8Dexer], which shells out to `java -cp d8.jar …` and suits a desktop with an installed SDK.
+ */
+class D8InProcessDexer : Dexer {
+
+    // In-process D8 holds its whole working set in the app heap (ART caps it ~576MB regardless of device RAM),
+    // so a monolithic pass over a big classpath is GC-bound. The build prefers bounded per-library dexing here.
+    override fun runsOffHeap(): Boolean = false
+
+    override fun dex(
+        inputs: List<Path>,
+        androidJar: Path,
+        minApi: Int,
+        release: Boolean,
+        outDir: Path,
+        threads: Int,
+        desugaredLibConfig: Path?
+    ): ToolResult = run(
+        inputs,
+        emptyList(),
+        androidJar,
+        minApi,
+        release,
+        outDir,
+        OutputMode.DexIndexed,
+        threads,
+        desugaredLibConfig
+    )
+
+    override fun dexArchive(
+        inputs: List<Path>,
+        classpath: List<Path>,
+        androidJar: Path,
+        minApi: Int,
+        release: Boolean,
+        outDir: Path,
+        threads: Int,
+        desugaredLibConfig: Path?
+    ): ToolResult = run(
+        inputs,
+        classpath,
+        androidJar,
+        minApi,
+        release,
+        outDir,
+        OutputMode.DexFilePerClassFile,
+        threads,
+        desugaredLibConfig
+    )
+
+    private fun run(
+        inputs: List<Path>,
+        classpath: List<Path>,
+        androidJar: Path,
+        minApi: Int,
+        release: Boolean,
+        outDir: Path,
+        mode: OutputMode,
+        threads: Int,
+        desugaredLibConfig: Path?
+    ): ToolResult {
+        Files.createDirectories(outDir)
+        val programs = inputs.filter { Files.exists(it) }
+        if (programs.isEmpty()) {
+            return ToolResult.fail("no class inputs to dex")
+        }
+
+        val diagnostics = ArrayList<String>()
+
+        val handler = object : DiagnosticsHandler {
+            override fun info(d: Diagnostic) {
+                diagnostics.add("info: ${d.diagnosticMessage}")
+            }
+
+            override fun warning(d: Diagnostic) {
+                diagnostics.add("warning: ${d.diagnosticMessage}")
+            }
+
+            override fun error(d: Diagnostic) {
+                diagnostics.add("error: ${d.diagnosticMessage}")
+            }
+        }
+        val compile: () -> ToolResult = compile@{ try {
+            val builder =
+                D8Command.builder(handler)
+                    .addProgramFiles(programs)
+                    .setMinApiLevel(minApi)
+                    .setMode(if (release) CompilationMode.RELEASE else CompilationMode.DEBUG)
+                    .setOutput(outDir, mode)
+            // Per-class-file output is an *intermediate* result: cross-class desugaring is deferred to the
+            // merge (the merger gets the same library and finalizes it), exactly as AGP's archive→merge flow.
+            if (mode == OutputMode.DexFilePerClassFile) {
+                builder.setIntermediate(true)
+                // Desugaring some classes needs a helper class that belongs to the whole program rather than to
+                // any one input (a Java record needs the tag class standing in for java.lang.Record below API
+                // 34). A per-class archive has no output slot for it, so hand D8 the bucket directory to park
+                // them in: it writes `<class>.globals` beside that class's `.dex` and [dex] gives them back to
+                // the merge. Without this D8 fails the build outright. See [DexGlobalSynthetics].
+                builder.setGlobalSyntheticsOutput(outDir)
+            } else {
+                // Merging intermediates: return the global synthetics the archive step parked next to them, so
+                // each is created once, in the same output as the classes referencing it.
+                val globals = DexGlobalSynthetics.accompanying(programs)
+                if (globals.isNotEmpty()) builder.addGlobalSyntheticsFiles(globals)
+            }
+            // Feed the desugaring classpath + android.jar (bootclasspath) as SHARED, cached resource providers
+            // (AGP's ClassFileProviderFactory) instead of re-adding the files each invocation: android.jar and
+            // stable library jars are then opened + class-indexed once per process and reused across every dex
+            // call, not re-parsed per library. A jar that can't be opened as an archive (e.g. a directory)
+            // falls back to addClasspathFiles.
+            for (cp in classpath.filter { Files.exists(it) }) {
+                val p = SharedDexClasspath.provider(cp)
+                if (p != null) builder.addClasspathResourceProvider(p) else builder.addClasspathFiles(cp)
+            }
+            if (Files.exists(androidJar)) {
+                val lib = SharedDexClasspath.provider(androidJar)
+                if (lib != null) builder.addLibraryResourceProvider(lib) else builder.addLibraryFiles(androidJar)
+            }
+            // Core-library desugaring: rewrite java.* backport references per the config (the L8 step dexes
+            // the runtime separately). Applied at the archive step where class->dex conversion happens.
+            if (desugaredLibConfig != null && Files.exists(desugaredLibConfig)) {
+                builder.addDesugaredLibraryConfiguration(Files.readAllBytes(desugaredLibConfig).decodeToString())
+            }
+
+            val command = builder.build()
+            // Bound D8's internal worker pool when the dex pipeline runs many invocations in parallel (the
+            // builder has no setThreadCount on this r8 version, so cap via the executor overload instead).
+            if (threads > 0) {
+                val pool = Executors.newFixedThreadPool(threads)
+                try {
+                    D8.run(command, pool)
+                } finally {
+                    pool.shutdown()
+                }
+            } else {
+                D8.run(command)
+            }
+            val role = if (mode == OutputMode.DexFilePerClassFile) "archived" else "dexed"
+            val summary = buildList {
+                add("D8 (in-process) $role ${programs.size} input(s) -> ${outDir.fileName}")
+                addAll(diagnostics)
+            }
+            ToolResult.ok(DexDiagnostics.humanize(summary))
+        } catch (t: Throwable) {
+            // The captured handler diagnostics carry the real cause (e.g. a duplicate-class error); humanize them
+            // into an actionable Problem instead of the generic CompilationFailedException message.
+            ToolResult(false, DexDiagnostics.humanize(diagnostics + "D8 dexing failed: ${t.message}"))
+        } }
+        // Draw from the process-wide in-process heap budget so concurrent dex tasks (the three scope merges run
+        // as one DAG level) don't each plan against the full app heap and over-commit on a phone — see
+        // [InProcessDexGate]. A merge (DexIndexed) has a larger working set than a per-class archive, so it draws
+        // more credits; a lone task is never throttled below its own plan, and a forked dexer never reaches here.
+        return if (mode == OutputMode.DexFilePerClassFile) InProcessDexGate.withArchivePermit(compile)
+        else InProcessDexGate.withMergePermit(compile)
+    }
+}

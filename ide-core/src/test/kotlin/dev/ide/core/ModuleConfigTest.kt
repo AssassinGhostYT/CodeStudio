@@ -1,0 +1,196 @@
+package dev.ide.core
+
+import dev.ide.testkit.withTempDir
+import dev.ide.ui.backend.UiConfigField
+import dev.ide.ui.backend.UiFacetConfig
+import dev.ide.ui.backend.UiModuleConfigEdit
+import dev.ide.ui.backend.UiPackagingRules
+import dev.ide.ui.backend.UiSearchOptions
+import java.nio.file.Files
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+
+/**
+ * Exercises the model-API-driven Module Settings editor end-to-end: read a module's config (incl. the
+ * generically-derived Android facet panel), mutate the language level + an Android field, persist through
+ * the transaction, and confirm it survives a reload from `module.toml`. Also covers find-in-files.
+ */
+class ModuleConfigTest {
+
+    @Test
+    fun readsCoreFieldsAndAGenericAndroidFacetPanel() = withTempDir("ide-cfg") { dir ->
+        IdeServices.bootstrapDemo(dir).use { ide ->
+            val config = assertNotNull(ide.moduleService.getModuleConfig("app"), "app config should load")
+            assertEquals("app", config.name)
+            assertTrue(config.languageLevels.contains(config.languageLevel), "current level is one of the options")
+            assertTrue(config.sourceSets.isNotEmpty(), "android-app has source sets")
+
+            val android = assertNotNull(config.facets.firstOrNull { it.table == "android" }, "android facet panel present")
+            // Scalars derived by type: namespace=Text, compileSdk/minSdk=Number, isApplication=Bool.
+            assertTrue(android.fields.any { it is UiConfigField.Text && it.key == "namespace" }, "namespace → Text")
+            assertTrue(android.fields.any { it is UiConfigField.Number && it.key == "minSdk" }, "minSdk → Number")
+            assertTrue(android.fields.any { it is UiConfigField.Bool && it.key == "isApplication" }, "isApplication → Bool")
+            // Inline-table arrays derived as a TableList (build types).
+            assertTrue(android.fields.any { it is UiConfigField.TableList && it.key == "buildTypes" }, "buildTypes → TableList")
+
+            // A pure-Java module has no Android panel — extensibility, not hardcoding.
+            val core = assertNotNull(ide.moduleService.getModuleConfig("core"))
+            assertTrue(core.facets.none { it.table == "android" }, "java-lib has no android facet")
+        }
+        dir.toFile().deleteRecursively()
+    }
+
+    @Test
+    fun editingLanguageLevelAndAFacetFieldPersistsAndReloads() = withTempDir("ide-cfg-edit") { dir ->
+        IdeServices.bootstrapDemo(dir).use { ide ->
+            val before = assertNotNull(ide.moduleService.getModuleConfig("app"))
+            val android = assertNotNull(before.facets.firstOrNull { it.table == "android" })
+            val originalNamespace = (android.fields.first { it.key == "namespace" } as UiConfigField.Text).value
+
+            // Send the FULL facet map (as the UI does), overriding minSdk; flip the language level too.
+            val edit = UiModuleConfigEdit(
+                languageLevel = "JAVA_21",
+                facetValues = mapOf("android" to android.toValues(overrides = mapOf("minSdk" to 24L))),
+            )
+            val result = ide.moduleService.updateModuleConfig("app", edit)
+            assertTrue(result.success, "update should succeed: ${result.message}")
+
+            // Visible in the live model immediately.
+            val after = assertNotNull(ide.moduleService.getModuleConfig("app"))
+            assertEquals("JAVA_21", after.languageLevel)
+            val minSdk = (after.facets.first { it.table == "android" }.fields.first { it.key == "minSdk" } as UiConfigField.Number).value
+            assertEquals(24L, minSdk)
+            // The untouched field survived the round-trip (not reset to a default).
+            val ns = (after.facets.first { it.table == "android" }.fields.first { it.key == "namespace" } as UiConfigField.Text).value
+            assertEquals(originalNamespace, ns)
+
+            // module.toml on disk reflects it.
+            assertTrue(Files.walk(dir).use { s -> s.anyMatch { it.fileName?.toString() == "module.toml" } })
+        }
+
+        // Re-open the workspace from disk → the edit persisted through module.toml.
+        IdeServices.open(dir).use { reopened ->
+            val reloaded = assertNotNull(reopened.moduleService.getModuleConfig("app"))
+            assertEquals("JAVA_21", reloaded.languageLevel, "language level persisted")
+            val minSdk = (reloaded.facets.first { it.table == "android" }.fields.first { it.key == "minSdk" } as UiConfigField.Number).value
+            assertEquals(24L, minSdk, "minSdk persisted to module.toml")
+        }
+        dir.toFile().deleteRecursively()
+    }
+
+    /** The platform-SDK picker: a `java-lib` resolves a JVM (core-Java) SDK, never `android`; pinning an
+     *  explicit override persists through module.toml. This is the "console apps don't see android.*" fix,
+     *  surfaced in Module Config. */
+    @Test
+    fun platformSdkResolvesByTypeAndOverridePersists() = withTempDir("ide-cfg-sdk") { dir ->
+        IdeServices.bootstrapDemo(dir).use { ide ->
+            val core = assertNotNull(ide.moduleService.getModuleConfig("core")) // a java-lib
+            assertTrue(core.availableSdks.isNotEmpty(), "SDK table is populated")
+            // A console/library module resolves a JVM platform — NOT the Android SDK.
+            assertTrue(core.resolvedSdk.isNotEmpty(), "core resolves some platform SDK")
+            assertTrue(core.resolvedSdk != "android", "java-lib must not resolve android.jar (got ${core.resolvedSdk})")
+            assertEquals("", core.platformSdk, "no explicit override by default")
+
+            // Pin an explicit override and confirm it's visible immediately.
+            val target = core.availableSdks.first().name
+            val res = ide.moduleService.updateModuleConfig("core", UiModuleConfigEdit(platformSdk = target))
+            assertTrue(res.success, res.message)
+            assertEquals(target, assertNotNull(ide.moduleService.getModuleConfig("core")).platformSdk)
+        }
+        // The override survived the module.toml round-trip.
+        IdeServices.open(dir).use { reopened ->
+            val core = assertNotNull(reopened.moduleService.getModuleConfig("core"))
+            assertTrue(core.platformSdk.isNotEmpty(), "explicit [module] sdk override persisted to module.toml")
+        }
+        dir.toFile().deleteRecursively()
+    }
+
+    // Mirror what the UI does on Save: collapse the rendered fields back into the codec's value map,
+    // applying any edits. Proves the generic round-trip (incl. the buildTypes TableList) is lossless.
+    private fun UiFacetConfig.toValues(overrides: Map<String, Any?> = emptyMap()): Map<String, Any?> =
+        fields.associate { f -> f.key to (overrides[f.key] ?: f.rawValue()) }
+
+    private fun UiConfigField.rawValue(): Any? = when (this) {
+        is UiConfigField.Text -> value
+        is UiConfigField.Number -> value
+        is UiConfigField.Bool -> value
+        is UiConfigField.StringList -> values
+        is UiConfigField.TableList -> rows.map { row -> row.associate { it.key to it.rawValue() } }
+    }
+
+    @Test
+    fun packagingOptionsRoundTripAndPersist() = withTempDir("ide-pkg") { dir ->
+        IdeServices.bootstrapDemo(dir).use { ide ->
+            // Defaults exposed; a fresh module has no configured rules.
+            val initial = assertNotNull(ide.moduleService.getPackagingOptions("app"), "android module has packaging options")
+            assertTrue(initial.resources.excludes.isEmpty() && initial.jniLibs.pickFirsts.isEmpty(), "starts unconfigured")
+            assertTrue(initial.defaultResourceExcludes.any { it.contains("MANIFEST.MF") }, "AGP defaults exposed read-only")
+            assertTrue(initial.defaultResourceMerges.any { it.contains("services") }, "default services merge exposed")
+
+            // A pure-Java module returns null (not Android).
+            assertEquals(null, ide.moduleService.getPackagingOptions("core"), "java-lib has no packaging options")
+
+            val r = ide.moduleService.updatePackagingOptions(
+                "app",
+                UiPackagingRules(excludes = listOf("/META-INF/extra.txt", "  "), pickFirsts = listOf("**/win.properties"), merges = listOf("/META-INF/custom/**")),
+                UiPackagingRules(excludes = listOf("**/libc++_shared.so")),
+            )
+            assertTrue(r.success, "update should succeed: ${r.message}")
+
+            val after = assertNotNull(ide.moduleService.getPackagingOptions("app"))
+            assertEquals(listOf("/META-INF/extra.txt"), after.resources.excludes, "blank patterns dropped")
+            assertEquals(listOf("**/win.properties"), after.resources.pickFirsts)
+            assertEquals(listOf("/META-INF/custom/**"), after.resources.merges)
+            assertEquals(listOf("**/libc++_shared.so"), after.jniLibs.excludes)
+        }
+        // Persisted to module.toml.
+        IdeServices.open(dir).use { reopened ->
+            val reloaded = assertNotNull(reopened.moduleService.getPackagingOptions("app"))
+            assertEquals(listOf("/META-INF/extra.txt"), reloaded.resources.excludes, "packaging persisted")
+            assertEquals(listOf("**/libc++_shared.so"), reloaded.jniLibs.excludes)
+        }
+        dir.toFile().deleteRecursively()
+    }
+
+    @Test
+    fun settingsSaveDoesNotClobberPackaging() = withTempDir("ide-pkg-preserve") { dir ->
+        IdeServices.bootstrapDemo(dir).use { ide ->
+            ide.moduleService.updatePackagingOptions(
+                "app",
+                UiPackagingRules(excludes = listOf("/META-INF/keep-me.txt")),
+                UiPackagingRules(),
+            )
+            // A Settings-tab save sends the facet map WITHOUT the packaging block (it's edited on its own tab).
+            val cfg = assertNotNull(ide.moduleService.getModuleConfig("app"))
+            val android = assertNotNull(cfg.facets.firstOrNull { it.table == "android" })
+            assertTrue(android.fields.none { it.key == "packaging" }, "packaging isn't a generic Settings field")
+            val edit = UiModuleConfigEdit(facetValues = mapOf("android" to android.toValues(overrides = mapOf("minSdk" to 23L))))
+            assertTrue(ide.moduleService.updateModuleConfig("app", edit).success)
+
+            // The Settings save changed minSdk but preserved the separately-configured packaging.
+            val minSdk = (ide.moduleService.getModuleConfig("app")!!.facets.first { it.table == "android" }.fields.first { it.key == "minSdk" } as UiConfigField.Number).value
+            assertEquals(23L, minSdk)
+            assertEquals(listOf("/META-INF/keep-me.txt"), ide.moduleService.getPackagingOptions("app")!!.resources.excludes, "packaging survived a Settings save")
+        }
+        dir.toFile().deleteRecursively()
+    }
+
+    @Test
+    fun findInFilesMatchesProjectSources() = withTempDir("ide-find") { dir ->
+        IdeServices.bootstrapJavaDemo(dir).use { ide ->
+            // "package" appears in every Java source — a stable probe.
+            val hits = ide.search.findInFiles("package", UiSearchOptions(), limit = 200)
+            assertTrue(hits.isNotEmpty(), "find-in-files should match project sources")
+            val first = hits.first()
+            assertTrue(first.line >= 1 && first.offset >= 0, "match carries a navigable line/offset")
+            assertTrue("package" in first.lineText.lowercase(), "the matched line contains the query")
+
+            // Case sensitivity is honored: an all-caps query won't match lowercase 'package'.
+            val none = ide.search.findInFiles("PACKAGE", UiSearchOptions(caseSensitive = true), limit = 50)
+            assertTrue(none.none { "package " in it.lineText }, "case-sensitive search shouldn't match lowercase")
+        }
+        dir.toFile().deleteRecursively()
+    }
+}
