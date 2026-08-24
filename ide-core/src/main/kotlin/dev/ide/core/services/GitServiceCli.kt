@@ -217,9 +217,9 @@ internal class GitServiceCli(private val ctx: EngineContext) : GitService {
             githubCredentials()?.let { cmd.setCredentialsProvider(it) }
             val result = cmd.call()
             val updated = result.trackingRefUpdates.filter {
-                it.result == TrackingRefUpdate.Result.NEW ||
-                    it.result == TrackingRefUpdate.Result.FAST_FORWARD ||
-                    it.result == TrackingRefUpdate.Result.FORCED
+                it.result == org.eclipse.jgit.transport.TrackingRefUpdate.Result.NEW ||
+                    it.result == org.eclipse.jgit.transport.TrackingRefUpdate.Result.FAST_FORWARD ||
+                    it.result == org.eclipse.jgit.transport.TrackingRefUpdate.Result.FORCED
             }
             if (updated.isEmpty()) GitOpResult.ok("Fetch completado: sin cambios nuevos en $remote.")
             else GitOpResult.ok("Fetch completado: ${updated.size} rama(s) actualizada(s) desde $remote.")
@@ -357,7 +357,9 @@ internal class GitServiceCli(private val ctx: EngineContext) : GitService {
 
     override fun removeRemote(name: String): GitOpResult {
         return run({ git ->
-            git.remoteRemove().setName(name).call()
+            val rmCmd = git.remoteRemove()
+            rmCmd.setName(name)
+            rmCmd.call()
             GitOpResult.ok("Repositorio remoto $name desconectado.")
         }, "Git no está disponible en este entorno.")
     }
@@ -478,8 +480,15 @@ internal class GitServiceCli(private val ctx: EngineContext) : GitService {
         if (git != null) {
             runCatching {
                 val origin = git.remoteList().call().find { it.name == "origin" }
-                if (origin != null) git.remoteRemove().setName("origin").call()
-                git.remoteAdd().setName("origin").setUri(URIish(url)).call()
+                if (origin != null) {
+                    val rmCmd = git.remoteRemove()
+                    rmCmd.setName("origin")
+                    rmCmd.call()
+                }
+                val addCmd = git.remoteAdd()
+                addCmd.setName("origin")
+                addCmd.setUri(URIish(url))
+                addCmd.call()
             }.onFailure {
                 return GitOpResult.fail("Repositorio conectado, pero no se pudo configurar el remoto: ${it.message?.take(120)}")
             }
