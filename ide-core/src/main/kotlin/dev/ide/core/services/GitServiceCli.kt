@@ -28,6 +28,7 @@ import org.eclipse.jgit.diff.DiffFormatter
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.transport.RefSpec
 import org.eclipse.jgit.transport.TrackingRefUpdate
+import org.eclipse.jgit.transport.TrackingRefUpdate.Result
 import org.eclipse.jgit.transport.TrackingRefUpdate.Result as TrackingRefUpdateResult
 import org.eclipse.jgit.transport.URIish
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
