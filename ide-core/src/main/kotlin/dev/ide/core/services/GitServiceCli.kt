@@ -492,8 +492,10 @@ internal class GitServiceCli(private val ctx: EngineContext) : GitService {
         clearSession()
         val git = open()
         if (git != null) {
-            runCatching {
-                git.remoteRemove().setName("origin").call()
+            runCatching<Unit> {
+                val cmd = git.remoteRemove()
+                cmd.setName("origin")
+                cmd.call()
             }
         }
         return GitOpResult.ok("Desconectado de GitHub.")
@@ -540,8 +542,15 @@ internal class GitServiceCli(private val ctx: EngineContext) : GitService {
             val url = "https://github.com/$repo.git"
             val origin = git.remoteList().call().find { it.name == "origin" }
             if (origin == null || origin.urIs.firstOrNull()?.toString() != url) {
-                if (origin != null) git.remoteRemove().setName("origin").call()
-                git.remoteAdd().setName("origin").setUri(URIish(url)).call()
+                if (origin != null) {
+                    val rmCmd = git.remoteRemove()
+                    rmCmd.setName("origin")
+                    rmCmd.call()
+                }
+                val addCmd = git.remoteAdd()
+                addCmd.setName("origin")
+                addCmd.setUri(URIish(url))
+                addCmd.call()
             }
             git.push()
                 .setRemote("origin")
