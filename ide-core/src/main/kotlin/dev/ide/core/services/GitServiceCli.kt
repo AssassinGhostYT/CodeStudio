@@ -228,15 +228,19 @@ internal class GitServiceCli(private val ctx: EngineContext) : GitService {
 
     override fun merge(branch: String): GitOpResult {
         return run({ git ->
-            val ref = if (git.repository.findRef("refs/heads/$branch") != null) "refs/heads/$branch"
+            val refName = if (git.repository.findRef("refs/heads/$branch") != null) "refs/heads/$branch"
             else "refs/remotes/$branch"
+            val ref = git.repository.findRef(refName) ?: return@run GitOpResult.fail("No se encontró la rama $branch")
             val result = git.merge().include(ref).call()
             when (result.mergeStatus) {
-                MergeStatus.CONFLICTING -> GitOpResult(
-                    success = false,
-                    message = "Conflicto al fusionar $branch con ${branch() ?: "la rama actual"}.",
-                    conflicts = result.conflicts?.keys?.toList().orEmpty(),
-                )
+                MergeStatus.CONFLICTING -> {
+                    val conflictList: List<String> = result.conflicts?.keys?.toList() ?: emptyList()
+                    GitOpResult(
+                        success = false,
+                        message = "Conflicto al fusionar $branch con ${branch() ?: "la rama actual"}.",
+                        conflicts = conflictList,
+                    )
+                }
                 MergeStatus.ALREADY_UP_TO_DATE -> GitOpResult.ok("Ya está actualizada con $branch.")
                 else -> if (result.mergeStatus.isSuccessful)
                     GitOpResult.ok("Rama $branch fusionada en ${branch() ?: "la rama actual"}.")
