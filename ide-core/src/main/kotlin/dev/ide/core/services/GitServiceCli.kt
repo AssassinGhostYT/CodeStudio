@@ -28,7 +28,7 @@ import org.eclipse.jgit.diff.DiffFormatter
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.transport.RefSpec
 import org.eclipse.jgit.transport.TrackingRefUpdate
-import org.eclipse.jgit.transport.TrackingRefUpdate.Result
+import org.eclipse.jgit.transport.TrackingRefUpdate.Result as TrackingRefUpdateResult
 import org.eclipse.jgit.transport.URIish
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.ByteArrayOutputStream
@@ -218,9 +218,9 @@ internal class GitServiceCli(private val ctx: EngineContext) : GitService {
             githubCredentials()?.let { cmd.setCredentialsProvider(it) }
             val result = cmd.call()
             val updated = result.trackingRefUpdates.filter {
-                it.result == Result.NEW ||
-                    it.result == Result.FAST_FORWARD ||
-                    it.result == Result.FORCED
+                it.result == TrackingRefUpdateResult.NEW ||
+                    it.result == TrackingRefUpdateResult.FAST_FORWARD ||
+                    it.result == TrackingRefUpdateResult.FORCED
             }
             if (updated.isEmpty()) GitOpResult.ok("Fetch completado: sin cambios nuevos en $remote.")
             else GitOpResult.ok("Fetch completado: ${updated.size} rama(s) actualizada(s) desde $remote.")
