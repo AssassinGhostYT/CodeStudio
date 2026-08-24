@@ -491,7 +491,11 @@ internal class GitServiceCli(private val ctx: EngineContext) : GitService {
     override fun githubDisconnect(): GitOpResult {
         clearSession()
         val git = open()
-        if (git != null) runCatching { git.remoteRemove().setName("origin").call() }
+        if (git != null) {
+            runCatching {
+                git.remoteRemove().setName("origin").call()
+            }
+        }
         return GitOpResult.ok("Desconectado de GitHub.")
     }
 
