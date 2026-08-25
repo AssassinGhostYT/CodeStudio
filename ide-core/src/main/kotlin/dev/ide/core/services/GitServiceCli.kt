@@ -778,16 +778,18 @@ internal class GitServiceCli(
         stashId: Int,
     ): GitOpResult {
         return run({ git ->
-            val stash = git.stashList()
+            val stashes = git.stashList()
                 .call()
                 .sortedByDescending { it.commitTime }
-                .getOrNull(stashId)
-                ?: return@run GitOpResult.fail(
+
+            if (stashId !in stashes.indices) {
+                return@run GitOpResult.fail(
                     "Stash no encontrado.",
                 )
+            }
 
             git.stashDrop()
-                .setStashRef(stash.name)
+                .setStashRef(stashId)
                 .call()
 
             GitOpResult.ok(
@@ -864,7 +866,7 @@ internal class GitServiceCli(
 
         return run({ git ->
             git.remoteRemove()
-                .setName(cleanName)
+                .setRemoteName(cleanName)
                 .call()
 
             GitOpResult.ok(
@@ -1122,7 +1124,7 @@ internal class GitServiceCli(
 
                 if (origin != null) {
                     git.remoteRemove()
-                        .setName("origin")
+                        .setRemoteName("origin")
                         .call()
                 }
 
@@ -1156,7 +1158,7 @@ internal class GitServiceCli(
             try {
                 runCatching {
                     git.remoteRemove()
-                        .setName("origin")
+                        .setRemoteName("origin")
                         .call()
                 }
             } finally {
@@ -1287,7 +1289,7 @@ internal class GitServiceCli(
             if (origin == null || currentUrl != url) {
                 if (origin != null) {
                     git.remoteRemove()
-                        .setName("origin")
+                        .setRemoteName("origin")
                         .call()
                 }
 
