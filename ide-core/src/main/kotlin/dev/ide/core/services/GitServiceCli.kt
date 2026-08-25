@@ -48,7 +48,7 @@ internal class GitServiceCli(
 ) : GitService {
 
     private companion object {
-        const val GITHUB_CLIENT_ID = "TU_CLIENT_ID"
+        const val GITHUB_CLIENT_ID = "Ov23liR4ZOr83z3uusM7"
         const val SESSION_FILE = "github-session.properties"
     }
 
@@ -82,7 +82,7 @@ internal class GitServiceCli(
         get() = File(root, ".git").exists()
 
     override val githubAvailable: Boolean
-        get() = GITHUB_CLIENT_ID != "Ov23liR4ZOr83z3uusM7"
+        get() = GITHUB_CLIENT_ID != "TU_CLIENT_ID"
 
     private fun open(): Git? {
         return runCatching {
