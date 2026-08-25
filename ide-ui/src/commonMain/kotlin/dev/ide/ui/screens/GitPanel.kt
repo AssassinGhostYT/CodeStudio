@@ -192,6 +192,7 @@ fun GitPanel(backend: IdeBackend) {
                 )
             } else {
                 deviceFlow = flow
+                dialog = GitDialog.Device
             }
         }
     }
@@ -245,12 +246,14 @@ fun GitPanel(backend: IdeBackend) {
             if (result.success) {
                 session = runCatching { git.githubSession() }.getOrNull()
                 deviceFlow = null
+                dialog = null
                 notice = Notice(result.message, true, ++noticeId)
                 reload()
             } else {
                 notice = Notice(result.message, false, ++noticeId)
                 if (result.message.contains("expiró") || result.message.contains("rechazada")) {
                     deviceFlow = null
+                    dialog = null
                 }
             }
         }
@@ -531,7 +534,7 @@ AnimatedVisibility(
         )
         GitDialog.Device -> DeviceFlowDialog(
             flow = deviceFlow,
-            onDismiss = { deviceFlow = null },
+            onDismiss = { deviceFlow = null; dialog = null },
             onOpen = { uri -> runCatching { uriHandler.openUri(uri) } },
         )
         GitDialog.Publish -> PublishDialog(
