@@ -82,7 +82,7 @@ internal class GitServiceCli(
         get() = File(root, ".git").exists()
 
     override val githubAvailable: Boolean
-        get() = GITHUB_CLIENT_ID != "TU_CLIENT_ID"
+        get() = GITHUB_CLIENT_ID != "Ov23liR4ZOr83z3uusM7"
 
     private fun open(): Git? {
         return runCatching {
