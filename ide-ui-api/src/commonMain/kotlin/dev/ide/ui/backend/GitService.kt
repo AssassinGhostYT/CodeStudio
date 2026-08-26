@@ -144,6 +144,13 @@ interface GitService {
     fun githubSession(): GitHubSession?
     fun githubRepos(): List<GitHubRepo>
     fun githubConnectRepo(fullName: String, defaultBranch: String): GitOpResult
+
+    /**
+     * Creates a new repository named [name] on the connected GitHub account ([isPrivate] controls
+     * visibility), then connects it the same way [githubConnectRepo] does.
+     */
+    fun githubCreateRepo(name: String, isPrivate: Boolean): GitOpResult
+
     fun githubDisconnect(): GitOpResult
 
     /**
@@ -194,6 +201,7 @@ object NoopGitService : GitService {
     override fun githubSession(): GitHubSession? = null
     override fun githubRepos(): List<GitHubRepo> = emptyList()
     override fun githubConnectRepo(fullName: String, defaultBranch: String): GitOpResult = GitOpResult.fail("GitHub no está configurado en este entorno.")
+    override fun githubCreateRepo(name: String, isPrivate: Boolean): GitOpResult = GitOpResult.fail("GitHub no está configurado en este entorno.")
     override fun githubDisconnect(): GitOpResult = GitOpResult.fail("GitHub no está configurado en este entorno.")
     override fun githubClearRepo(): GitOpResult = GitOpResult.fail("GitHub no está configurado en este entorno.")
     override fun publish(mode: PublishMode, branch: String, message: String): GitOpResult = GitOpResult.fail("GitHub no está configurado en este entorno.")
