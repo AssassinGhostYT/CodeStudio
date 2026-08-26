@@ -93,7 +93,7 @@ private enum class GitOp {
 }
 
 /** Which dialog is open; null = none. */
-private enum class GitDialog { Commit, Branch, Merge, Stash, Remote, Device, Publish }
+private enum class GitDialog { Commit, Branch, Merge, Stash, Remote, Device, Publish, CreateRepo }
 
 /** An auto-dismissing toast: [ok] selects the success/error styling. */
 private data class Notice(val text: String, val ok: Boolean, val id: Long)
@@ -224,6 +224,23 @@ fun GitPanel(backend: IdeBackend) {
             deviceFlow = null
             notice = Notice("Desconectado de GitHub.", true, ++noticeId)
             reload()
+        }
+    }
+
+    /** Creates [name] as a new GitHub repository (visibility per [isPrivate]) and connects it. */
+    fun createRepo(name: String, isPrivate: Boolean) {
+        if (connecting) return
+        scope.launch {
+            connecting = true
+            val result = withContext(Dispatchers.IO) { git.githubCreateRepo(name, isPrivate) }
+            connecting = false
+            notice = Notice(result.message, result.success, ++noticeId)
+            if (result.success) {
+                dialog = null
+                session = runCatching { git.githubSession() }.getOrNull() ?: session
+                repos = emptyList()
+                reload()
+            }
         }
     }
 
@@ -439,6 +456,11 @@ AnimatedVisibility(
                                 onLogout = { logoutGithub() },
                             )
                             Spacer(Modifier.height(10.dp))
+                            CreateRepoTile(
+                                connecting = connecting,
+                                onClick = { dialog = GitDialog.CreateRepo },
+                            )
+                            Spacer(Modifier.height(10.dp))
                         }
                         items(repos, key = { it.fullName }) { repo ->
                             RepoRow(
@@ -571,6 +593,11 @@ AnimatedVisibility(
             onPublish = { mode, branch, message ->
                 runOp(GitOp.Publish) { git.publish(mode, branch, message) }
             },
+        )
+        GitDialog.CreateRepo -> CreateRepoDialog(
+            busy = connecting,
+            onDismiss = { dialog = null },
+            onCreate = { name, isPrivate -> createRepo(name, isPrivate) },
         )
         null -> Unit
     }
@@ -913,7 +940,7 @@ private fun RemoteCardBody(
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
                     Text(remote.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        "Conectado · ${currentBranch?.let { "$remote.name/$it" } ?: remote.name}",
+                        "Conectado · ${currentBranch?.let { "${remote.name}/$it" } ?: remote.name}",
                         style = MaterialTheme.typography.bodySmall,
                         color = Ide.colors.success,
                     )
@@ -1372,6 +1399,68 @@ private fun RepoPickerHeader(login: String, count: Int, connectingRepo: Boolean,
                 )
             }
             TextButton(onClick = onLogout, enabled = !connectingRepo) { Text("Cerrar sesión") }
+        }
+    }
+}
+
+@Composable
+private fun CreateRepoTile(connecting: Boolean, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+        modifier = Modifier.fillMaxWidth().clickable(enabled = !connecting) { onClick() },
+    ) {
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(CaIcons.plus, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            Text(
+                "Crear repositorio nuevo",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(1f).padding(start = 12.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun CreateRepoDialog(
+    busy: Boolean,
+    onDismiss: () -> Unit,
+    onCreate: (String, Boolean) -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    var isPrivate by remember { mutableStateOf(true) }
+    DialogShell("Crear repositorio en GitHub", onDismiss) {
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = { Text("Nombre del repositorio") },
+            singleLine = true,
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(10.dp))
+        Row(
+            Modifier.fillMaxWidth().clickable(enabled = !busy) { isPrivate = !isPrivate },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(checked = isPrivate, onCheckedChange = { isPrivate = it }, enabled = !busy)
+            Column(Modifier.padding(start = 6.dp)) {
+                Text("Repositorio privado", style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    if (isPrivate) "Solo tú podrás verlo." else "Cualquiera en GitHub podrá verlo.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancelar") }
+            TextButton(onClick = { onCreate(name, isPrivate) }, enabled = !busy && name.isNotBlank()) {
+                if (busy) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+                Text(if (busy) "Creando…" else "Crear y conectar", modifier = Modifier.padding(start = if (busy) 6.dp else 0.dp))
+            }
         }
     }
 }
