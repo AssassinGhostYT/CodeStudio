@@ -1104,6 +1104,11 @@ internal class GitServiceCli(
                 "Conéctate a GitHub primero.",
             )
 
+        val token = props.getProperty("token")
+            ?: return GitOpResult.fail(
+                "Conéctate a GitHub primero.",
+            )
+
         props.setProperty("repo", fullName)
         props.setProperty("defaultBranch", defaultBranch)
 
@@ -1114,39 +1119,184 @@ internal class GitServiceCli(
         }
 
         val url = "https://github.com/$fullName.git"
+
+        return if (!available) {
+            cloneInto(
+                url = url,
+                defaultBranch = defaultBranch,
+                token = token,
+                fullName = fullName,
+            )
+        } else {
+            pointExistingRepoTo(url, fullName)
+        }
+    }
+
+    /**
+     * Points the already-existing local repository's `origin` to [url] without touching the working
+     * tree. Used when the workspace already has commits (e.g. a project created on-device): connecting
+     * a GitHub repo here only wires the remote so Push/Pull work; it does not merge histories.
+     */
+    private fun pointExistingRepoTo(
+        url: String,
+        fullName: String,
+    ): GitOpResult {
         val git = open()
+            ?: return GitOpResult.ok(
+                "Repositorio $fullName seleccionado.",
+            )
 
-        if (git != null) {
-            try {
-                val origin = git.remoteList()
+        return try {
+            val origin = git.remoteList()
+                .call()
+                .find { it.name == "origin" }
+
+            if (origin != null) {
+                git.remoteRemove()
+                    .setRemoteName("origin")
                     .call()
-                    .find { it.name == "origin" }
+            }
 
-                if (origin != null) {
-                    git.remoteRemove()
-                        .setRemoteName("origin")
-                        .call()
-                }
+            git.remoteAdd()
+                .setName("origin")
+                .setUri(URIish(url))
+                .call()
 
-                git.remoteAdd()
-                    .setName("origin")
-                    .setUri(URIish(url))
-                    .call()
-            } catch (error: Throwable) {
-                return GitOpResult.fail(
-                    "Repositorio conectado, pero no se pudo configurar " +
-                        "el remoto: ${error.message?.take(120)}",
-                )
-            } finally {
-                runCatching {
-                    git.close()
-                }
+            GitOpResult.ok(
+                "Repositorio $fullName conectado. Usa Pull para traer sus cambios " +
+                    "o Push para subir los tuyos.",
+            )
+        } catch (error: Throwable) {
+            GitOpResult.fail(
+                "Repositorio conectado, pero no se pudo configurar " +
+                    "el remoto: ${error.message?.take(120)}",
+            )
+        } finally {
+            runCatching {
+                git.close()
             }
         }
+    }
 
-        return GitOpResult.ok(
-            "Repositorio $fullName seleccionado.",
+    /**
+     * Downloads the actual contents of [fullName] into the workspace root via a real JGit clone
+     * (`git clone` equivalent). Only safe to call when the workspace has no repository yet; if the
+     * folder already contains files, JGit refuses to clone on top of them, so we check first and
+     * report a clear, honest error instead of silently failing or corrupting the project.
+     */
+    private fun cloneInto(
+        url: String,
+        defaultBranch: String,
+        token: String,
+        fullName: String,
+    ): GitOpResult {
+        val existingFiles = root.listFiles()
+
+        if (root.exists() && !existingFiles.isNullOrEmpty()) {
+            return GitOpResult.fail(
+                "No se puede clonar $fullName: la carpeta del proyecto ya tiene " +
+                    "archivos. Crea un proyecto vacío nuevo para clonar ahí, o usa " +
+                    "un repositorio nuevo para este proyecto.",
+            )
+        }
+
+        return runCatching {
+            root.mkdirs()
+
+            Git.cloneRepository()
+                .setURI(url)
+                .setDirectory(root)
+                .setBranch(defaultBranch)
+                .setCredentialsProvider(
+                    UsernamePasswordCredentialsProvider(
+                        "x-access-token",
+                        token,
+                    ),
+                )
+                .call()
+                .close()
+
+            GitOpResult.ok(
+                "Repositorio $fullName clonado correctamente.",
+            )
+        }.getOrElse { error ->
+            GitOpResult.fail(
+                "No se pudo clonar $fullName: " +
+                    "${error.message?.lineSequence()?.firstOrNull()?.take(150) ?: "error"}",
+            )
+        }
+    }
+
+    override fun githubCreateRepo(
+        name: String,
+        isPrivate: Boolean,
+    ): GitOpResult {
+        val cleanName = name.trim()
+
+        if (cleanName.isEmpty()) {
+            return GitOpResult.fail(
+                "Escribe un nombre para el repositorio.",
+            )
+        }
+
+        if (!cleanName.matches(Regex("^[A-Za-z0-9_.-]+$"))) {
+            return GitOpResult.fail(
+                "El nombre solo puede tener letras, números, guiones, puntos y guion bajo.",
+            )
+        }
+
+        val token = sessionToken()
+            ?: return GitOpResult.fail(
+                "Conéctate a GitHub primero.",
+            )
+
+        val payload = buildString {
+            append('{')
+            append("\"name\":\"").append(jsonEscape(cleanName)).append("\",")
+            append("\"private\":").append(isPrivate)
+            append('}')
+        }
+
+        val raw = postJson(
+            "https://api.github.com/user/repos",
+            payload,
+            token,
+        ) ?: return GitOpResult.fail(
+            "No se pudo contactar a GitHub.",
         )
+
+        val objectValue = runCatching {
+            json.parseToJsonElement(raw).jsonObject
+        }.getOrNull() ?: return GitOpResult.fail(
+            "Respuesta inesperada de GitHub.",
+        )
+
+        val fullName = objectValue.value("full_name")
+
+        if (fullName == null) {
+            val apiMessage = objectValue.value("message")
+
+            return GitOpResult.fail(
+                when {
+                    apiMessage == null -> "No se pudo crear el repositorio."
+                    apiMessage.contains("already exists", ignoreCase = true) ->
+                        "Ya existe un repositorio con ese nombre en tu cuenta."
+                    else -> apiMessage
+                },
+            )
+        }
+
+        val defaultBranch = objectValue.value("default_branch") ?: "main"
+
+        val connectResult = githubConnectRepo(fullName, defaultBranch)
+
+        return if (connectResult.success) {
+            GitOpResult.ok(
+                "Repositorio $fullName creado y conectado.",
+            )
+        } else {
+            connectResult
+        }
     }
 
     override fun githubDisconnect(): GitOpResult {
@@ -1402,6 +1552,63 @@ internal class GitServiceCli(
         form: Map<String, String>,
     ): String? {
         return post(url, form, null)
+    }
+
+    private fun postJson(
+        url: String,
+        jsonBody: String,
+        token: String,
+    ): String? {
+        return runCatching {
+            val connection = URL(url)
+                .openConnection() as HttpURLConnection
+
+            connection.requestMethod = "POST"
+            connection.doOutput = true
+
+            connection.setRequestProperty(
+                "Accept",
+                "application/vnd.github+json",
+            )
+
+            connection.setRequestProperty(
+                "Content-Type",
+                "application/json; charset=utf-8",
+            )
+
+            connection.setRequestProperty(
+                "Authorization",
+                "Bearer $token",
+            )
+
+            connection.outputStream.use {
+                it.write(
+                    jsonBody.toByteArray(
+                        StandardCharsets.UTF_8,
+                    ),
+                )
+            }
+
+            val responseCode = connection.responseCode
+
+            val stream = if (responseCode in 200..299) {
+                connection.inputStream
+            } else {
+                connection.errorStream
+            }
+
+            stream?.bufferedReader()?.use {
+                it.readText()
+            }
+        }.getOrNull()
+    }
+
+    private fun jsonEscape(
+        value: String,
+    ): String {
+        return value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
     }
 
     private fun post(
