@@ -227,6 +227,22 @@ fun GitPanel(backend: IdeBackend) {
         }
     }
 
+    /** Forgets the picked repo (keeps the GitHub session) and returns to the repo picker. */
+    fun changeRepo() {
+        if (connecting) return
+        scope.launch {
+            connecting = true
+            val result = withContext(Dispatchers.IO) { git.githubClearRepo() }
+            connecting = false
+            notice = Notice(result.message, result.success, ++noticeId)
+            if (result.success) {
+                session = session?.copy(repoFullName = null, repoDefaultBranch = null)
+                repos = emptyList()
+                reload()
+            }
+        }
+    }
+
     LaunchedEffect(Unit) { reload() }
 
     LaunchedEffect(notice?.id) {
@@ -345,7 +361,11 @@ AnimatedVisibility(
             exit = fadeOut(tween(Motion.FAST)),
         ) {
             Row(Modifier.padding(start = 14.dp, end = 14.dp, top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(shape = RoundedCornerShape(50), color = Ide.colors.success.copy(alpha = 0.14f)) {
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = Ide.colors.success.copy(alpha = 0.14f),
+                    modifier = Modifier.weight(1f, fill = false),
+                ) {
                     Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(CaIcons.github, contentDescription = null, tint = Ide.colors.success, modifier = Modifier.size(13.dp))
                         Text(
@@ -365,6 +385,11 @@ AnimatedVisibility(
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
+                    }
+                }
+                if (session?.repoFullName != null) {
+                    TextButton(onClick = { changeRepo() }, enabled = !connecting) {
+                        Text("Cambiar repo", style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }
