@@ -147,6 +147,12 @@ interface GitService {
     fun githubDisconnect(): GitOpResult
 
     /**
+     * Forgets the currently selected GitHub repo (keeps the account session) and removes the locally
+     * configured `origin` remote, if any, so the repo picker is shown again.
+     */
+    fun githubClearRepo(): GitOpResult
+
+    /**
      * Publish the workspace to the connected GitHub repo: [FULL_PROJECT] initializes the repo (if needed),
      * stages everything and creates an initial commit; [CHANGES_ONLY] commits only the working-tree changes.
      * [branch] is the remote target branch, [message] overrides the auto commit message.
@@ -189,6 +195,7 @@ object NoopGitService : GitService {
     override fun githubRepos(): List<GitHubRepo> = emptyList()
     override fun githubConnectRepo(fullName: String, defaultBranch: String): GitOpResult = GitOpResult.fail("GitHub no está configurado en este entorno.")
     override fun githubDisconnect(): GitOpResult = GitOpResult.fail("GitHub no está configurado en este entorno.")
+    override fun githubClearRepo(): GitOpResult = GitOpResult.fail("GitHub no está configurado en este entorno.")
     override fun publish(mode: PublishMode, branch: String, message: String): GitOpResult = GitOpResult.fail("GitHub no está configurado en este entorno.")
     override fun refresh() {}
 }
