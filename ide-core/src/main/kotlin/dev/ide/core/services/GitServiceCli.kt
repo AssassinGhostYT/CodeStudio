@@ -1288,14 +1288,36 @@ internal class GitServiceCli(
 
         val defaultBranch = objectValue.value("default_branch") ?: "main"
 
-        val connectResult = githubConnectRepo(fullName, defaultBranch)
+        val props = readSession() ?: Properties()
+        props.setProperty("repo", fullName)
+        props.setProperty("defaultBranch", defaultBranch)
 
-        return if (connectResult.success) {
+        if (!writeSession(props)) {
+            return GitOpResult.fail(
+                "Repositorio creado, pero no se pudo guardar la selección.",
+            )
+        }
+
+        // The repo we just created is empty (no commits): there is nothing to clone, so we only need
+        // to make sure a local repo exists and point it at the new remote — never attempt a real
+        // clone here, since that would wrongly refuse to run on a workspace that already has files.
+        if (!available) {
+            val initResult = init()
+
+            if (!initResult.success) {
+                return initResult
+            }
+        }
+
+        val url = "https://github.com/$fullName.git"
+        val wireResult = pointExistingRepoTo(url, fullName)
+
+        return if (wireResult.success) {
             GitOpResult.ok(
-                "Repositorio $fullName creado y conectado.",
+                "Repositorio $fullName creado y conectado. Usa Push para subir tu proyecto.",
             )
         } else {
-            connectResult
+            wireResult
         }
     }
 
