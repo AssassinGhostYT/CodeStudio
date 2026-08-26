@@ -1173,6 +1173,51 @@ internal class GitServiceCli(
         )
     }
 
+    override fun githubClearRepo(): GitOpResult {
+        val props = readSession()
+            ?: return GitOpResult.fail(
+                "Conéctate a GitHub primero.",
+            )
+
+        props.remove("repo")
+        props.remove("defaultBranch")
+
+        if (!writeSession(props)) {
+            return GitOpResult.fail(
+                "No se pudo actualizar la sesión de GitHub.",
+            )
+        }
+
+        val git = open()
+
+        if (git != null) {
+            try {
+                val origin = git.remoteList()
+                    .call()
+                    .find { it.name == "origin" }
+
+                if (origin != null) {
+                    git.remoteRemove()
+                        .setRemoteName("origin")
+                        .call()
+                }
+            } catch (error: Throwable) {
+                return GitOpResult.fail(
+                    "No se pudo quitar el remoto anterior: " +
+                        "${error.message?.take(120)}",
+                )
+            } finally {
+                runCatching {
+                    git.close()
+                }
+            }
+        }
+
+        return GitOpResult.ok(
+            "Repositorio olvidado. Elige otro de la lista.",
+        )
+    }
+
     override fun publish(
         mode: PublishMode,
         branch: String,
