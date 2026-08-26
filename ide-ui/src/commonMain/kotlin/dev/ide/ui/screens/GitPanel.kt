@@ -126,6 +126,7 @@ fun GitPanel(backend: IdeBackend) {
     var repos by remember { mutableStateOf<List<GitHubRepo>>(emptyList()) }
     var deviceFlow by remember { mutableStateOf<GitHubDeviceFlow?>(null) }
     var connecting by remember { mutableStateOf(false) }
+    var pickingRepo by remember { mutableStateOf<String?>(null) }
 
     fun reload() {
         scope.launch(Dispatchers.IO) {
@@ -197,13 +198,15 @@ fun GitPanel(backend: IdeBackend) {
         }
     }
 
-    /** Chooses [repo] as the connected GitHub repository (configures the origin remote). */
+    /** Chooses [repo] as the connected GitHub repository (clones it if the workspace is empty). */
     fun pickRepo(repo: GitHubRepo) {
-        if (connecting) return
+        if (connecting || pickingRepo != null) return
         scope.launch {
             connecting = true
+            pickingRepo = repo.fullName
             val result = withContext(Dispatchers.IO) { git.githubConnectRepo(repo.fullName, repo.defaultBranch) }
             connecting = false
+            pickingRepo = null
             notice = Notice(result.message, result.success, ++noticeId)
             if (result.success) {
                 session = session?.copy(repoFullName = repo.fullName, repoDefaultBranch = repo.defaultBranch)
@@ -292,10 +295,10 @@ fun GitPanel(backend: IdeBackend) {
         }
     }
 
-    // Loads the repo list once the account is connected and no repo is picked yet.
-    LaunchedEffect(session?.login) {
+    // Loads the repo list whenever the account connects OR the picked repo is cleared (e.g. "Cambiar repo").
+    LaunchedEffect(session?.login, session?.repoFullName) {
         val s = session
-        if (s != null && s.repoFullName == null && repos.isEmpty()) {
+        if (s != null && s.repoFullName == null) {
             val r = withContext(Dispatchers.IO) { git.githubRepos() }
             repos = r
             if (r.isEmpty()) {
@@ -466,6 +469,8 @@ AnimatedVisibility(
                             RepoRow(
                                 repo = repo,
                                 connecting = connecting,
+                                isCloning = pickingRepo == repo.fullName,
+                                willClone = !git.available,
                                 onPick = { pickRepo(repo) },
                             )
                             Spacer(Modifier.height(8.dp))
@@ -1432,6 +1437,13 @@ private fun CreateRepoDialog(
     var name by remember { mutableStateOf("") }
     var isPrivate by remember { mutableStateOf(true) }
     DialogShell("Crear repositorio en GitHub", onDismiss) {
+        Text(
+            "Se creará vacío en tu cuenta y quedará conectado a este proyecto. " +
+                "Después usa el botón Push (Todo el proyecto) para subir tus archivos.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(12.dp))
         OutlinedTextField(
             value = name,
             onValueChange = { name = it },
@@ -1466,7 +1478,13 @@ private fun CreateRepoDialog(
 }
 
 @Composable
-private fun RepoRow(repo: GitHubRepo, connecting: Boolean, onPick: () -> Unit) {
+private fun RepoRow(
+    repo: GitHubRepo,
+    connecting: Boolean,
+    isCloning: Boolean,
+    willClone: Boolean,
+    onPick: () -> Unit,
+) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -1486,12 +1504,34 @@ private fun RepoRow(repo: GitHubRepo, connecting: Boolean, onPick: () -> Unit) {
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(repo.fullName, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "Rama predeterminada: ${repo.defaultBranch}",
+                    if (isCloning) "Clonando…" else "Rama predeterminada: ${repo.defaultBranch}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (isCloning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Icon(CaIcons.link, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+            if (isCloning) {
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
+            } else {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                ) {
+                    Row(Modifier.padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            if (willClone) CaIcons.download else CaIcons.link,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(13.dp),
+                        )
+                        Text(
+                            if (willClone) "Clonar" else "Conectar",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 5.dp),
+                        )
+                    }
+                }
+            }
         }
     }
 }
