@@ -151,6 +151,9 @@ interface GitService {
      */
     fun githubCreateRepo(name: String, isPrivate: Boolean): GitOpResult
 
+    /** The workspace folder's name, used to suggest a repository name when creating one. */
+    fun projectName(): String
+
     fun githubDisconnect(): GitOpResult
 
     /**
@@ -202,6 +205,7 @@ object NoopGitService : GitService {
     override fun githubRepos(): List<GitHubRepo> = emptyList()
     override fun githubConnectRepo(fullName: String, defaultBranch: String): GitOpResult = GitOpResult.fail("GitHub no está configurado en este entorno.")
     override fun githubCreateRepo(name: String, isPrivate: Boolean): GitOpResult = GitOpResult.fail("GitHub no está configurado en este entorno.")
+    override fun projectName(): String = "proyecto"
     override fun githubDisconnect(): GitOpResult = GitOpResult.fail("GitHub no está configurado en este entorno.")
     override fun githubClearRepo(): GitOpResult = GitOpResult.fail("GitHub no está configurado en este entorno.")
     override fun publish(mode: PublishMode, branch: String, message: String): GitOpResult = GitOpResult.fail("GitHub no está configurado en este entorno.")
