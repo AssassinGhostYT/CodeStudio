@@ -900,6 +900,16 @@ internal class GitServiceCli(
         }
     }
 
+    override fun projectName(): String {
+        val raw = root.name.ifBlank { "proyecto" }
+
+        val sanitized = raw
+            .replace(Regex("[^A-Za-z0-9_.-]"), "-")
+            .trim('-')
+
+        return sanitized.ifBlank { "proyecto" }
+    }
+
     override fun refresh() {
         // No requiere estado interno adicional.
     }
