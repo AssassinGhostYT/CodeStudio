@@ -1,7 +1,6 @@
 package dev.ide.lang.dart
 
 import dev.ide.build.BuildContext
-import dev.ide.build.BuildGoal
 import dev.ide.build.BuildRequest
 import dev.ide.build.BuildSystem
 import dev.ide.build.RunAction
@@ -11,15 +10,18 @@ import dev.ide.build.TaskDescriptor
 import dev.ide.build.TaskGraph
 import dev.ide.build.TaskName
 import dev.ide.build.TaskResult
+import dev.ide.build.engine.DefaultBuildEnv
 import dev.ide.build.engine.DefaultTaskContainer
 import dev.ide.build.engine.SimpleBuildConfiguration
+import dev.ide.build.engine.TaskInputsImpl
+import dev.ide.build.engine.TaskOutputsImpl
 import dev.ide.build.engine.applyBuildPlugins
 import dev.ide.model.BuildSystemId
 import dev.ide.model.Module
 import dev.ide.model.ModuleType
 import dev.ide.model.Project
 import java.io.File
-import java.nio.file.Path
+import java.nio.file.Paths
 
 /**
  * The Flutter/Dart build system: shells out to the Flutter CLI for build, run, and test tasks.
@@ -47,38 +49,32 @@ class FlutterBuildSystem : BuildSystem {
             if (!supports(module.type)) continue
 
             if (module.type.id == "flutter-app") {
-                // Run on connected device
                 specs.add(RunTaskSpec(
                     id = "flutterRun:${module.name}",
                     label = "Run ${module.name}",
                     group = "flutter"
                 ))
-                // Build APK - debug
                 specs.add(RunTaskSpec(
                     id = "flutterBuildApk:${module.name}:debug",
                     label = "Build APK (debug) · ${module.name}",
                     group = "flutter"
                 ))
-                // Build APK - release
                 specs.add(RunTaskSpec(
                     id = "flutterBuildApk:${module.name}:release",
                     label = "Build APK (release) · ${module.name}",
                     group = "flutter"
                 ))
-                // Build App Bundle - release
                 specs.add(RunTaskSpec(
                     id = "flutterBuildAppbundle:${module.name}:release",
                     label = "Build AAB (release) · ${module.name}",
                     group = "flutter"
                 ))
-                // Build iOS
                 specs.add(RunTaskSpec(
                     id = "flutterBuildIos:${module.name}:release",
                     label = "Build iOS · ${module.name}",
                     group = "flutter"
                 ))
             } else if (module.type.id == "dart-console") {
-                // Run Dart console app
                 specs.add(RunTaskSpec(
                     id = "flutterRun:${module.name}",
                     label = "Run ${module.name}",
@@ -111,7 +107,8 @@ class FlutterBuildSystem : BuildSystem {
 
     override fun createBuildGraph(project: Project, request: BuildRequest): TaskGraph {
         val tasks = DefaultTaskContainer()
-        val config = SimpleBuildConfiguration(project, request, tasks, id, null)
+        val env = DefaultBuildEnv(Paths.get(project.rootDir.path))
+        val config = SimpleBuildConfiguration(project, request, tasks, id, env)
         applyBuildPlugins(config, emptyList())
         return tasks.build()
     }
@@ -122,9 +119,11 @@ class FlutterBuildSystem : BuildSystem {
         variant: String
     ): RunAction {
         val args = mutableListOf("run")
-        if (variant == "release") args.add("--release")
-        else if (variant == "profile") args.add("--profile")
-        else args.add("--debug")
+        when (variant) {
+            "release" -> args.add("--release")
+            "profile" -> args.add("--profile")
+            else -> args.add("--debug")
+        }
 
         return RunAction(
             header = "Flutter Run · ${module.name} ($variant)",
@@ -147,9 +146,11 @@ class FlutterBuildSystem : BuildSystem {
         variant: String
     ): RunAction {
         val args = mutableListOf("build", buildType)
-        if (variant == "release") args.add("--release")
-        else if (variant == "profile") args.add("--profile")
-        else args.add("--debug")
+        when (variant) {
+            "release" -> args.add("--release")
+            "profile" -> args.add("--profile")
+            else -> args.add("--debug")
+        }
 
         val outputDir = when (buildType) {
             "apk" -> moduleDir.resolve("build/app/outputs/flutter-apk")
@@ -175,48 +176,50 @@ class FlutterBuildSystem : BuildSystem {
 
     private fun createSingleTaskGraph(
         taskName: TaskName,
-        workingDir: Path,
+        workingDir: java.nio.file.Path,
         command: String,
         args: List<String>
     ): TaskGraph {
         val tasks = DefaultTaskContainer()
-        tasks.register(object : Task {
-            override val name: TaskName = taskName
-            override val inputs = dev.ide.build.engine.TaskInputsImpl().apply {
-                property("command", command)
-                property("args", args.joinToString(" "))
-            }
-            override val outputs = dev.ide.build.engine.TaskOutputsImpl()
+        tasks.register(taskName) {
+            object : Task {
+                override val name: TaskName = taskName
+                override val inputs = TaskInputsImpl().apply {
+                    property("command", command)
+                    property("args", args.joinToString(" "))
+                }
+                override val outputs = TaskOutputsImpl()
 
-            override suspend fun execute(ctx: dev.ide.build.TaskContext): TaskResult {
-                val log = ctx.logger()
-                log("Running: $command ${args.joinToString(" ")}")
-                log("Working directory: $workingDir")
+                override suspend fun execute(ctx: dev.ide.build.TaskContext): TaskResult {
+                    val log = ctx.logger()
+                    log("Running: $command ${args.joinToString(" ")}")
+                    log("Working directory: $workingDir")
 
-                return try {
-                    val processBuilder = ProcessBuilder(command + args)
-                        .directory(workingDir.toFile())
-                        .redirectErrorStream(true)
+                    return try {
+                        val processBuilder = ProcessBuilder(command + args)
+                            .directory(workingDir.toFile())
+                            .redirectErrorStream(true)
 
-                    val process = processBuilder.start()
-                    val reader = process.inputStream.bufferedReader()
-                    var line: String?
-                    while (reader.readLine().also { line = it } != null) {
-                        log(line!!)
+                        val process = processBuilder.start()
+                        val reader = process.inputStream.bufferedReader()
+                        var line: String?
+                        while (reader.readLine().also { line = it } != null) {
+                            log(line!!)
+                        }
+
+                        val exitCode = process.waitFor()
+                        if (exitCode == 0) {
+                            log("Command completed successfully")
+                            TaskResult.Success
+                        } else {
+                            TaskResult.Failed("Command failed with exit code $exitCode")
+                        }
+                    } catch (e: Exception) {
+                        TaskResult.Failed("Failed to execute command: ${e.message}", e)
                     }
-
-                    val exitCode = process.waitFor()
-                    if (exitCode == 0) {
-                        log("Command completed successfully")
-                        TaskResult.Success
-                    } else {
-                        TaskResult.Failed("Command failed with exit code $exitCode")
-                    }
-                } catch (e: Exception) {
-                    TaskResult.Failed("Failed to execute command: ${e.message}", e)
                 }
             }
-        })
+        }
         return tasks.build()
     }
 }
