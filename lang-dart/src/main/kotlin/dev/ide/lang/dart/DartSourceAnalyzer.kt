@@ -17,6 +17,7 @@ import dev.ide.lang.dom.TextRange
 import dev.ide.lang.formatting.FormatStyle
 import dev.ide.lang.formatting.FormattingService
 import dev.ide.lang.highlight.SemanticHighlightService
+import dev.ide.lang.highlight.SemanticToken
 import dev.ide.lang.incremental.DocumentEdit
 import dev.ide.lang.incremental.DocumentSnapshot
 import dev.ide.lang.incremental.IncrementalParser
@@ -75,9 +76,8 @@ class DartParsedFile(
 }
 
 class DartSemanticHighlighter : SemanticHighlightService {
-    /** No type-aware highlighting yet — the Dart backend has no real parser/resolver, so the lexical
-     *  layer (SyntaxHighlighter.highlightDart) handles all coloring. Returning empty lets the lexical
-     *  spans show through without interference from a regex-based guesser. */
+    /** The lexical layer (SyntaxHighlighter.highlightDart) handles all coloring. Returning empty
+     *  lets the lexical spans show through without interference from regex-based guessing. */
     override suspend fun highlight(file: VirtualFile): List<SemanticToken> = emptyList()
 }
 

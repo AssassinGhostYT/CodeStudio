@@ -110,7 +110,8 @@ fun highlight(text: String, language: CodeLanguage, syntax: SyntaxColors): Annot
                     if (color != null) addStyle(SpanStyle(color = color), start, i)
                 }
                 isPunct(c) -> { addStyle(SpanStyle(color = syntax.punctuation), i, i + 1); i++ }
-            else -> i++
+                else -> i++
+            }
         }
     }
 }
