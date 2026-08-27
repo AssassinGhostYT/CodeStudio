@@ -6,11 +6,12 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import dev.ide.ui.theme.SyntaxColors
 
-enum class CodeLanguage { Java, Kotlin, Xml, Proguard, Markdown, Plain }
+enum class CodeLanguage { Java, Kotlin, Dart, Xml, Proguard, Markdown, Plain }
 
 fun languageFor(fileName: String): CodeLanguage = when {
     fileName.endsWith(".java") -> CodeLanguage.Java
     fileName.endsWith(".kt") || fileName.endsWith(".kts") -> CodeLanguage.Kotlin
+    fileName.endsWith(".dart") -> CodeLanguage.Dart
     fileName.endsWith(".xml") -> CodeLanguage.Xml
     // ProGuard/R8 keep-rule files: `proguard-rules.pro`, `consumer-rules.pro`, any `*.pro`.
     fileName.endsWith(".pro") -> CodeLanguage.Proguard
@@ -30,10 +31,20 @@ private val JAVA_KEYWORDS = setOf(
     "lateinit", "by", "constructor", "init", "suspend", "vararg", "typealias", "as", "out", "reified",
 )
 
+private val DART_KEYWORDS = setOf(
+    "abstract", "as", "assert", "async", "await", "break", "case", "catch", "class", "const",
+    "continue", "covariant", "default", "deferred", "do", "dynamic", "else", "enum", "export", "extends",
+    "extension", "external", "factory", "false", "final", "finally", "for", "Function", "get", "hide",
+    "if", "implements", "import", "in", "interface", "is", "late", "library", "mixin", "new",
+    "null", "on", "operator", "part", "required", "rethrow", "return", "set", "show", "static",
+    "super", "switch", "sync", "this", "throw", "true", "try", "typedef", "var", "void", "while", "with", "yield"
+)
+
 private fun isPunct(c: Char) = c in "{}()[];,.<>=+-*/%&|!?:^~@"
 
 /** Single-pass scanner → colored [AnnotatedString]. Backend-free; good enough for editor highlighting. */
 fun highlight(text: String, language: CodeLanguage, syntax: SyntaxColors): AnnotatedString {
+    if (language == CodeLanguage.Dart) return highlightDart(text, syntax)
     if (language == CodeLanguage.Xml) return highlightXml(text, syntax)
     if (language == CodeLanguage.Proguard) return highlightProguard(text, syntax)
     // Markdown has no whole-document scanner (the active editor uses the incremental styleMarkdownLine); the
@@ -99,10 +110,94 @@ fun highlight(text: String, language: CodeLanguage, syntax: SyntaxColors): Annot
                     if (color != null) addStyle(SpanStyle(color = color), start, i)
                 }
                 isPunct(c) -> { addStyle(SpanStyle(color = syntax.punctuation), i, i + 1); i++ }
-                else -> i++
-            }
+            else -> i++
         }
     }
+}
+
+/** Dart lexical scanner: `//` and `/* */` comments, single/double/triple-quoted strings, numbers,
+ *  `@`-annotations, keywords, identifiers (Capitalized → type, followed by `(` → func). */
+private fun highlightDart(text: String, syntax: SyntaxColors): AnnotatedString = buildAnnotatedString {
+    append(text)
+    addStyle(SpanStyle(color = syntax.default), 0, text.length)
+    val n = text.length
+    var i = 0
+    while (i < n) {
+        val c = text[i]
+        when {
+            // `//` line comment
+            c == '/' && i + 1 < n && text[i + 1] == '/' -> {
+                val start = i; i += 2
+                while (i < n && text[i] != '\n') i++
+                addStyle(SpanStyle(color = syntax.comment, fontStyle = FontStyle.Italic), start, i)
+            }
+            // `/* */` block comment
+            c == '/' && i + 1 < n && text[i + 1] == '*' -> {
+                val start = i; i += 2
+                while (i < n && !(text[i] == '*' && i + 1 < n && text[i + 1] == '/')) i++
+                i = (i + 2).coerceAtMost(n)
+                addStyle(SpanStyle(color = syntax.comment, fontStyle = FontStyle.Italic), start, i)
+            }
+            // Triple-quoted strings ("""...""" or '''...''')
+            (c == '"' && i + 2 < n && text[i + 1] == '"' && text[i + 2] == '"') ||
+            (c == '\'' && i + 2 < n && text[i + 1] == '\'' && text[i + 2] == '\'') -> {
+                val quote = c; val start = i; i += 3
+                while (i < n) {
+                    if (text[i] == quote && i + 2 < n && text[i + 1] == quote && text[i + 2] == quote) { i += 3; break }
+                    i++
+                }
+                addStyle(SpanStyle(color = syntax.string), start, i)
+            }
+            // Double-quoted string
+            c == '"' -> {
+                val start = i; i++
+                while (i < n && text[i] != '"' && text[i] != '\n') { if (text[i] == '\\') i++; i++ }
+                if (i < n && text[i] == '"') i++
+                addStyle(SpanStyle(color = syntax.string), start, i)
+            }
+            // Single-quoted string
+            c == '\'' -> {
+                val start = i; i++
+                while (i < n && text[i] != '\'' && text[i] != '\n') { if (text[i] == '\\') i++; i++ }
+                if (i < n && text[i] == '\'') i++
+                addStyle(SpanStyle(color = syntax.string), start, i)
+            }
+            // Numbers
+            c.isDigit() -> {
+                val start = i; i++
+                while (i < n && (text[i].isLetterOrDigit() || text[i] == '.' || text[i] == '_' || text[i] == 'e' || text[i] == 'E')) i++
+                addStyle(SpanStyle(color = syntax.number), start, i)
+            }
+            // @-annotations
+            c == '@' -> {
+                val start = i; i++
+                while (i < n && (text[i].isLetterOrDigit() || text[i] == '_' || text[i] == '.')) i++
+                addStyle(SpanStyle(color = syntax.annotation), start, i)
+            }
+            // Identifiers and keywords
+            c.isLetter() || c == '_' || c == '$' -> {
+                val start = i; i++
+                while (i < n && (text[i].isLetterOrDigit() || text[i] == '_' || text[i] == '$')) i++
+                val word = text.substring(start, i)
+                val color = when {
+                    word in DART_KEYWORDS -> syntax.keyword
+                    else -> {
+                        var j = i
+                        while (j < n && (text[j] == ' ' || text[j] == '\t')) j++
+                        when {
+                            j < n && text[j] == '(' -> syntax.func
+                            word[0].isUpperCase() -> syntax.type
+                            else -> null
+                        }
+                    }
+                }
+                if (color != null) addStyle(SpanStyle(color = color), start, i)
+            }
+            isPunct(c) -> { addStyle(SpanStyle(color = syntax.punctuation), i, i + 1); i++ }
+            else -> i++
+        }
+    }
+}
 }
 
 /**

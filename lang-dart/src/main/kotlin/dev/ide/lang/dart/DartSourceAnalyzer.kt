@@ -17,7 +17,6 @@ import dev.ide.lang.dom.TextRange
 import dev.ide.lang.formatting.FormatStyle
 import dev.ide.lang.formatting.FormattingService
 import dev.ide.lang.highlight.SemanticHighlightService
-import dev.ide.lang.highlight.SemanticToken
 import dev.ide.lang.incremental.DocumentEdit
 import dev.ide.lang.incremental.DocumentSnapshot
 import dev.ide.lang.incremental.IncrementalParser
@@ -76,57 +75,10 @@ class DartParsedFile(
 }
 
 class DartSemanticHighlighter : SemanticHighlightService {
-    private val keywords = setOf(
-        "abstract", "as", "assert", "async", "await", "break", "case", "catch", "class", "const",
-        "continue", "covariant", "default", "deferred", "do", "dynamic", "else", "enum", "export", "extends",
-        "extension", "external", "factory", "false", "final", "finally", "for", "Function", "get", "hide",
-        "if", "implements", "import", "in", "interface", "is", "late", "library", "mixin", "new",
-        "null", "on", "operator", "part", "required", "rethrow", "return", "set", "show", "static",
-        "super", "switch", "sync", "this", "throw", "true", "try", "typedef", "var", "void", "while", "with", "yield"
-    )
-
-    private val flutterWidgets = setOf(
-        "Widget", "StatelessWidget", "StatefulWidget", "Container", "Column", "Row", "Text", "Center",
-        "Padding", "SizedBox", "Scaffold", "AppBar", "ListView", "Stack", "Positioned", "Expanded", "Flexible",
-        "GestureDetector", "InkWell", "SingleChildScrollView", "FloatingActionButton", "Icon", "Image", "ElevatedButton",
-        "MaterialApp", "ThemeData", "ColorScheme", "Colors", "Icons", "State", "BuildContext", "WidgetTester"
-    )
-
-    override suspend fun highlight(file: VirtualFile): List<SemanticToken> {
-        val content = file.readText()
-        if (content.isEmpty()) return emptyList()
-
-        val tokens = mutableListOf<SemanticToken>()
-        val regex = Regex(
-            """(?<COMMENT>//[^\n]*|/\*[\s\S]*?\*/)|(?<STRING>'[^'\\]*(?:\\.[^'\\]*)*'|"[^"\\]*(?:\\.[^"\\]*)*")|(?<WORD>[A-Za-z_][A-Za-z0-9_]*)""",
-            RegexOption.MULTILINE
-        )
-
-        for (match in regex.findAll(content)) {
-            val range = TextRange(match.range.first, match.range.last + 1)
-            val comment = match.groups["COMMENT"]
-            val stringLit = match.groups["STRING"]
-            val word = match.groups["WORD"]
-
-            when {
-                comment != null -> {
-                    tokens.add(SemanticToken(range, dev.ide.lang.highlight.HighlightKind("comment")))
-                }
-                stringLit != null -> {
-                    tokens.add(SemanticToken(range, dev.ide.lang.highlight.HighlightKind("string")))
-                }
-                word != null -> {
-                    val text = word.value
-                    if (keywords.contains(text)) {
-                        tokens.add(SemanticToken(range, dev.ide.lang.highlight.HighlightKind.KEYWORD))
-                    } else if (flutterWidgets.contains(text) || (text.length > 1 && text.first().isUpperCase())) {
-                        tokens.add(SemanticToken(range, dev.ide.lang.highlight.HighlightKind.CLASS))
-                    }
-                }
-            }
-        }
-        return tokens
-    }
+    /** No type-aware highlighting yet — the Dart backend has no real parser/resolver, so the lexical
+     *  layer (SyntaxHighlighter.highlightDart) handles all coloring. Returning empty lets the lexical
+     *  spans show through without interference from a regex-based guesser. */
+    override suspend fun highlight(file: VirtualFile): List<SemanticToken> = emptyList()
 }
 
 class DartFormatter : FormattingService {
