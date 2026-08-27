@@ -116,6 +116,7 @@ fun highlight(text: String, language: CodeLanguage, syntax: SyntaxColors): Annot
         }
     }
 }
+}
 
 /** Dart lexical scanner: `//` and `/* */` comments, single/double/triple-quoted strings, numbers,
  *  `@`-annotations, keywords, identifiers (Capitalized → type, followed by `(` → func). */
