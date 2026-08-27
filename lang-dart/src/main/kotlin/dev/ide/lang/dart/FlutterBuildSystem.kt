@@ -79,7 +79,7 @@ class FlutterBuildSystem : BuildSystem {
         val args = mutableListOf("run", "--$variant")
         return RunAction(
             header = "Flutter Run · ${module.name} ($variant)",
-            graph = cliTaskGraph("flutter:${module.name}:run", dir, "flutter", args),
+            graph = cliTaskGraph(TaskName("flutter:${module.name}:run"), dir, "flutter", args),
             onSuccess = { log -> log("App started") }
         )
     }
@@ -94,7 +94,7 @@ class FlutterBuildSystem : BuildSystem {
         }
         return RunAction(
             header = "Flutter Build $buildType · ${module.name} ($variant)",
-            graph = cliTaskGraph("flutter:${module.name}:build-$buildType", dir, "flutter", args),
+            graph = cliTaskGraph(TaskName("flutter:${module.name}:build-$buildType"), dir, "flutter", args),
             banner = "Output: ${output.absolutePath}",
             onSuccess = { log -> log("Build succeeded: ${output.absolutePath}") }
         )
