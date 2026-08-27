@@ -125,20 +125,17 @@ private fun highlightDart(text: String, syntax: SyntaxColors): AnnotatedString =
     while (i < n) {
         val c = text[i]
         when {
-            // `//` line comment
             c == '/' && i + 1 < n && text[i + 1] == '/' -> {
                 val start = i; i += 2
                 while (i < n && text[i] != '\n') i++
                 addStyle(SpanStyle(color = syntax.comment, fontStyle = FontStyle.Italic), start, i)
             }
-            // `/* */` block comment
             c == '/' && i + 1 < n && text[i + 1] == '*' -> {
                 val start = i; i += 2
                 while (i < n && !(text[i] == '*' && i + 1 < n && text[i + 1] == '/')) i++
                 i = (i + 2).coerceAtMost(n)
                 addStyle(SpanStyle(color = syntax.comment, fontStyle = FontStyle.Italic), start, i)
             }
-            // Triple-quoted strings ("""...""" or '''...''')
             (c == '"' && i + 2 < n && text[i + 1] == '"' && text[i + 2] == '"') ||
             (c == '\'' && i + 2 < n && text[i + 1] == '\'' && text[i + 2] == '\'') -> {
                 val quote = c; val start = i; i += 3
@@ -148,33 +145,28 @@ private fun highlightDart(text: String, syntax: SyntaxColors): AnnotatedString =
                 }
                 addStyle(SpanStyle(color = syntax.string), start, i)
             }
-            // Double-quoted string
             c == '"' -> {
                 val start = i; i++
                 while (i < n && text[i] != '"' && text[i] != '\n') { if (text[i] == '\\') i++; i++ }
                 if (i < n && text[i] == '"') i++
                 addStyle(SpanStyle(color = syntax.string), start, i)
             }
-            // Single-quoted string
             c == '\'' -> {
                 val start = i; i++
                 while (i < n && text[i] != '\'' && text[i] != '\n') { if (text[i] == '\\') i++; i++ }
                 if (i < n && text[i] == '\'') i++
                 addStyle(SpanStyle(color = syntax.string), start, i)
             }
-            // Numbers
             c.isDigit() -> {
                 val start = i; i++
                 while (i < n && (text[i].isLetterOrDigit() || text[i] == '.' || text[i] == '_' || text[i] == 'e' || text[i] == 'E')) i++
                 addStyle(SpanStyle(color = syntax.number), start, i)
             }
-            // @-annotations
             c == '@' -> {
                 val start = i; i++
                 while (i < n && (text[i].isLetterOrDigit() || text[i] == '_' || text[i] == '.')) i++
                 addStyle(SpanStyle(color = syntax.annotation), start, i)
             }
-            // Identifiers and keywords
             c.isLetter() || c == '_' || c == '$' -> {
                 val start = i; i++
                 while (i < n && (text[i].isLetterOrDigit() || text[i] == '_' || text[i] == '$')) i++
@@ -197,7 +189,6 @@ private fun highlightDart(text: String, syntax: SyntaxColors): AnnotatedString =
             else -> i++
         }
     }
-}
 }
 
 /**
