@@ -46,6 +46,7 @@ import dev.ide.lang.FILE_TYPE_EP
 import dev.ide.lang.FileTypeMapping
 import dev.ide.lang.LANGUAGE_BACKEND_EP
 import dev.ide.lang.LanguageId
+import dev.ide.build.BUILD_SYSTEM_EP
 import dev.ide.lang.completion.COMPLETION_CONTRIBUTOR_EP
 import dev.ide.lang.completion.COMPLETION_WEIGHER_EP
 import dev.ide.lang.completion.CompletionContribution
@@ -284,6 +285,7 @@ private class DartLanguagePlugin : Plugin {
     override fun register(reg: PluginRegistration) {
         reg.register(LANGUAGE_BACKEND_EP, dev.ide.lang.dart.DartLanguageBackend())
         reg.register(FILE_TYPE_EP, dev.ide.lang.dart.DART_FILE_TYPE_MAPPING)
+        reg.register(BUILD_SYSTEM_EP, dev.ide.lang.dart.FlutterBuildSystem())
         reg.contributeVia { ext, pid ->
             val moduleTypes = ModuleTypeRegistry(ext)
             moduleTypes.register(dev.ide.lang.dart.DartConsoleModuleType, pid)

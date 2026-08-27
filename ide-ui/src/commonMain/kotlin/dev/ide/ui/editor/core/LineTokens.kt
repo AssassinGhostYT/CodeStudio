@@ -68,7 +68,7 @@ fun styleLine(line: String, entryState: Int, language: CodeLanguage): StyledLine
     CodeLanguage.Xml -> styleXmlLine(line, entryState)
     CodeLanguage.Proguard -> styleProguardLine(line)
     CodeLanguage.Markdown -> styleMarkdownLine(line, entryState)
-    CodeLanguage.Kotlin, CodeLanguage.Dart -> styleKotlinLine(line, entryState)
+    CodeLanguage.Kotlin, CodeLanguage.Dart, CodeLanguage.Swift -> styleKotlinLine(line, entryState)
     CodeLanguage.Java -> styleCodeLine(line, entryState)
 }
 
