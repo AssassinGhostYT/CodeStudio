@@ -127,6 +127,7 @@ fun GitPanel(backend: IdeBackend) {
     var deviceFlow by remember { mutableStateOf<GitHubDeviceFlow?>(null) }
     var connecting by remember { mutableStateOf(false) }
     var pickingRepo by remember { mutableStateOf<String?>(null) }
+    var suggestedRepoName by remember { mutableStateOf("") }
 
     fun reload() {
         scope.launch(Dispatchers.IO) {
@@ -230,20 +231,39 @@ fun GitPanel(backend: IdeBackend) {
         }
     }
 
-    /** Creates [name] as a new GitHub repository (visibility per [isPrivate]) and connects it. */
+    /**
+     * Creates [name] as a new GitHub repository (visibility per [isPrivate]), connects it, and
+     * immediately pushes the whole current project to it — a single tap covers "crear repo" +
+     * "subir mi proyecto".
+     */
     fun createRepo(name: String, isPrivate: Boolean) {
         if (connecting) return
         scope.launch {
             connecting = true
-            val result = withContext(Dispatchers.IO) { git.githubCreateRepo(name, isPrivate) }
-            connecting = false
-            notice = Notice(result.message, result.success, ++noticeId)
-            if (result.success) {
-                dialog = null
-                session = runCatching { git.githubSession() }.getOrNull() ?: session
-                repos = emptyList()
-                reload()
+
+            val createResult = withContext(Dispatchers.IO) { git.githubCreateRepo(name, isPrivate) }
+
+            if (!createResult.success) {
+                connecting = false
+                notice = Notice(createResult.message, false, ++noticeId)
+                return@launch
             }
+
+            val freshSession = withContext(Dispatchers.IO) {
+                runCatching { git.githubSession() }.getOrNull()
+            }
+            session = freshSession ?: session
+            repos = emptyList()
+            dialog = null
+
+            val targetBranch = freshSession?.repoDefaultBranch ?: "main"
+            val publishResult = withContext(Dispatchers.IO) {
+                git.publish(PublishMode.FULL_PROJECT, targetBranch, "Initial commit desde CodeStudio")
+            }
+
+            connecting = false
+            notice = Notice(publishResult.message, publishResult.success, ++noticeId)
+            reload()
         }
     }
 
@@ -264,6 +284,12 @@ fun GitPanel(backend: IdeBackend) {
     }
 
     LaunchedEffect(Unit) { reload() }
+
+    LaunchedEffect(Unit) {
+        suggestedRepoName = withContext(Dispatchers.IO) {
+            runCatching { git.projectName() }.getOrDefault("proyecto")
+        }
+    }
 
     LaunchedEffect(notice?.id) {
         if (notice != null) {
@@ -601,6 +627,7 @@ AnimatedVisibility(
         )
         GitDialog.CreateRepo -> CreateRepoDialog(
             busy = connecting,
+            initialName = suggestedRepoName,
             onDismiss = { dialog = null },
             onCreate = { name, isPrivate -> createRepo(name, isPrivate) },
         )
@@ -1417,13 +1444,19 @@ private fun CreateRepoTile(connecting: Boolean, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth().clickable(enabled = !connecting) { onClick() },
     ) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(CaIcons.plus, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-            Text(
-                "Crear repositorio nuevo",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.weight(1f).padding(start = 12.dp),
-            )
+            Icon(CaIcons.upload, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                Text(
+                    "Subir este proyecto a GitHub",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    "Crea un repositorio nuevo y sube tus archivos",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -1431,15 +1464,16 @@ private fun CreateRepoTile(connecting: Boolean, onClick: () -> Unit) {
 @Composable
 private fun CreateRepoDialog(
     busy: Boolean,
+    initialName: String,
     onDismiss: () -> Unit,
     onCreate: (String, Boolean) -> Unit,
 ) {
-    var name by remember { mutableStateOf("") }
+    var name by remember(initialName) { mutableStateOf(initialName) }
     var isPrivate by remember { mutableStateOf(true) }
-    DialogShell("Crear repositorio en GitHub", onDismiss) {
+    DialogShell("Subir proyecto a GitHub", onDismiss) {
         Text(
-            "Se creará vacío en tu cuenta y quedará conectado a este proyecto. " +
-                "Después usa el botón Push (Todo el proyecto) para subir tus archivos.",
+            "Se creará un repositorio vacío en tu cuenta, se conectará a este proyecto y se " +
+                "subirán tus archivos automáticamente.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -1471,7 +1505,7 @@ private fun CreateRepoDialog(
             TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancelar") }
             TextButton(onClick = { onCreate(name, isPrivate) }, enabled = !busy && name.isNotBlank()) {
                 if (busy) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
-                Text(if (busy) "Creando…" else "Crear y conectar", modifier = Modifier.padding(start = if (busy) 6.dp else 0.dp))
+                Text(if (busy) "Subiendo…" else "Crear y subir proyecto", modifier = Modifier.padding(start = if (busy) 6.dp else 0.dp))
             }
         }
     }
