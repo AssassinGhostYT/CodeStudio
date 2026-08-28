@@ -66,6 +66,7 @@ private fun isPunct(c: Char) = c in "{}()[];,.<>=+-*\\/%&|!?:^~@"
 fun styleLine(line: String, entryState: Int, language: CodeLanguage): StyledLine = when (language) {
     CodeLanguage.Plain -> StyledLine.EMPTY
     CodeLanguage.Xml -> styleXmlLine(line, entryState)
+    CodeLanguage.Yaml -> styleYamlLine(line)
     CodeLanguage.Proguard -> styleProguardLine(line)
     CodeLanguage.Markdown -> styleMarkdownLine(line, entryState)
     CodeLanguage.Kotlin, CodeLanguage.Dart, CodeLanguage.Swift -> styleKotlinLine(line, entryState)
@@ -203,6 +204,50 @@ private fun styleProguardLine(line: String): StyledLine {
         }
     }
     return StyledLine(spans, LexState.CODE)
+}
+
+private fun styleYamlLine(line: String): StyledLine {
+    val n = line.length
+    val spans = ArrayList<LineSpan>(8)
+    var i = 0
+    while (i < n) {
+        val c = line[i]
+        when {
+            c == '#' -> { spans.add(LineSpan(i, n, TokenType.COMMENT)); return StyledLine(spans, LexState.CODE) }
+            c == '-' && (i == 0 || line[i - 1] == ' ' || line[i - 1] == '\t') -> {
+                spans.add(LineSpan(i, i + 1, TokenType.PUNCT)); i++
+            }
+            c == '"' || c == '\'' -> {
+                val start = i; i++
+                while (i < n && line[i] != c) i++
+                if (i < n) i++
+                spans.add(LineSpan(start, i.coerceAtMost(n), TokenType.STRING))
+            }
+            (c.isLetter() || c == '_') && isYamlKey(line, i) -> {
+                val start = i
+                while (i < n && (line[i].isLetterOrDigit() || line[i] == '_' || line[i] == '-')) i++
+                val keyEnd = i
+                while (i < n && line[i] == ' ') i++
+                if (i < n && line[i] == ':') spans.add(LineSpan(start, keyEnd, TokenType.PROPERTY))
+                else i = i.coerceAtLeast(keyEnd)
+            }
+            c.isDigit() -> {
+                val start = i
+                while (i < n && line[i].isDigit()) i++
+                spans.add(LineSpan(start, i, TokenType.NUMBER))
+            }
+            else -> i++
+        }
+    }
+    return StyledLine(spans, LexState.CODE)
+}
+
+/** True when [pos] begins a YAML key scalar (word chars up to `:` on the same line). */
+private fun isYamlKey(line: String, pos: Int): Boolean {
+    var j = pos
+    while (j < line.length && (line[j].isLetterOrDigit() || line[j] == '_' || line[j] == '-')) j++
+    while (j < line.length && line[j] == ' ') j++
+    return j < line.length && line[j] == ':'
 }
 
 private fun styleCodeLine(line: String, entryState: Int): StyledLine {

@@ -962,6 +962,7 @@ class EditorSession(
         CodeLanguage.Java, CodeLanguage.Kotlin, CodeLanguage.Dart, CodeLanguage.Swift -> CommentSyntax("//", "/*", "*/")
         CodeLanguage.Xml, CodeLanguage.Markdown -> CommentSyntax(null, "<!--", "-->")
         CodeLanguage.Proguard -> CommentSyntax("#", null, null)
+        CodeLanguage.Yaml -> CommentSyntax("#", null, null)
         CodeLanguage.Plain -> CommentSyntax(null, null, null)
     }
 

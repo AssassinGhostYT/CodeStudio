@@ -1,6 +1,7 @@
 package dev.ide.lang.dart
 
 import dev.ide.build.BuildContext
+import dev.ide.build.BuildGoal
 import dev.ide.build.BuildRequest
 import dev.ide.build.BuildSystem
 import dev.ide.model.ClasspathSnapshot
@@ -72,7 +73,31 @@ class FlutterBuildSystem : BuildSystem {
     }
 
     override fun createBuildGraph(project: Project, request: BuildRequest): TaskGraph {
-        throw UnsupportedOperationException("Flutter builds use the Flutter CLI directly, not the task engine")
+        // Build the requested target modules through the Flutter CLI. Each module fans out to its own
+        // `flutter build` invocation; the graph runs them via the same engine the host uses for every task.
+        val variant = request.variant.name.ifBlank { "debug" }
+        val goalName = when (request.goal) {
+            BuildGoal.BUNDLE -> "appbundle"
+            BuildGoal.INSTALL -> "ios"
+            else -> "apk"
+        }
+        val targets = request.targets.ifEmpty { project.modules.filter { supports(it.type) }.map { it.id } }
+        val tasks = mutableListOf<Task>()
+        for (moduleId in targets) {
+            val module = project.modules.find { it.id == moduleId } ?: continue
+            if (!supports(module.type)) continue
+            val dir = File(project.rootDir.path).resolve(module.name)
+            val args = listOf("build", goalName, "--$variant")
+            tasks += cliTask(TaskName("flutter:${module.name}:build-$goalName"), dir, "flutter", args)
+        }
+        if (tasks.isEmpty()) {
+            throw IllegalArgumentException("No Flutter/Dart modules to build in '${project.name}'.")
+        }
+        return object : TaskGraph {
+            override val tasks: List<Task> = tasks
+            override fun dependencies(t: Task): List<Task> = emptyList()
+            override fun topologicalLevels(): List<List<Task>> = listOf(tasks)
+        }
     }
 
     private fun runAction(module: Module, dir: File, variant: String): RunAction {
@@ -100,36 +125,38 @@ class FlutterBuildSystem : BuildSystem {
         )
     }
 
-    private fun cliTaskGraph(name: TaskName, workingDir: File, cmd: String, args: List<String>): TaskGraph {
-        val task = object : Task {
-            override val name: TaskName = name
-            override val inputs: TaskInputs = object : TaskInputs {
-                override fun files(key: String, files: Iterable<VirtualFile>) {}
-                override fun property(key: String, value: Any?) {}
-                override fun classpath(key: String, cp: ClasspathSnapshot) {}
-                override fun fingerprint(): ContentHash = ContentHash("")
-            }
-            override val outputs: TaskOutputs = object : TaskOutputs {
-                override fun files(key: String, files: Iterable<VirtualFile>) {}
-                override fun dir(key: String, dir: VirtualFile) {}
-                override fun fingerprint(): ContentHash = ContentHash("")
-            }
-            override suspend fun execute(ctx: TaskContext): TaskResult {
-                val log = ctx.logger()
-                log("Running: $cmd ${args.joinToString(" ")}")
-                return try {
-                    val pb = ProcessBuilder(listOf(cmd) + args)
-                        .directory(workingDir)
-                        .redirectErrorStream(true)
-                    val proc = pb.start()
-                    proc.inputStream.bufferedReader().forEachLine { log(it) }
-                    if (proc.waitFor() == 0) TaskResult.Success
-                    else TaskResult.Failed("Exit code ${proc.exitValue()}")
-                } catch (e: Exception) {
-                    TaskResult.Failed("Failed: ${e.message}", e)
-                }
+    private fun cliTask(name: TaskName, workingDir: File, cmd: String, args: List<String>): Task = object : Task {
+        override val name: TaskName = name
+        override val inputs: TaskInputs = object : TaskInputs {
+            override fun files(key: String, files: Iterable<VirtualFile>) {}
+            override fun property(key: String, value: Any?) {}
+            override fun classpath(key: String, cp: ClasspathSnapshot) {}
+            override fun fingerprint(): ContentHash = ContentHash("")
+        }
+        override val outputs: TaskOutputs = object : TaskOutputs {
+            override fun files(key: String, files: Iterable<VirtualFile>) {}
+            override fun dir(key: String, dir: VirtualFile) {}
+            override fun fingerprint(): ContentHash = ContentHash("")
+        }
+        override suspend fun execute(ctx: TaskContext): TaskResult {
+            val log = ctx.logger()
+            log("Running: $cmd ${args.joinToString(" ")}")
+            return try {
+                val pb = ProcessBuilder(listOf(cmd) + args)
+                    .directory(workingDir)
+                    .redirectErrorStream(true)
+                val proc = pb.start()
+                proc.inputStream.bufferedReader().forEachLine { log(it) }
+                if (proc.waitFor() == 0) TaskResult.Success
+                else TaskResult.Failed("Exit code ${proc.exitValue()}")
+            } catch (e: Exception) {
+                TaskResult.Failed("Failed: ${e.message}", e)
             }
         }
+    }
+
+    private fun cliTaskGraph(name: TaskName, workingDir: File, cmd: String, args: List<String>): TaskGraph {
+        val task = cliTask(name, workingDir, cmd, args)
         return object : TaskGraph {
             override val tasks: List<Task> = listOf(task)
             override fun dependencies(t: Task): List<Task> = emptyList()

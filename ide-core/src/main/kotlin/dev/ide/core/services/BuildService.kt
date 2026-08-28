@@ -605,8 +605,13 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
      */
     private fun contributedAction(id: String): Pair<String, RunAction>? {
         val context = buildContext()
+        val evaluated = mutableSetOf<dev.ide.model.Project>()
         for (project in ctx.store.workspace.projects) {
-            val system = buildSystemFor(project) ?: continue
+            val bound = buildSystemFor(project)
+            val system = bound ?: ctx.modules().firstOrNull { ctx.projectOf(it) == project }
+                ?.let { buildSystemFor(it.type) }
+            if (system == null) continue
+            evaluated += project
             val spec = project.runTasksSafely(system).firstOrNull { it.id == id } ?: continue
             system.actionFor(spec, project, context)?.let { return project.name to it }
         }
@@ -675,13 +680,27 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
             }
         }
         // A contributed build system bound to a project lists its own tasks, so a foreign build system's
-        // targets appear here and dispatch back to it through BuildSystem.actionFor.
+        // targets appear here and dispatch back to it through BuildSystem.actionFor. When a project isn't
+        // explicitly bound (its BuildSystemId is the default native), fall back to the module-type selection
+        // so a contributed system whose `supports(moduleType)` is true still contributes its tasks — this is
+        // how a Flutter/Dart project (registered as native) surfaces its run/build tasks without a binding step.
+        val seenProjects = mutableSetOf<dev.ide.model.Project>()
         for (project in ctx.store.workspace.projects) {
-            val system = buildSystemFor(project) ?: continue
-            for (spec in project.runTasksSafely(system)) add(
-                RunTaskOption(
-                    spec.id, spec.label, spec.group
+            val bound = buildSystemFor(project)
+            if (bound != null) {
+                seenProjects += project
+                for (spec in project.runTasksSafely(bound)) add(
+                    RunTaskOption(spec.id, spec.label, spec.group)
                 )
+            }
+        }
+        for (m in ctx.modules()) {
+            val project = ctx.projectOf(m) ?: continue
+            if (project in seenProjects) continue
+            val system = buildSystemFor(project) ?: buildSystemFor(m.type) ?: continue
+            seenProjects += project
+            for (spec in project.runTasksSafely(system)) add(
+                RunTaskOption(spec.id, spec.label, spec.group)
             )
         }
         // Plugin-contributed run-task options (RUN_TASK_PROVIDER_EP), merged after the built-ins. An id with a

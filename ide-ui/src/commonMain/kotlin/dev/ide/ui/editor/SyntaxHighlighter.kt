@@ -6,7 +6,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import dev.ide.ui.theme.SyntaxColors
 
-enum class CodeLanguage { Java, Kotlin, Dart, Swift, Xml, Proguard, Markdown, Plain }
+enum class CodeLanguage { Java, Kotlin, Dart, Swift, Xml, Yaml, Proguard, Markdown, Plain }
 
 fun languageFor(fileName: String): CodeLanguage = when {
     fileName.endsWith(".java") -> CodeLanguage.Java
@@ -14,6 +14,7 @@ fun languageFor(fileName: String): CodeLanguage = when {
     fileName.endsWith(".dart") -> CodeLanguage.Dart
     fileName.endsWith(".swift") -> CodeLanguage.Swift
     fileName.endsWith(".xml") -> CodeLanguage.Xml
+    fileName.endsWith(".yaml") || fileName.endsWith(".yml") -> CodeLanguage.Yaml
     // ProGuard/R8 keep-rule files: `proguard-rules.pro`, `consumer-rules.pro`, any `*.pro`.
     fileName.endsWith(".pro") -> CodeLanguage.Proguard
     fileName.endsWith(".md") || fileName.endsWith(".markdown") -> CodeLanguage.Markdown
@@ -48,6 +49,7 @@ fun highlight(text: String, language: CodeLanguage, syntax: SyntaxColors): Annot
     if (language == CodeLanguage.Dart) return highlightDart(text, syntax)
     if (language == CodeLanguage.Swift) return highlightSwift(text, syntax)
     if (language == CodeLanguage.Xml) return highlightXml(text, syntax)
+    if (language == CodeLanguage.Yaml) return highlightYaml(text, syntax)
     if (language == CodeLanguage.Proguard) return highlightProguard(text, syntax)
     // Markdown has no whole-document scanner (the active editor uses the incremental styleMarkdownLine); the
     // legacy scanner just renders it uncolored rather than mis-tokenizing prose as Java.
@@ -351,4 +353,55 @@ private fun highlightXml(text: String, syntax: SyntaxColors): AnnotatedString = 
             else -> i++
         }
     }
+}
+
+/** YAML lexical scanner (pubspec.yaml, analysis_options.yaml, etc.): `#` comments, `key:` property names,
+ *  `-` list-item punctuation, quoted and plain scalars (strings), booleans/numbers. Line-focused so it stays
+ *  tolerant of any indentation. */
+private fun highlightYaml(text: String, syntax: SyntaxColors): AnnotatedString = buildAnnotatedString {
+    append(text)
+    addStyle(SpanStyle(color = syntax.default), 0, text.length)
+    val n = text.length
+    var i = 0
+    while (i < n) {
+        val c = text[i]
+        when {
+            c == '#' -> {
+                val start = i
+                while (i < n && text[i] != '\n') i++
+                addStyle(SpanStyle(color = syntax.comment, fontStyle = FontStyle.Italic), start, i)
+            }
+            c == '-' && (i == 0 || text[i - 1] == ' ' || text[i - 1] == '\n' || text[i - 1] == '\t') -> {
+                addStyle(SpanStyle(color = syntax.punctuation), i, i + 1); i++
+            }
+            c == '"' || c == '\'' -> {
+                val start = i; i++
+                while (i < n && text[i] != c && text[i] != '\n') { if (text[i] == '\\') i++; i++ }
+                if (i < n && text[i] == c) i++
+                addStyle(SpanStyle(color = syntax.string), start, i)
+            }
+            (c.isLetter() || c == '_') && isYamlKeyStart(text, i) -> {
+                val start = i
+                while (i < n && (text[i].isLetterOrDigit() || text[i] == '_' || text[i] == '-')) i++
+                val keyEnd = i
+                while (i < n && text[i] == ' ') i++
+                if (i < n && text[i] == ':') addStyle(SpanStyle(color = syntax.property), start, keyEnd)
+                i = keyEnd
+            }
+            c.isDigit() -> {
+                val start = i
+                while (i < n && text[i].isDigit()) i++
+                addStyle(SpanStyle(color = syntax.number), start, i)
+            }
+            else -> i++
+        }
+    }
+}
+
+/** True when [pos] begins a plausible YAML key token (a scalar before a `: ` on the same line). */
+private fun isYamlKeyStart(text: String, pos: Int): Boolean {
+    var j = pos
+    while (j < text.length && (text[j].isLetterOrDigit() || text[j] == '_' || text[j] == '-')) j++
+    while (j < text.length && text[j] == ' ') j++
+    return j < text.length && text[j] == ':'
 }
