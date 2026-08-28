@@ -373,7 +373,7 @@ object FlutterAppTemplate : ProjectTemplate {
                 <application
                     android:label="@string/app_name"
                     android:name="${'$'}{applicationName}"
-                    android:icon="@mipmap/ic_launcher"
+                    android:icon="@drawable/ic_launcher"
                     android:hardwareAccelerated="true">
                     <activity
                         android:name=".MainActivity"
@@ -432,6 +432,27 @@ object FlutterAppTemplate : ProjectTemplate {
             -keep class io.flutter.embedding.** { *; }
             -keep class io.flutter.provider.** { *; }
             -dontwarn io.flutter.embedding.**
+            """.trimIndent()
+        )
+
+        // Launcher icon: a self-contained vector drawable (no binary PNGs needed). Represents a simple
+        // "F" mark on a solid background and works on any API level that Flutter supports.
+        scaffold.writeText(
+            "$cleanName/android/app/src/main/res/drawable/ic_launcher.xml",
+            """
+            <?xml version="1.0" encoding="utf-8"?>
+            <vector xmlns:android="http://schemas.android.com/apk/res/android"
+                android:width="108dp"
+                android:height="108dp"
+                android:viewportWidth="108"
+                android:viewportHeight="108">
+                <path
+                    android:fillColor="#2E7CF6"
+                    android:pathData="M0,0h108v108h-108z" />
+                <path
+                    android:fillColor="#FFFFFF"
+                    android:pathData="M64,16h-26v76h14v-30h12c13.255,0 24,-10.745 24,-24s-10.745,-22 -24,-22zM64,38h-12v-8h12c4.418,0 8,3.582 8,8s-3.582,8 -8,8z" />
+            </vector>
             """.trimIndent()
         )
 
