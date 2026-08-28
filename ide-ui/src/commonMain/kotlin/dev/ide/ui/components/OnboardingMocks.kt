@@ -133,16 +133,16 @@ private fun MockCodeLine(
 
 /** Loops a progress value 0f→1f; disabled-clock-safe (frozen clock holds a mid value). */
 @Composable
-private fun loopProgress(durationMillis: Int): Float {
+private fun loopProgress(durationMs: Int): Float {
     val t = rememberInfiniteTransition(label = "loop")
     val p by t.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = keyframes {
-                durationMillis = durationMillis
+                durationMillis = durationMs
                 0f at 0
-                1f at durationMillis
+                1f at durationMs
             },
             repeatMode = RepeatMode.Restart,
         ),
@@ -153,17 +153,17 @@ private fun loopProgress(durationMillis: Int): Float {
 
 /** A gently pulsing alpha for status dots (0.35→1). */
 @Composable
-private fun pulseAlpha(durationMillis: Int = 1400): Float {
+private fun pulseAlpha(durationMs: Int = 1400): Float {
     val t = rememberInfiniteTransition(label = "pulse")
     val a by t.animateFloat(
         initialValue = 0.35f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
             animation = keyframes {
-                durationMillis = durationMillis
+                durationMillis = durationMs
                 0.35f at 0
-                1f at durationMillis / 2
-                0.35f at durationMillis
+                1f at durationMs / 2
+                0.35f at durationMs
             },
             repeatMode = RepeatMode.Restart,
         ),
@@ -182,9 +182,9 @@ private val MockPicText = 10f
 @Composable
 private fun MockWindow(
     title: String?,
-    body: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     icon: (@Composable () -> Unit)? = null,
+    body: @Composable () -> Unit,
 ) {
     Column(
         modifier
@@ -415,16 +415,16 @@ internal fun DarkMock() {
         ) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(
-                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Ide.colors.editorBg).border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)).padding(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.height(56.dp),
+                    Column(
+                        Modifier.weight(1f).height(56.dp).clip(RoundedCornerShape(12.dp)).background(Ide.colors.editorBg).border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)).padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF9AA0A6)))
                         Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF9AA0A6).copy(alpha = 0.7f)))
                     }
-                    Row(
-                        Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Color(0xFF121212)).border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)).padding(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.height(56.dp),
+                    Column(
+                        Modifier.weight(1f).height(56.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFF121212)).border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp)).padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF565656)))
                         Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFF424242)))
@@ -657,6 +657,7 @@ private fun TreeRow(name: String, isFolder: Boolean, open: Boolean = false) {
 /** A subtle editor-ish backdrop so cards don't float on the raw sheet. */
 @Composable
 private fun GridBackdrop(content: @Composable () -> Unit) {
+    val dotColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
     Box(
         Modifier
             .fillMaxSize()
@@ -664,12 +665,10 @@ private fun GridBackdrop(content: @Composable () -> Unit) {
             .drawBehind {
                 val step = 22.dp.toPx()
                 var y = step
-                val dot = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)
-                val paint = androidx.compose.ui.graphics.Paint().apply { color = dot }
                 while (y < size.height) {
                     var x = step
                     while (x < size.width) {
-                        drawCircle(dot, radius = 1.2f, center = Offset(x, y))
+                        drawCircle(dotColor, radius = 1.2f, center = Offset(x, y))
                         x += step
                     }
                     y += step
