@@ -46,34 +46,34 @@ import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.ide.ui.generated.resources.Res
-import dev.ide.ui.generated.resources.block_editing
-import dev.ide.ui.generated.resources.block_editing_content
-import dev.ide.ui.generated.resources.block_editing_title
-import dev.ide.ui.generated.resources.build_and_run
-import dev.ide.ui.generated.resources.build_and_run_content
-import dev.ide.ui.generated.resources.build_and_run_title
-import dev.ide.ui.generated.resources.code_completion
-import dev.ide.ui.generated.resources.code_completion_content
-import dev.ide.ui.generated.resources.code_completion_title
-import dev.ide.ui.generated.resources.command_palette
-import dev.ide.ui.generated.resources.command_palette_content
-import dev.ide.ui.generated.resources.command_palette_title
+import dev.ide.ui.generated.resources.assistant
+import dev.ide.ui.generated.resources.assistant_content
+import dev.ide.ui.generated.resources.assistant_title
 import dev.ide.ui.generated.resources.`continue`
 import dev.ide.ui.generated.resources.create_your_first_project
-import dev.ide.ui.generated.resources.jetpack_compose
-import dev.ide.ui.generated.resources.jetpack_compose_content
-import dev.ide.ui.generated.resources.jetpack_compose_title
-import dev.ide.ui.generated.resources.kotlin_beta
-import dev.ide.ui.generated.resources.kotlin_beta_content
-import dev.ide.ui.generated.resources.kotlin_beta_title
+import dev.ide.ui.generated.resources.dark_mode
+import dev.ide.ui.generated.resources.dark_mode_content
+import dev.ide.ui.generated.resources.dark_mode_title
+import dev.ide.ui.generated.resources.dart
+import dev.ide.ui.generated.resources.dart_content
+import dev.ide.ui.generated.resources.dart_title
+import dev.ide.ui.generated.resources.flutter
+import dev.ide.ui.generated.resources.flutter_content
+import dev.ide.ui.generated.resources.flutter_title
+import dev.ide.ui.generated.resources.git_history
+import dev.ide.ui.generated.resources.git_history_content
+import dev.ide.ui.generated.resources.git_history_title
+import dev.ide.ui.generated.resources.github
+import dev.ide.ui.generated.resources.github_content
+import dev.ide.ui.generated.resources.github_title
+import dev.ide.ui.generated.resources.gradle_import
+import dev.ide.ui.generated.resources.gradle_import_content
+import dev.ide.ui.generated.resources.gradle_import_title
 import dev.ide.ui.generated.resources.maybe_later
-import dev.ide.ui.generated.resources.on_device
-import dev.ide.ui.generated.resources.on_device_content
-import dev.ide.ui.generated.resources.on_device_title
+import dev.ide.ui.generated.resources.shortcuts
+import dev.ide.ui.generated.resources.shortcuts_content
+import dev.ide.ui.generated.resources.shortcuts_title
 import dev.ide.ui.generated.resources.skip_for_now
-import dev.ide.ui.generated.resources.xml
-import dev.ide.ui.generated.resources.xml_content
-import dev.ide.ui.generated.resources.xml_title
 import dev.ide.ui.generated.resources.your_files
 import dev.ide.ui.generated.resources.your_files_content
 import dev.ide.ui.generated.resources.your_files_title
@@ -100,76 +100,76 @@ private data class OnboardingStep(
 
 private val STEPS: List<OnboardingStep> = listOf(
     OnboardingStep(
-        kicker = Res.string.on_device,
-        icon = CaIcons.layers,
-        title = Res.string.on_device_title,
-        body = Res.string.on_device_content,
+        kicker = Res.string.github,
+        icon = CaIcons.github,
+        title = Res.string.github_title,
+        body = Res.string.github_content,
         cta = Res.string.`continue`,
-        hero = { IdeMock() },
+        hero = { GithubMock() },
     ),
     OnboardingStep(
-        kicker = Res.string.code_completion,
-        icon = CaIcons.sparkle,
-        title = Res.string.code_completion_title,
-        body = Res.string.code_completion_content,
-        cta = Res.string.`continue`,
-        hero = { JdtCompletionMock() },
-    ),
-    OnboardingStep(
-        kicker = Res.string.block_editing,
-        icon = CaIcons.braces,
-        title = Res.string.block_editing_title,
-        body = Res.string.block_editing_content,
-        cta = Res.string.`continue`,
-        hero = { BlocksMock() },
-    ),
-    OnboardingStep(
-        kicker = Res.string.build_and_run,
-        icon = CaIcons.hammer,
-        title = Res.string.build_and_run_title,
-        body = Res.string.build_and_run_content,
-        cta = Res.string.`continue`,
-        hero = { BuildConsoleMock() },
-    ),
-    OnboardingStep(
-        kicker = Res.string.command_palette,
-        icon = CaIcons.command,
-        title = Res.string.command_palette_title,
-        body = Res.string.command_palette_content,
-        cta = Res.string.`continue`,
-        hero = { CommandPaletteMock() },
-    ),
-    OnboardingStep(
-        kicker = Res.string.kotlin_beta,
+        kicker = Res.string.dart,
         icon = CaIcons.code,
-        title = Res.string.kotlin_beta_title,
-        body = Res.string.kotlin_beta_content,
+        title = Res.string.dart_title,
+        body = Res.string.dart_content,
         cta = Res.string.`continue`,
-        hero = { KotlinCompletionMock() },
+        hero = { DartMock() },
     ),
     OnboardingStep(
-        kicker = Res.string.xml,
-        icon = CaIcons.docText,
-        title = Res.string.xml_title,
-        body = Res.string.xml_content,
+        kicker = Res.string.flutter,
+        icon = CaIcons.terminal,
+        title = Res.string.flutter_title,
+        body = Res.string.flutter_content,
         cta = Res.string.`continue`,
-        hero = { XmlCompletionMock() },
+        hero = { FlutterMock() },
+    ),
+    OnboardingStep(
+        kicker = Res.string.assistant,
+        icon = CaIcons.sparkle,
+        title = Res.string.assistant_title,
+        body = Res.string.assistant_content,
+        cta = Res.string.`continue`,
+        hero = { AssistantMock() },
+    ),
+    OnboardingStep(
+        kicker = Res.string.dark_mode,
+        icon = CaIcons.moon,
+        title = Res.string.dark_mode_title,
+        body = Res.string.dark_mode_content,
+        cta = Res.string.`continue`,
+        hero = { DarkMock() },
+    ),
+    OnboardingStep(
+        kicker = Res.string.git_history,
+        icon = CaIcons.gitBranch,
+        title = Res.string.git_history_title,
+        body = Res.string.git_history_content,
+        cta = Res.string.`continue`,
+        hero = { GitHistoryMock() },
+    ),
+    OnboardingStep(
+        kicker = Res.string.gradle_import,
+        icon = CaIcons.pkg,
+        title = Res.string.gradle_import_title,
+        body = Res.string.gradle_import_content,
+        cta = Res.string.`continue`,
+        hero = { GradleImportMock() },
+    ),
+    OnboardingStep(
+        kicker = Res.string.shortcuts,
+        icon = CaIcons.command,
+        title = Res.string.shortcuts_title,
+        body = Res.string.shortcuts_content,
+        cta = Res.string.`continue`,
+        hero = { ShortcutsMock() },
     ),
     OnboardingStep(
         kicker = Res.string.your_files,
         icon = CaIcons.folder,
         title = Res.string.your_files_title,
         body = Res.string.your_files_content,
-        cta = Res.string.`continue`,
-        hero = { FilesAccessMock() },
-    ),
-    OnboardingStep(
-        kicker = Res.string.jetpack_compose,
-        icon = CaIcons.eye,
-        title = Res.string.jetpack_compose_title,
-        body = Res.string.jetpack_compose_content,
         cta = Res.string.create_your_first_project,
-        hero = { ComposePreviewMock() },
+        hero = { FilesMock() },
     ),
 )
 

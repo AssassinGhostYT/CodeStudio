@@ -54,7 +54,6 @@ import dev.ide.ui.backend.UiDrawable
 import dev.ide.ui.backend.UiProjectIcon
 import dev.ide.ui.editor.preview.decodeImageBytes
 import dev.ide.ui.editor.preview.drawUiDrawable
-import dev.ide.ui.components.BetaBanner
 import dev.ide.ui.components.CenteredDialog
 import dev.ide.ui.components.darken
 import dev.ide.ui.components.ProjectTile
@@ -127,7 +126,6 @@ fun ProjectPickerScreen(
     /** Open the global Settings & Tools hub (settings · code style · SDK & keystore managers) — reachable
      *  here without an open project. Null hides the entry point. */
     onOpenHub: (() -> Unit)? = null,
-    onSubmitSuggestions: (() -> Unit)? = null,
     onJoinDiscord: (() -> Unit)? = null,
     onSponsor: (() -> Unit)? = null,
     onStarOnGitHub: (() -> Unit)? = null,
@@ -209,7 +207,6 @@ fun ProjectPickerScreen(
                 // A native ad below the project list — an idle "between tasks" spot, never over the actions.
                 // Renders nothing unless ads are active (host available, enabled, not a supporter).
                 AdSlot(AdPlacement.PROJECTS)
-                BetaBanner(onSubmit = onSubmitSuggestions)
                 StorageAccessCard(path = storagePath, onOpenInFiles = onOpenInFiles)
             }
         }

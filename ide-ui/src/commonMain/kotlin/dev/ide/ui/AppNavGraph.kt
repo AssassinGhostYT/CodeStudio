@@ -285,9 +285,6 @@ private fun ProjectPickerRoute(
         } else null,
         onBackup = app::backupProjects,
         onOpenHub = { app.openHub(Screen.Projects) },
-        onSubmitSuggestions = if (fileActions.canOpenUrl) {
-            { fileActions.openUrl(BetaInfo.FEEDBACK_URL) }
-        } else null,
         onJoinDiscord = if (fileActions.canOpenUrl) {
             { fileActions.openUrl(BetaInfo.DISCORD_URL) }
         } else null,
