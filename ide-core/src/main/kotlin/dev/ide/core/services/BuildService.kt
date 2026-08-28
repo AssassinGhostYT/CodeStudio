@@ -605,13 +605,18 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
      */
     private fun contributedAction(id: String): Pair<String, RunAction>? {
         val context = buildContext()
-        val evaluated = mutableSetOf<dev.ide.model.Project>()
+        // First try the project-bound build system (a foreign build system that explicitly owns a project).
         for (project in ctx.store.workspace.projects) {
-            val bound = buildSystemFor(project)
-            val system = bound ?: ctx.modules().firstOrNull { ctx.projectOf(it) == project }
-                ?.let { buildSystemFor(it.type) }
-            if (system == null) continue
-            evaluated += project
+            val bound = buildSystemFor(project) ?: continue
+            val spec = project.runTasksSafely(bound).firstOrNull { it.id == id } ?: continue
+            bound.actionFor(spec, project, context)?.let { return project.name to it }
+        }
+        // Then the per-module-type selection: a module whose type a contributed build system supports (e.g.
+        // flutter-app → FlutterBuildSystem). Resolved by module (not project identity) so it works even when a
+        // project is registered as the default native build system.
+        for (module in ctx.modules()) {
+            val system = buildSystemFor(module.type) ?: continue
+            val project = ctx.projectOf(module) ?: continue
             val spec = project.runTasksSafely(system).firstOrNull { it.id == id } ?: continue
             system.actionFor(spec, project, context)?.let { return project.name to it }
         }
