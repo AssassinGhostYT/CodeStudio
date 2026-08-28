@@ -22,8 +22,11 @@ import dev.ide.model.ModuleType
 import dev.ide.model.Project
 import dev.ide.vfs.VirtualFile
 import java.io.File
+import java.nio.file.Path
 
-class FlutterBuildSystem : BuildSystem {
+class FlutterBuildSystem(
+    private val sdkManager: FlutterSdkManager = FlutterSdkManager(),
+) : BuildSystem {
 
     override val id: BuildSystemId = BuildSystemId("flutter")
 
@@ -62,25 +65,28 @@ class FlutterBuildSystem : BuildSystem {
         val variant = parts.getOrNull(2) ?: "debug"
         val module = project.modules.find { it.name == moduleName } ?: return null
         val moduleDir = File(project.rootDir.path).resolve(moduleName)
+        val workspacePath = java.nio.file.Paths.get(project.rootDir.path)
 
         return when (command) {
-            "flutterRun" -> runAction(module, moduleDir, variant)
-            "flutterBuildApk" -> buildAction(module, moduleDir, "apk", variant)
-            "flutterBuildAppbundle" -> buildAction(module, moduleDir, "appbundle", variant)
-            "flutterBuildIos" -> buildAction(module, moduleDir, "ios", variant)
+            "flutterRun" -> runAction(module, moduleDir, variant, workspacePath)
+            "flutterBuildApk" -> buildAction(module, moduleDir, "apk", variant, workspacePath)
+            "flutterBuildAppbundle" -> buildAction(module, moduleDir, "appbundle", variant, workspacePath)
+            "flutterBuildIos" -> buildAction(module, moduleDir, "ios", variant, workspacePath)
             else -> null
         }
     }
 
     override fun createBuildGraph(project: Project, request: BuildRequest): TaskGraph {
-        // Build the requested target modules through the Flutter CLI. Each module fans out to its own
-        // `flutter build` invocation; the graph runs them via the same engine the host uses for every task.
+        // Build the requested target modules through the Flutter/Dart CLI. `flutter-app` modules use the
+        // located `flutter` binary; `dart-console` modules use the managed Dart SDK (`dart`). Each module
+        // fans out to its own invocation, run through the same task engine every other build uses.
         val variant = request.variant.name.ifBlank { "debug" }
         val goalName = when (request.goal) {
             BuildGoal.BUNDLE -> "appbundle"
             BuildGoal.INSTALL -> "ios"
             else -> "apk"
         }
+        val workspacePath = java.nio.file.Paths.get(project.rootDir.path)
         val targets = request.targets.ifEmpty { project.modules.filter { supports(it.type) }.map { it.id } }
         val tasks = mutableListOf<Task>()
         for (moduleId in targets) {
@@ -88,7 +94,7 @@ class FlutterBuildSystem : BuildSystem {
             if (!supports(module.type)) continue
             val dir = File(project.rootDir.path).resolve(module.name)
             val args = listOf("build", goalName, "--$variant")
-            tasks += cliTask(TaskName("flutter:${module.name}:build-$goalName"), dir, args)
+            tasks += cliTask(TaskName("flutter:${module.name}:build-$goalName"), dir, module, workspacePath, args)
         }
         if (tasks.isEmpty()) {
             throw IllegalArgumentException("No Flutter/Dart modules to build in '${project.name}'.")
@@ -100,16 +106,19 @@ class FlutterBuildSystem : BuildSystem {
         }
     }
 
-    private fun runAction(module: Module, dir: File, variant: String): RunAction {
-        val args = mutableListOf("run", "--$variant")
+    private fun runAction(module: Module, dir: File, variant: String, workspacePath: Path): RunAction {
+        val isDartConsole = module.type.id == "dart-console"
+        // `dart run` has no build-variant flag; only the Flutter runner takes `--$variant`.
+        val args = if (isDartConsole) mutableListOf("run") else mutableListOf("run", "--$variant")
+        val tool = if (isDartConsole) "dart" else "flutter"
         return RunAction(
-            header = "Flutter Run · ${module.name} ($variant)",
-            graph = cliTaskGraph(TaskName("flutter:${module.name}:run"), dir, args),
+            header = if (isDartConsole) "Dart Run · ${module.name}" else "Flutter Run · ${module.name} ($variant)",
+            graph = cliTaskGraph(TaskName("$tool:${module.name}:run"), dir, module, workspacePath, args),
             onSuccess = { log -> log("App started") }
         )
     }
 
-    private fun buildAction(module: Module, dir: File, buildType: String, variant: String): RunAction {
+    private fun buildAction(module: Module, dir: File, buildType: String, variant: String, workspacePath: Path): RunAction {
         val args = mutableListOf("build", buildType, "--$variant")
         val output = when (buildType) {
             "apk" -> dir.resolve("build/app/outputs/flutter-apk")
@@ -119,13 +128,19 @@ class FlutterBuildSystem : BuildSystem {
         }
         return RunAction(
             header = "Flutter Build $buildType · ${module.name} ($variant)",
-            graph = cliTaskGraph(TaskName("flutter:${module.name}:build-$buildType"), dir, args),
+            graph = cliTaskGraph(TaskName("flutter:${module.name}:build-$buildType"), dir, module, workspacePath, args),
             banner = "Output: ${output.absolutePath}",
             onSuccess = { log -> log("Build succeeded: ${output.absolutePath}") }
         )
     }
 
-    private fun cliTask(name: TaskName, workingDir: File, args: List<String>): Task = object : Task {
+    private fun cliTask(
+        name: TaskName,
+        workingDir: File,
+        module: Module,
+        workspacePath: Path,
+        args: List<String>,
+    ): Task = object : Task {
         override val name: TaskName = name
         override val inputs: TaskInputs = object : TaskInputs {
             override fun files(key: String, files: Iterable<VirtualFile>) {}
@@ -140,28 +155,46 @@ class FlutterBuildSystem : BuildSystem {
         }
         override suspend fun execute(ctx: TaskContext): TaskResult {
             val log = ctx.logger()
-            val flutter = findFlutter()
-            if (flutter == null) {
-                log("Flutter SDK not found on this device.")
-                log("The 'flutter' executable is required to run or build a Flutter app.")
-                log("Install Flutter (e.g. via Termux) and make sure 'flutter' is on the PATH,")
-                log("or set the FLUTTER_BIN environment variable to the full path of the flutter binary.")
-                return TaskResult.Failed(
-                    "Flutter SDK not found. Install Flutter and add it to PATH, or set FLUTTER_BIN to the flutter binary path."
-                )
+            val isDartConsole = module.type.id == "dart-console"
+
+            // Resolve the tool to run: a dart-console module uses the managed Dart SDK (downloaded on first
+            // use, like the Java/Kotlin sources); a flutter-app module uses an externally provided flutter.
+            val tool: File = if (isDartConsole) {
+                val dart = sdkManager.dartBin(workspacePath).toFile()
+                if (!sdkManager.isInstalled(workspacePath)) {
+                    log("Dart SDK not installed yet — downloading it once (first use, like JDK/Android sources)…")
+                    val err = sdkManager.ensureDownloaded(workspacePath) { read, total ->
+                        val mb = if (total > 0) " of %.1f MB".format(total / 1_048_576.0) else ""
+                        log("  %.1f MB$mb".format(read / 1_048_576.0))
+                    }
+                    if (err.isNotEmpty()) {
+                        return TaskResult.Failed(err)
+                    }
+                }
+                if (!dart.canExecute()) {
+                    return TaskResult.Failed("Dart SDK installed but its 'dart' binary could not be run: ${dart.absolutePath}")
+                }
+                dart
+            } else {
+                findFlutter() ?: return TaskResult.Failed(flutterMissingMessage())
             }
-            log("Running: $flutter ${args.joinToString(" ")}")
-            return try {
-                val pb = ProcessBuilder(listOf(flutter.absolutePath) + args)
-                    .directory(workingDir)
-                    .redirectErrorStream(true)
-                val proc = pb.start()
-                proc.inputStream.bufferedReader().forEachLine { log(it) }
-                if (proc.waitFor() == 0) TaskResult.Success
-                else TaskResult.Failed("Exit code ${proc.exitValue()}")
-            } catch (e: Exception) {
-                TaskResult.Failed("Failed: ${e.message}", e)
-            }
+
+            log("Running: $tool ${args.joinToString(" ")}")
+            return runProcess(tool, workingDir, args, log)
+        }
+    }
+
+    private fun runProcess(tool: File, workingDir: File, args: List<String>, log: (String) -> Unit): TaskResult {
+        return try {
+            val pb = ProcessBuilder(listOf(tool.absolutePath) + args)
+                .directory(workingDir)
+                .redirectErrorStream(true)
+            val proc = pb.start()
+            proc.inputStream.bufferedReader().forEachLine { log(it) }
+            if (proc.waitFor() == 0) TaskResult.Success
+            else TaskResult.Failed("Exit code ${proc.exitValue()}")
+        } catch (e: Exception) {
+            TaskResult.Failed("Failed: ${e.message}", e)
         }
     }
 
@@ -189,8 +222,20 @@ class FlutterBuildSystem : BuildSystem {
         return null
     }
 
-    private fun cliTaskGraph(name: TaskName, workingDir: File, args: List<String>): TaskGraph {
-        val task = cliTask(name, workingDir, args)
+    private fun flutterMissingMessage(): String =
+        "Flutter SDK not found. Install Flutter (e.g. via Termux) and make sure 'flutter' is on the PATH, " +
+            "or set FLUTTER_BIN to the flutter binary path. " +
+            "(Note: a Flutter app cannot be built into a runnable APK without the Flutter engine + Android " +
+            "toolchain, which a sandboxed Android app cannot provide.)"
+
+    private fun cliTaskGraph(
+        name: TaskName,
+        workingDir: File,
+        module: Module,
+        workspacePath: Path,
+        args: List<String>,
+    ): TaskGraph {
+        val task = cliTask(name, workingDir, module, workspacePath, args)
         return object : TaskGraph {
             override val tasks: List<Task> = listOf(task)
             override fun dependencies(t: Task): List<Task> = emptyList()
