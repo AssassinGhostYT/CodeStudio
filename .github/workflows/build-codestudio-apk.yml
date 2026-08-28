@@ -1,4 +1,4 @@
-name: Build CodeAssist APK
+name: Build CodeStudio APK
 
 on:
   workflow_dispatch:
@@ -59,7 +59,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: codeassist-opencode-debug
+          name: codestudio-opencode-debug
           path: |
             **/build/outputs/apk/debug/*.apk
           if-no-files-found: error

@@ -16,7 +16,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import dev.ide.ui.editor.core.EditorSession
-import dev.ide.ui.theme.CodeAssistTheme
+import dev.ide.ui.theme.CodeStudioTheme
 import dev.ide.ui.theme.Ide
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -75,7 +75,7 @@ class EditorTouchScrollTest {
     @OptIn(ExperimentalComposeUiApi::class)
     private fun drive(session: EditorSession, restMs: Long = 0, swipeSteps: Int = 0) {
         val scene = ImageComposeScene(width = 760, height = 400, density = Density(2f)) {
-            CodeAssistTheme(dark = true) { content(session) }
+            CodeStudioTheme(dark = true) { content(session) }
         }
         try {
             scene.render()

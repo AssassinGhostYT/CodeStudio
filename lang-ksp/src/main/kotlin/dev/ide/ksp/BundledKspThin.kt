@@ -47,7 +47,7 @@ object BundledKspThin {
         cachedPath?.let { if (Files.isRegularFile(it)) return it }
         val bytes = BundledKspThin::class.java.getResourceAsStream(RESOURCE)?.use { it.readBytes() } ?: return null
         val key = MessageDigest.getInstance("SHA-256").digest(bytes).take(8).joinToString("") { "%02x".format(it.toInt() and 0xFF) }
-        val dir = Paths.get(System.getProperty("java.io.tmpdir"), "codeassist", "ksp-thin", key)
+        val dir = Paths.get(System.getProperty("java.io.tmpdir"), "codestudio", "ksp-thin", key)
         return extractTo(dir)?.also { cachedPath = it }
     }
 }

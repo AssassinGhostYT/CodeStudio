@@ -21,7 +21,7 @@ private const val LESSON_INTERSTITIAL_EVERY = 2
  * Common-side ad gating + state. Holds the user's "show ads" preference (persisted through
  * [IdeBackend.settings]) and combines it with the host's [AdHost.available] into [adsActive]. There is no paid
  * "remove ads" purchase: removing ads is free (the toggle), SuperSU-style, and supporting the project is a
- * separate donation link. Instances are created once in [dev.ide.ui.CodeAssistApp] and provided through
+ * separate donation link. Instances are created once in [dev.ide.ui.CodeStudioApp] and provided through
  * [LocalAds]; screens read the controller via [rememberAds] rather than threading it through every parameter.
  *
  * The preference survives every app launch but NOT an install or update: a build whose [AdHost.installStamp]
@@ -90,7 +90,7 @@ private fun initialAdsEnabled(backend: IdeBackend, host: AdHost): Boolean {
 
 /**
  * The active [AdController], or null when the UI is hosted without one (tests, or a screen rendered outside
- * [dev.ide.ui.CodeAssistApp]). Null is treated as "no ads" everywhere.
+ * [dev.ide.ui.CodeStudioApp]). Null is treated as "no ads" everywhere.
  */
 val LocalAds = staticCompositionLocalOf<AdController?> { null }
 

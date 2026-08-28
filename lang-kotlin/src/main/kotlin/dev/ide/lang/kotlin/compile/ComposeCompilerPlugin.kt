@@ -70,7 +70,7 @@ object ComposeCompilerPlugin : KotlinCompilerPlugin {
     /** The bundled jar extracted to a process-wide temp cache (the in-process consumer's fallback). */
     fun jar(): Path? {
         cachedPath?.let { if (Files.isRegularFile(it)) return it }
-        val dir = Paths.get(System.getProperty("java.io.tmpdir"), "codeassist", "compose-plugin")
+        val dir = Paths.get(System.getProperty("java.io.tmpdir"), "codestudio", "compose-plugin")
         return extractTo(dir)?.also { cachedPath = it }
     }
 

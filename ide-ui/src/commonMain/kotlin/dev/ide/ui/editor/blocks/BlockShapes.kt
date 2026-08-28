@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Text
 import androidx.compose.ui.unit.Dp
-import dev.ide.ui.theme.CodeAssistTheme
+import dev.ide.ui.theme.CodeStudioTheme
 
 /**
  * The Sketchware/Blockly puzzle geometry and palette. Solid category-colored blocks interlock by a top
@@ -309,7 +309,7 @@ private fun CBlockSwatch(label: String) {
 private fun ShapesSample(dark: Boolean) {
     val d = LocalDensity.current
     val hatPx = with(d) { BlockMetrics.hatCorner.toPx() }
-    CodeAssistTheme(dark = dark) {
+    CodeStudioTheme(dark = dark) {
         // An interlocking stack: hat on top (no notch), statements bump-into-notch, last block flat,
         // then a C-block whose header notch shows that other blocks nest inside its mouth.
         Column(

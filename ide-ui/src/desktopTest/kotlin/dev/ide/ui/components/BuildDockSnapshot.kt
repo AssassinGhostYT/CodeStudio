@@ -20,7 +20,7 @@ import dev.ide.ui.RailDestination
 import dev.ide.ui.backend.BuildState
 import dev.ide.ui.backend.RunStatus
 import dev.ide.ui.screens.BottomNav
-import dev.ide.ui.theme.CodeAssistTheme
+import dev.ide.ui.theme.CodeStudioTheme
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test
@@ -75,7 +75,7 @@ class BuildDockSnapshot {
     @OptIn(ExperimentalComposeUiApi::class)
     private fun snapshot(name: String, open: Boolean, build: BuildState) {
         val scene = ImageComposeScene(width = 420, height = 720, density = Density(2f)) {
-            CodeAssistTheme(dark = true) { DockScreen(open, build) }
+            CodeStudioTheme(dark = true) { DockScreen(open, build) }
         }
         try {
             // Step frames so the expand/chip animations settle (a single big jump can starve them).

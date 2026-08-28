@@ -188,7 +188,7 @@ class IdeUiState(
     initialGradleConvertPrompt: Boolean = false,
 ) {
     /**
-     * One-shot: the project was just imported with "Convert to CodeAssist project" chosen at the picker, so
+     * One-shot: the project was just imported with "Convert to CodeStudio project" chosen at the picker, so
      * the editor should open the convert-confirmation dialog once. Consumed (set false) by `EditorCenter` on
      * first show. Held here (not a param through EditorScreen) so it rides the per-project state rebuild.
      */

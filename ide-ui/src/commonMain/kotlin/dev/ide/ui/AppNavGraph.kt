@@ -38,7 +38,7 @@ import dev.ide.ui.screens.SymbolMacroEditorScreen
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * Routes the current [CodeAssistAppState.screen] to its screen composable, animating between them with
+ * Routes the current [CodeStudioAppState.screen] to its screen composable, animating between them with
  * [ScreenHost]. Every destination reads state from [app] and reports back through its intent functions, so
  * this layer only wires arguments and callbacks.
  *
@@ -47,7 +47,7 @@ import org.jetbrains.compose.resources.stringResource
  */
 @Composable
 internal fun AppNavGraph(
-    app: CodeAssistAppState,
+    app: CodeStudioAppState,
     state: IdeUiState,
     fileActions: FileActions,
     codeFont: FontFamily,
@@ -251,7 +251,7 @@ internal fun AppNavGraph(
  * tab of [HomeScreen] alongside the store and Learn.
  */
 @Composable
-private fun HomeRoute(app: CodeAssistAppState, fileActions: FileActions) {
+private fun HomeRoute(app: CodeStudioAppState, fileActions: FileActions) {
     val projects = remember(app.epoch, app.projectsRefresh) { app.backend.projects.projects() }
     if (!app.storeEnabled) {
         ProjectPickerRoute(app, fileActions, projects)
@@ -268,7 +268,7 @@ private fun HomeRoute(app: CodeAssistAppState, fileActions: FileActions) {
 
 @Composable
 private fun ProjectPickerRoute(
-    app: CodeAssistAppState,
+    app: CodeStudioAppState,
     fileActions: FileActions,
     projects: List<ProjectInfo>,
 ) {
@@ -305,7 +305,7 @@ private fun ProjectPickerRoute(
 }
 
 @Composable
-private fun StoreRoute(app: CodeAssistAppState) {
+private fun StoreRoute(app: CodeStudioAppState) {
     ProjectsStoreScreen(
         backend = app.backend,
         onOpenItem = app::openStoreItem,
@@ -314,7 +314,7 @@ private fun StoreRoute(app: CodeAssistAppState) {
 }
 
 @Composable
-private fun LearnRoute(app: CodeAssistAppState, fileActions: FileActions) {
+private fun LearnRoute(app: CodeStudioAppState, fileActions: FileActions) {
     LearnScreen(
         backend = app.backend,
         epoch = app.learnEpoch,

@@ -77,8 +77,8 @@ class ScopedServiceLifecycleTest {
         val key = ServiceKey<Probe>("test.appSingleton")
         app.registerService(key) { Probe() }
 
-        val dir1 = Files.createTempDirectory("codeassist-ws1")
-        val dir2 = Files.createTempDirectory("codeassist-ws2")
+        val dir1 = Files.createTempDirectory("codestudio-ws1")
+        val dir2 = Files.createTempDirectory("codestudio-ws2")
         val platform1 = PlatformCore().also { it.registerTestTypes() }
         val platform2 = PlatformCore().also { it.registerTestTypes() }
         try {

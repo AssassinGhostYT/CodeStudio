@@ -1,4 +1,4 @@
-CodeAssist 3.0.1
+CodeStudio 3.0.1
 
 * Your project files now show up in Android's file manager (Documents Provider) — browse, open, edit and share.
 * Kotlin completion, type resolution and diagnostics — built from scratch, running on-device.
@@ -9,4 +9,4 @@ CodeAssist 3.0.1
 
 Heads-up: this release breaks older projects — fast iteration over backwards-compatibility.
 
-Full changelog: https://github.com/tyron12233/CodeAssist/releases/tag/v3.0.1
+Full changelog: https://github.com/AssassinGhostYT/CodeStudio/releases/tag/v3.0.1

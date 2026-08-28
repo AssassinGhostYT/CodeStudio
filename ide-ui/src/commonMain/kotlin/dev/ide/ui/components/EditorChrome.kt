@@ -133,7 +133,7 @@ import dev.ide.ui.theme.resolveTint
 import dev.ide.ui.platform.secondaryClickable
 import dev.ide.ui.icons.actionIcon
 import dev.ide.ui.theme.Ca
-import dev.ide.ui.theme.CodeAssistTheme
+import dev.ide.ui.theme.CodeStudioTheme
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 import kotlinx.coroutines.launch
@@ -1249,7 +1249,7 @@ fun TabsStripPreview() {
         OpenFile("Test", "Test.kt", ""),
         OpenFile("Second", "Second.kt", "")
     )
-    CodeAssistTheme {
+    CodeStudioTheme {
         TabsStrip(
             openFiles = openFiles,
             activeIndex = 0,

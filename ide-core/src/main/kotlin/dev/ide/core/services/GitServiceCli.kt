@@ -134,7 +134,7 @@ internal class GitServiceCli(
             sessionFile.outputStream().use {
                 props.store(
                     it,
-                    "CodeAssist GitHub session",
+                    "CodeStudio GitHub session",
                 )
             }
         }.isSuccess
@@ -1469,7 +1469,7 @@ internal class GitServiceCli(
             if (hasStagedChanges) {
                 val finalMessage = message.trim().ifEmpty {
                     if (hasHead) {
-                        "Update from CodeAssist"
+                        "Update from CodeStudio"
                     } else {
                         "Initial commit"
                     }

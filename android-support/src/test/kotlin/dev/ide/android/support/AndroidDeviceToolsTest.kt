@@ -126,7 +126,7 @@ class AndroidDeviceToolsTest {
         val STRINGS = """
             <?xml version="1.0" encoding="utf-8"?>
             <resources>
-                <string name="app_name">CodeAssist Device Demo</string>
+                <string name="app_name">CodeStudio Device Demo</string>
             </resources>
         """
 

@@ -21,7 +21,7 @@ import dev.ide.ui.screens.ImportErrorDialog
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * The app-wide overlays layered over the current screen, split out of [CodeAssistApp] so its body stays
+ * The app-wide overlays layered over the current screen, split out of [CodeStudioApp] so its body stays
  * navigation + layout. Two groups: the one-at-a-time first-launch sheets (build-system migration notice, the
  * onboarding tour, analytics consent) shown only over the project picker ([onPicker]); and the always-on
  * dialogs (run-sandbox permission prompt, first-build notification gate, run-conflict confirmation, the

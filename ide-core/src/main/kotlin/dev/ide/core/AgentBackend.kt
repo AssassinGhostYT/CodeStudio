@@ -17,7 +17,7 @@ import dev.ide.agent.impl.AgentProviders
 import dev.ide.agent.impl.OkHttpLlmTransport
 import dev.ide.agent.impl.SystemPrompt
 import dev.ide.agent.impl.builtinTools
-import dev.ide.agent.mcp.CodeAssistMcpServer
+import dev.ide.agent.mcp.CodeStudioMcpServer
 import dev.ide.agent.mcp.FtpServer
 import dev.ide.agent.mcp.HttpMcpServer
 import dev.ide.agent.toolSchema
@@ -69,11 +69,11 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
         override val spec = ToolSpec(
             name = "ftp_server",
             description = "Start, stop, or query the local FTP asset server (anonymous, bound to " +
-                "127.0.0.1:${CodeAssistMcpServer.DEFAULT_FTP_PORT}). When running, files uploaded over FTP " +
+                "127.0.0.1:${CodeStudioMcpServer.DEFAULT_FTP_PORT}). When running, files uploaded over FTP " +
                 "land in the open project's assets/ folder. To reach it from a PC, forward the control port " +
-                "and the passive port above it: \"adb forward tcp:" + CodeAssistMcpServer.DEFAULT_FTP_PORT +
-                " tcp:" + CodeAssistMcpServer.DEFAULT_FTP_PORT + "\" and \"adb forward tcp:" +
-                (CodeAssistMcpServer.DEFAULT_FTP_PORT + 1) + " tcp:" + (CodeAssistMcpServer.DEFAULT_FTP_PORT + 1) +
+                "and the passive port above it: \"adb forward tcp:" + CodeStudioMcpServer.DEFAULT_FTP_PORT +
+                " tcp:" + CodeStudioMcpServer.DEFAULT_FTP_PORT + "\" and \"adb forward tcp:" +
+                (CodeStudioMcpServer.DEFAULT_FTP_PORT + 1) + " tcp:" + (CodeStudioMcpServer.DEFAULT_FTP_PORT + 1) +
                 "\". Anyone else on the device can read and write those files too. " +
                 "action=status only reports the current state.",
             parameters = toolSchema {
@@ -87,7 +87,7 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
             }
             return if (ftpServer != null) {
                 ToolExecutionResult.ok(
-                    "FTP asset server is RUNNING on 127.0.0.1:${CodeAssistMcpServer.DEFAULT_FTP_PORT} " +
+                    "FTP asset server is RUNNING on 127.0.0.1:${CodeStudioMcpServer.DEFAULT_FTP_PORT} " +
                         "(uploads land in <project>/assets/).",
                 )
             } else {
@@ -153,14 +153,14 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
 
     /** Binds the MCP-over-HTTP server to the engine workspace; null when startup fails (e.g. port taken). */
     private fun startMcpServer(): HttpMcpServer? = try {
-        CodeAssistMcpServer.startHttpServer(
+        CodeStudioMcpServer.startHttpServer(
             workspace = workspace,
-            port = CodeAssistMcpServer.DEFAULT_HTTP_PORT,
+            port = CodeStudioMcpServer.DEFAULT_HTTP_PORT,
             tools = tools,
             gate = AllowAllGate,
         )
     } catch (e: Exception) {
-        log.error("Failed to start the MCP server on port ${CodeAssistMcpServer.DEFAULT_HTTP_PORT}: ${e.message}", e)
+        log.error("Failed to start the MCP server on port ${CodeStudioMcpServer.DEFAULT_HTTP_PORT}: ${e.message}", e)
         null
     }
 
@@ -170,9 +170,9 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
         val assets = ctx.servicesOrNull?.workspaceRoot?.resolve("assets")
             ?: return null
         Files.createDirectories(assets)
-        CodeAssistMcpServer.startFtpServer(assets, CodeAssistMcpServer.DEFAULT_FTP_PORT)
+        CodeStudioMcpServer.startFtpServer(assets, CodeStudioMcpServer.DEFAULT_FTP_PORT)
     } catch (e: Exception) {
-        log.error("Failed to start the FTP server on port ${CodeAssistMcpServer.DEFAULT_FTP_PORT}: ${e.message}", e)
+        log.error("Failed to start the FTP server on port ${CodeStudioMcpServer.DEFAULT_FTP_PORT}: ${e.message}", e)
         null
     }
 
@@ -563,7 +563,7 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
         const val FTP_PREF = "ftpServer"
 
         /** The port the in-app MCP server listens on (see the "MCP server" AI setting). */
-        const val MCP_PORT = CodeAssistMcpServer.DEFAULT_HTTP_PORT
+        const val MCP_PORT = CodeStudioMcpServer.DEFAULT_HTTP_PORT
 
         /** The "leave it to the provider" reasoning-effort choice: nothing is sent on the request. */
         const val REASONING_EFFORT_DEFAULT = "default"

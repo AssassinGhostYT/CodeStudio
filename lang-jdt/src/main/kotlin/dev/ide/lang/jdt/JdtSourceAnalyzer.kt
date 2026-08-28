@@ -314,7 +314,7 @@ class JdtSourceAnalyzer(ctx: CompilationContext) : SourceAnalyzer, Disposable, J
 
     private fun parseUncached(file: VirtualFile, text: CharSequence): JdtParsedFile {
         val onDisk = onSourcepathFile(file) ?: return doParse(file, text)
-        val backup = onDisk.resolveSibling("${onDisk.fileName}.codeassist-shadow")
+        val backup = onDisk.resolveSibling("${onDisk.fileName}.codestudio-shadow")
         val moved = runCatching { Files.move(onDisk, backup, StandardCopyOption.REPLACE_EXISTING); true }.getOrDefault(false)
         try {
             return doParse(file, text)

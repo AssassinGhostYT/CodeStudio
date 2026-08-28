@@ -22,23 +22,23 @@ import io.modelcontextprotocol.spec.McpServerTransportProvider
 import kotlinx.coroutines.runBlocking
 
 /**
- * Turns CodeAssist's agent tool layer into an MCP server. Every tool in the registry is advertised over the
+ * Turns CodeStudio's agent tool layer into an MCP server. Every tool in the registry is advertised over the
  * wire (its JSON schema carried verbatim) and routed through the same [AgentPermissionGate] the in-IDE
  * agent uses, so mutating tools are authorized before they run and read tools never prompt. Two read-only
- * resources expose the project's live overview and agent memory, and a prompt returns the CodeAssist agent
+ * resources expose the project's live overview and agent memory, and a prompt returns the CodeStudio agent
  * grounding for a client that wants it.
  *
  * The [McpServerTransportProvider] is injected so a host can serve over stdio (the [runStdioServer]
  * entry point), an embedded socket, or any other transport without changing the tool wiring.
  */
-object CodeAssistMcpServer {
+object CodeStudioMcpServer {
 
-    const val DEFAULT_SERVER_NAME = "codeassist"
+    const val DEFAULT_SERVER_NAME = "codestudio"
     const val DEFAULT_SERVER_VERSION = "1.0.0"
 
-    const val PROJECT_OVERVIEW_URI = "codeassist://project/overview"
-    const val PROJECT_MEMORY_URI = "codeassist://project/memory"
-    const val AGENT_PROMPT = "codeassist_agent"
+    const val PROJECT_OVERVIEW_URI = "codestudio://project/overview"
+    const val PROJECT_MEMORY_URI = "codestudio://project/memory"
+    const val AGENT_PROMPT = "codestudio_agent"
 
     /** Default port for the in-IDE MCP-over-HTTP server (`adb forward tcp:8765 tcp:8765`). */
     const val DEFAULT_HTTP_PORT = 8765
@@ -213,7 +213,7 @@ object CodeAssistMcpServer {
     // --- Prompt ---
 
     /**
-     * A `codeassist_agent` prompt that returns the same grounding the in-IDE agent is given, so a client
+     * A `codestudio_agent` prompt that returns the same grounding the in-IDE agent is given, so a client
      * can adopt the platform's real shape (on-device, interpreter-based runs, no hosted Gradle) instead of
      * guessing at a desktop toolchain.
      */
@@ -222,7 +222,7 @@ object CodeAssistMcpServer {
         tools: AgentToolRegistry,
     ): McpServerFeatures.SyncPromptSpecification {
         val prompt = McpSchema.Prompt.builder(AGENT_PROMPT)
-            .description("The CodeAssist agent grounding: what this IDE is and how to work in it.")
+            .description("The CodeStudio agent grounding: what this IDE is and how to work in it.")
             .build()
         return McpServerFeatures.SyncPromptSpecification(prompt) { _, _ ->
             val grounding = SystemPrompt.build(
@@ -237,7 +237,7 @@ object CodeAssistMcpServer {
                 ).build(),
             )
             McpSchema.GetPromptResult.builder(messages)
-                .description("CodeAssist agent grounding and working rules.")
+                .description("CodeStudio agent grounding and working rules.")
                 .build()
         }
     }

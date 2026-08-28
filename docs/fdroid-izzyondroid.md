@@ -1,12 +1,12 @@
-# Distributing CodeAssist via IzzyOnDroid (F-Droid)
+# Distributing CodeStudio via IzzyOnDroid (F-Droid)
 
-This documents how CodeAssist is published to the **IzzyOnDroid** F-Droid repository, why the
+This documents how CodeStudio is published to the **IzzyOnDroid** F-Droid repository, why the
 **official F-Droid main repo is not used**, and the exact steps to cut a release IzzyOnDroid can pick up.
 
 ## Why IzzyOnDroid and not the official F-Droid repo
 
 The official F-Droid repo builds every app **from source on its own buildserver**, with no network
-access for arbitrary downloads and no prebuilt binaries. CodeAssist's on-device Android pipeline
+access for arbitrary downloads and no prebuilt binaries. CodeStudio's on-device Android pipeline
 cannot meet that today:
 
 - **Prebuilt `aapt2`** (`ide-android/src/main/jniLibs/<abi>/libaapt2.so`, fetched from the ReVanced
@@ -20,7 +20,7 @@ cannot meet that today:
 
 IzzyOnDroid instead distributes the **developer's own prebuilt, signed APK** (pulled from GitHub
 Releases). It requires the app to be FOSS-licensed and free of proprietary trackers/libraries — which
-CodeAssist is — and discloses any binary blobs as *Anti-Features* rather than rejecting them.
+CodeStudio is — and discloses any binary blobs as *Anti-Features* rather than rejecting them.
 
 ## One-time prerequisites (done in this repo)
 
@@ -31,7 +31,7 @@ CodeAssist is — and discloses any binary blobs as *Anti-Features* rather than 
 - [ ] **Promo images (optional)** — add to `fastlane/metadata/android/en-US/images/`:
       `icon.png` (512×512, optional — IzzyOnDroid otherwise extracts it from the APK),
       `featureGraphic.png` (1024×500), and `phoneScreenshots/1.png …` (real device screenshots).
-- [x] **Public source** — https://github.com/tyron12233/CodeAssist (branch `main`).
+- [x] **Public source** — https://github.com/AssassinGhostYT/CodeStudio (branch `main`).
 
 ## Signing — important
 
@@ -66,7 +66,7 @@ IzzyOnDroid's updater watches the GitHub **Releases** of the repo and picks up t
    git tag v3.0.0 && git push origin v3.0.0
    gh release create v3.0.0 \
      ide-android/build/outputs/apk/release/ide-android-release.apk \
-     --title "CodeAssist 3.0" \
+     --title "CodeStudio 3.0" \
      --notes-file fastlane/metadata/android/en-US/changelogs/31.txt
    ```
 
@@ -75,11 +75,11 @@ IzzyOnDroid's updater watches the GitHub **Releases** of the repo and picks up t
 Open a **Request For Packaging** issue at the IzzyOnDroid repo:
 https://gitlab.com/IzzyOnDroid/repo/-/issues (use the "Request packaging of an app" template), with:
 
-- **App name:** CodeAssist
-- **Source / repo:** https://github.com/tyron12233/CodeAssist
-- **Releases (APK):** https://github.com/tyron12233/CodeAssist/releases
+- **App name:** CodeStudio
+- **Source / repo:** https://github.com/AssassinGhostYT/CodeStudio
+- **Releases (APK):** https://github.com/AssassinGhostYT/CodeStudio/releases
 - **Licence:** GPL-3.0-or-later
-- **applicationId:** `com.tyron.code`
+- **applicationId:** `com.codestudio.ide`
 - **Update mechanism:** GitHub Releases (APK attached per release)
 - **Anti-Features (disclose up front):** see below.
 

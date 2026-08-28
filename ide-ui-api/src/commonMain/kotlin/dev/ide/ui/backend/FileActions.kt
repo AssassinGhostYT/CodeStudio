@@ -3,7 +3,7 @@ package dev.ide.ui.backend
 /**
  * Platform file-system bridges the reusable UI can't express itself — picking files to import (Android
  * SAF / desktop `JFileChooser`) and sharing a file out (Android `FileProvider` chooser / desktop reveal).
- * The host supplies a concrete implementation to [dev.ide.ui.CodeAssistApp]; the byte-copy on import
+ * The host supplies a concrete implementation to [dev.ide.ui.CodeStudioApp]; the byte-copy on import
  * ultimately routes through [IdeBackend.createFile], so the model/VFS layer stays untouched.
  */
 interface FileActions {
@@ -73,7 +73,7 @@ interface FileActions {
 
     /**
      * Open [path] (a directory) in the system file manager so the user can browse and manage it there.
-     * On Android this launches the system Files app at CodeAssist's projects root — surfaced by a
+     * On Android this launches the system Files app at CodeStudio's projects root — surfaced by a
      * DocumentsProvider — so any SAF file manager can browse it and import files (icons/layouts/assets)
      * into a project; on desktop it reveals the folder. Default no-op (the affordance is hidden when
      * [canReveal] is false).

@@ -49,7 +49,7 @@ class JetsnackPreviewProfileTest {
     @Test
     fun profileJetsnackPreviews() {
         val root = Paths.get(System.getenv("JETSNACK_SRC")
-            ?: "/Users/tyronscott/JavaProjects/compose-samples/Jetsnack/app/src/main/java")
+            ?: "/Users/AssassinGhost/JavaProjects/compose-samples/Jetsnack/app/src/main/java")
         if (!Files.isDirectory(root)) return
 
         val service = timed("KotlinSymbolService init") {

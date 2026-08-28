@@ -417,7 +417,7 @@ internal class IdeAgentWorkspace(private val ctx: BackendContext) : AgentWorkspa
             connectTimeout = HTTP_TIMEOUT_MS
             readTimeout = HTTP_TIMEOUT_MS
             instanceFollowRedirects = true
-            setRequestProperty("User-Agent", "CodeAssist-Agent")
+            setRequestProperty("User-Agent", "CodeStudio-Agent")
             headers.forEach { h ->
                 val idx = h.indexOf(':')
                 if (idx > 0) setRequestProperty(h.substring(0, idx).trim(), h.substring(idx + 1).trim())

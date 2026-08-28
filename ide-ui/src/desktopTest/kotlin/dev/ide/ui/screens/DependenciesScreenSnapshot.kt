@@ -14,7 +14,7 @@ import dev.ide.ui.backend.UiDepKind
 import dev.ide.ui.backend.UiDependencyNode
 import dev.ide.ui.backend.UiModuleDeps
 import dev.ide.ui.backend.UiVersionConflict
-import dev.ide.ui.theme.CodeAssistTheme
+import dev.ide.ui.theme.CodeStudioTheme
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test
@@ -74,7 +74,7 @@ class DependenciesScreenSnapshot {
     @OptIn(ExperimentalComposeUiApi::class)
     private fun snapshot(name: String, w: Int, h: Int, backend: IdeBackend) {
         val scene = ImageComposeScene(width = w, height = h, density = Density(2f)) {
-            CodeAssistTheme(dark = true) {
+            CodeStudioTheme(dark = true) {
                 Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { DependenciesPane(backend, "app") }
             }
         }

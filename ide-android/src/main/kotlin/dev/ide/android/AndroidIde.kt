@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicReference
  * On-device bootstrap for the IDE engine, the Android counterpart to :ide-desktop's wiring. ART has no
  * JDK to detect, so the Android SDK's `android.jar` (signatures for `java.*` + `android.*`) ships as an
  * asset, is copied into app storage once, and is fed as each workspace's boot classpath. The whole app
- * directory lives under `<external-files>/codeassist` (projects in `projects/`, one workspace dir each) —
+ * directory lives under `<external-files>/codestudio` (projects in `projects/`, one workspace dir each) —
  * app-specific external storage, so a [ProjectsDocumentsProvider] can surface that directory in the system
  * Files app / any file manager without the All-Files-Access permission. A [ProjectManager] creates/opens/lists
  * the projects, so the IDE supports live
@@ -51,7 +51,7 @@ object AndroidIde {
         // `android.os.Process.is64Bit()` reports THIS process, not merely device capability (API 23+; minSdk 26).
         dev.ide.platform.RuntimeInfo.set32Bit(!android.os.Process.is64Bit())
 
-        // App-specific EXTERNAL storage (Android/data/<pkg>/files/codeassist)
+        // App-specific EXTERNAL storage (Android/data/<pkg>/files/codestudio)
         val home = appHomeDir(context).apply { mkdirs() }
         val manager = createProjectManager(context)
 
@@ -249,17 +249,17 @@ object AndroidIde {
                 managerRef.get()?.preference(separateProcessKey)?.trim() != "false"
             },
         )
-        // Project data left by previous app versions (same `com.tyron.code` package, so the same external
+        // Project data left by previous app versions (same `com.codestudio.ide` package, so the same external
         // files dir survives a Play update). Swept into backups, and recovered into the picker by
         // `importLegacyProjects` when in a loadable format. Two known locations:
         //  - `<external-files>/Projects` — the v0.2.9 (legacy, Gradle) projects dir (`getExternalFilesDir("Projects")`).
-        //  - `filesDir/codeassist` — an early internal-storage home of THIS app, before the move to external.
+        //  - `filesDir/codestudio` — an early internal-storage home of THIS app, before the move to external.
         // The v0.2.9 projects aren't openable here (no Gradle sync yet) but their sources are recoverable via
         // the backup and the file manager (this dir is a sibling of our home, both under [externalHome]).
         val legacyProjectsDir = File(externalHome(context), "Projects").toPath()
-        val legacyInternalHome = File(context.filesDir, "codeassist").toPath()
+        val legacyInternalHome = File(context.filesDir, "codestudio").toPath()
         // When external storage is unusable, [externalHome] falls back to internal `filesDir`, so the ACTIVE
-        // home (`home`, above) IS `filesDir/codeassist` = legacyInternalHome. Never list the active home as a
+        // home (`home`, above) IS `filesDir/codestudio` = legacyInternalHome. Never list the active home as a
         // legacy source — it would import a directory into itself. (In the normal external case they differ.)
         val activeHome = home.toPath()
         val legacyDataDirs = listOf(legacyProjectsDir, legacyInternalHome)
@@ -482,7 +482,7 @@ object AndroidIde {
      * `getExternalFilesDir(null)` returns a non-null path even when the underlying volume is **unmounted or
      * unwritable** — a removed/ejected SD card, the app installed on removable storage that isn't present, or
      * storage simply not ready this early in a cold start. Writing into that stale path then fails with
-     * `ENOENT` (the `codeassist/android.jar` startup crash). So don't just null-check: require the volume to be
+     * `ENOENT` (the `codestudio/android.jar` startup crash). So don't just null-check: require the volume to be
      * `MEDIA_MOUNTED` AND actually creatable/writable, else fall back to internal storage (which the app already
      * treats as a valid home — see `legacyInternalHome` / `importLegacyProjects`).
      */
@@ -498,11 +498,11 @@ object AndroidIde {
         return context.filesDir
     }
 
-    /** The whole CodeAssist app directory (`<external-files>/codeassist`): projects, the SDK `android.jar`,
+    /** The whole CodeStudio app directory (`<external-files>/codestudio`): projects, the SDK `android.jar`,
      *  the debug keystore, the kotlinc home, shared caches. This is the root surfaced to file managers. */
-    fun appHomeDir(context: Context): File = File(externalHome(context), "codeassist")
+    fun appHomeDir(context: Context): File = File(externalHome(context), "codestudio")
 
-    /** The on-disk projects directory (`<external-files>/codeassist/projects`). */
+    /** The on-disk projects directory (`<external-files>/codestudio/projects`). */
     fun projectsDir(context: Context): File = File(appHomeDir(context), "projects")
 
     /** Measure (once per app version, in the background) the largest heap a forked VM grants R8 on this device

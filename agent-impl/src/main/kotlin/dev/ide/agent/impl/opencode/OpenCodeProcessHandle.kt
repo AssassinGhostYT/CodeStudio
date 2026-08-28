@@ -5,7 +5,7 @@ enum class ProcessState {
 }
 
 /**
- * Immutable metadata handle of a process instance managed by CodeAssist.
+ * Immutable metadata handle of a process instance managed by CodeStudio.
  * Does not perform process startup, shutdown, or signal handling.
  */
 data class OpenCodeProcessHandle(

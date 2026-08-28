@@ -35,7 +35,7 @@ object JdkSdkProvider {
     }
 
     /** A synthetic platform: minimal `java.lang` source stubs written under [dir]. */
-    fun synthetic(dir: Path = Files.createTempDirectory("codeassist-synthetic-jdk")): SdkData {
+    fun synthetic(dir: Path = Files.createTempDirectory("codestudio-synthetic-jdk")): SdkData {
         SyntheticJdk.writeInto(dir)
         return SdkData("synthetic", listOf(dir.toAbsolutePath().normalize().toString()), buildToolsPath = null)
     }

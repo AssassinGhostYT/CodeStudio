@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.Density
 import dev.ide.ui.IdeUiState
 import dev.ide.ui.StubBackend
 import dev.ide.ui.backend.UiToolchainWarning
-import dev.ide.ui.theme.CodeAssistTheme
+import dev.ide.ui.theme.CodeStudioTheme
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test
@@ -100,7 +100,7 @@ class ToolchainWarningBannerSnapshot {
     ) {
         val state = IdeUiState(FakeBackend(warnings))
         val scene = ImageComposeScene(width = w, height = h, density = Density(2f)) {
-            CodeAssistTheme(dark = true) {
+            CodeStudioTheme(dark = true) {
                 Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
                     Column(Modifier.fillMaxWidth()) { ToolchainWarningBanner(state, compact) }
                 }

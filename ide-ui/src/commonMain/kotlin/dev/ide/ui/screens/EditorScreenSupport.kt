@@ -47,7 +47,7 @@ internal fun doImportInto(state: IdeUiState, fileActions: FileActions, dir: Stri
  * Pick a folder via the host's directory picker and import it as a Gradle project (best effort). [onBusy]
  * fires once a folder is chosen — before the slow copy + script parse + resolve — so the caller can show a
  * progress indicator; [onResult] receives the backend result, or null when the user cancelled the picker.
- * Extracted from [dev.ide.ui.CodeAssistApp] so the pick → import wiring is unit-testable without Compose.
+ * Extracted from [dev.ide.ui.CodeStudioApp] so the pick → import wiring is unit-testable without Compose.
  */
 internal fun doImportGradle(
     fileActions: FileActions,

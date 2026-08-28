@@ -142,7 +142,7 @@ class CanvasRenderTest {
 
     @Test fun drawWithCachePathRenders() {
         // CanvasDrawPath: `Modifier.drawWithCache { val p = Path(); … size.width …; onDrawBehind { drawPath(p) } }`.
-        // Was reported "crashes CodeAssist" — the `size.width` in the cache block threw, the guard returned a null
+        // Was reported "crashes CodeStudio" — the `size.width` in the cache block threw, the guard returned a null
         // DrawResult, and Compose NPE'd during draw. With the value-class fix the block computes → real DrawResult.
         val n = nonBlankPixels(
             """

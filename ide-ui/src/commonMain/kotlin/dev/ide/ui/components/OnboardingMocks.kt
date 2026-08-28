@@ -510,7 +510,7 @@ internal fun GradleImportMock() {
                 Text("Open an existing Gradle build (best effort)", color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = Ide.type.uiFamily, fontSize = 10.5f.sp)
                 Spacer(Modifier.height(2.dp))
                 GradleOption("Compatibility mode", "Keep the Gradle files and re-sync from them. You can convert later.", selected = false)
-                GradleOption("Convert to CodeAssist", "Switch to the module system. Gradle files move to a backup folder.", selected = true)
+                GradleOption("Convert to CodeStudio", "Switch to the module system. Gradle files move to a backup folder.", selected = true)
                 Spacer(Modifier.height(6.dp))
                 Row(
                     Modifier.fillMaxWidth().height(30.dp).clip(RoundedCornerShape(9.dp)).background(MaterialTheme.colorScheme.primary).padding(horizontal = 10.dp),

@@ -51,7 +51,7 @@ class ForkedToolVmTest {
     @Test
     fun `an IDE thread is still reported`() {
         // The engine thread and the app main thread are the ones a real crash names; neither may be filtered.
-        for (name in listOf("ide-engine", "main", "dev.ide.codeassist", "RenderThread", "dalvik", ""))
+        for (name in listOf("ide-engine", "main", "dev.ide.codestudio", "RenderThread", "dalvik", ""))
             assertFalse(ForkedToolVm.isToolVmCrash(tombstone(name)), "expected $name to stay reportable")
     }
 

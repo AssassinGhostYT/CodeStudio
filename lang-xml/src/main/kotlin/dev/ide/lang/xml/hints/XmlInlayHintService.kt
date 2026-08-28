@@ -24,7 +24,7 @@ fun interface XmlResourceValueResolver {
 
 /**
  * Inlay hints for Android XML: the resolved VALUE of a local resource reference, shown inline after it -
- * `android:text="@string/app_name"`‹CodeAssist› - so the editor reads like the rendered UI without chasing
+ * `android:text="@string/app_name"`‹CodeStudio› - so the editor reads like the rendered UI without chasing
  * every `@string`/`@color`/`@dimen` to its definition. The value comes from the injected
  * [XmlResourceValueResolver] (the incremental resource index in production), never from a per-keystroke parse.
  *

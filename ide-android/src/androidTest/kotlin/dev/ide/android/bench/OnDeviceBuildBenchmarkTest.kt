@@ -79,7 +79,7 @@ import java.util.zip.ZipInputStream
  *     adb logcat -s BuildBench
  *
  * Instrumentation args (all optional):
- *   -e project   <name>        which project under codeassist/projects to build (default: first android-app found)
+ *   -e project   <name>        which project under codestudio/projects to build (default: first android-app found)
  *   -e coldLibs  true|false    true (default) = fresh dex cache → dexes every library from scratch (the fresh-build
  *                              cost); false = reuse the shared library-dex cache (measures library reuse)
  *   -e rounds    <n>           build n times (default 1); round 1 is the reported fresh build, later rounds show
@@ -104,8 +104,8 @@ class OnDeviceBuildBenchmarkTest {
         // forking isn't usable here.
         val forkedD8 = args.getString("forkedD8")?.toBoolean() ?: false
 
-        // The app's on-device home (external app storage): codeassist/projects/<name>, plus the shared caches.
-        val home = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "codeassist")
+        // The app's on-device home (external app storage): codestudio/projects/<name>, plus the shared caches.
+        val home = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "codestudio")
         val projectsRoot = File(home, "projects").apply { mkdirs() }
 
         // The bundled SDK bits: android.jar (asset) + native aapt2/zipalign (extracted lib dir) + debug keystore.
@@ -234,7 +234,7 @@ class OnDeviceBuildBenchmarkTest {
             Log.i(TAG, s); report.appendLine(s)
         }
 
-        // Leave a report the user can pull: adb pull .../files/codeassist/build-bench-report.txt
+        // Leave a report the user can pull: adb pull .../files/codestudio/build-bench-report.txt
         runCatching { File(home, "build-bench-report.txt").writeText(report.toString()) }
         Log.i(TAG, "report written to ${File(home, "build-bench-report.txt")}")
     }
@@ -249,7 +249,7 @@ class OnDeviceBuildBenchmarkTest {
     fun dexAllLibsInProcessVsForked() {
         val ctx = InstrumentationRegistry.getInstrumentation().targetContext
         val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
-        val home = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "codeassist")
+        val home = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "codestudio")
         File(home, "projects").mkdirs()
         val work = File(ctx.filesDir, "build-bench").apply { mkdirs() }
         val androidJar = copyAsset(ctx, "android.jar", File(work, "android.jar")).toPath()
@@ -324,7 +324,7 @@ class OnDeviceBuildBenchmarkTest {
         val rounds = args.getString("rounds")?.toIntOrNull() ?: 1
         val maxParallel = args.getString("maxParallel")?.toIntOrNull() ?: 2
 
-        val home = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "codeassist")
+        val home = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "codestudio")
         val projectsRoot = File(home, "projects").apply { mkdirs() }
         val work = File(ctx.filesDir, "build-bench").apply { mkdirs() }
 
@@ -426,13 +426,13 @@ class OnDeviceBuildBenchmarkTest {
     /**
      * The headline "run a real Gradle Compose sample on device" case: takes a **Gradle project** pushed to
      * the app's external files dir (`-e gradleSrc <dir>`, default `jetsnack-src`), converts it to a native
-     * CodeAssist project with the tolerant Gradle importer ([GradleImport]), resolves its declared dependency
+     * CodeStudio project with the tolerant Gradle importer ([GradleImport]), resolves its declared dependency
      * graph (incl. the Compose BOM) from the network on-device, and assembles a debug APK ON ART — the same
      * in-process toolchain the app uses (bundled `android.jar` + native aapt2, in-process/forked D8, the K2
      * compiler + bundled Compose plugin). This is how a checked-out sample like android/compose-samples'
      * **Jetsnack** compiles on the device.
      *
-     *     adb push <checkout>/Jetsnack /sdcard/Android/data/com.tyron.code/files/jetsnack-src
+     *     adb push <checkout>/Jetsnack /sdcard/Android/data/com.codestudio.ide/files/jetsnack-src
      *     ./gradlew :ide-android:connectedDebugAndroidTest \
      *       -Pandroid.testInstrumentationRunnerArguments.class=dev.ide.android.bench.OnDeviceBuildBenchmarkTest#assembleImportedGradleProject
      *     adb logcat -s BuildBench
@@ -448,7 +448,7 @@ class OnDeviceBuildBenchmarkTest {
             src.isDirectory && (File(src, "settings.gradle.kts").exists() || File(src, "settings.gradle").exists()),
         )
 
-        val home = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "codeassist")
+        val home = File(ctx.getExternalFilesDir(null) ?: ctx.filesDir, "codestudio")
         val projectsRoot = File(home, "projects").apply { mkdirs() }
         val work = File(ctx.filesDir, "build-bench").apply { mkdirs() }
 

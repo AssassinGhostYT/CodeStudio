@@ -269,7 +269,7 @@ class ProjectManager private constructor(
     fun setPreference(key: String, value: String) {
         val props = loadPrefs().apply { setProperty(key, value) }
         Files.createDirectories(prefsFile.parent)
-        Files.newOutputStream(prefsFile).use { props.store(it, "CodeAssist preferences") }
+        Files.newOutputStream(prefsFile).use { props.store(it, "CodeStudio preferences") }
     }
 
     // --- built-in plugin enable/disable (app-global; applied on the next launch) ---
@@ -300,7 +300,7 @@ class ProjectManager private constructor(
      */
     fun exportBackup(): Path {
         val exportsDir = homeDir.resolve("exports").also { Files.createDirectories(it) }
-        val dest = exportsDir.resolve("codeassist-backup-${System.currentTimeMillis()}.zip")
+        val dest = exportsDir.resolve("codestudio-backup-${System.currentTimeMillis()}.zip")
         ZipOutputStream(Files.newOutputStream(dest)).use { zip ->
             for (root in backupRoots) {
                 if (!Files.exists(root)) continue

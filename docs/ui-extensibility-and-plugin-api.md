@@ -297,7 +297,7 @@ contributions appear alongside the built-ins with zero further host edits.
 | Side-rail destinations (`RailDestination` enum) | `SideRail.kt` | `ToolWindowRegistry` LEFT entries; Files/Search registered built-in |
 | Build-console tabs (`BuildTab` enum) | `BuildConsole.kt` | `ToolWindowRegistry` BOTTOM entries; Problems/Log/Steps built-in |
 | Editor view modes (`EditorViewMode` enum) | `EditorBreadcrumbBar.kt` | `ViewModeRegistry`; Text/Blocks/Preview/Split built-in |
-| Top-level screens (`Screen` enum) | `CodeAssistApp.kt` | `ScreenRegistry`; core screens built-in; routing reads the registry |
+| Top-level screens (`Screen` enum) | `CodeStudioApp.kt` | `ScreenRegistry`; core screens built-in; routing reads the registry |
 
 ## Phased plan (each phase ships against the prior phase's interfaces)
 

@@ -67,7 +67,7 @@ object ParcelizeCompilerPlugin : KotlinCompilerPlugin {
     /** The bundled jar extracted to a process-wide temp cache (the in-process consumer's fallback). */
     fun jar(): Path? {
         cachedPath?.let { if (Files.isRegularFile(it)) return it }
-        val dir = Paths.get(System.getProperty("java.io.tmpdir"), "codeassist", "parcelize-plugin")
+        val dir = Paths.get(System.getProperty("java.io.tmpdir"), "codestudio", "parcelize-plugin")
         return extractTo(dir)?.also { cachedPath = it }
     }
 

@@ -2,14 +2,14 @@
 <resources>
     <string name="projects">项目</string>
     <string name="a_new_build_system">全新的构建系统</string>
-    <string name="a_new_build_system_content"><![CDATA[CodeAssist 已基于全新端内构建系统重构。新版本采用独立的项目配置，因此旧版本工程不兼容，无法打开。
+    <string name="a_new_build_system_content"><![CDATA[CodeStudio 已基于全新端内构建系统重构。新版本采用独立的项目配置，因此旧版本工程不兼容，无法打开。
 
 请立即将工程备份为.zip压缩包，保障项目文件安全，后续可在新项目内重新导入。]]></string>
     <string name="preparing_backup">准备备份…</string>
     <string name="backup_projects">备份工程项目</string>
     <string name="got_it">知道了</string>
-    <string name="help_improve_codeassist">帮助我们改进 CodeAssist</string>
-    <string name="help_improve_codeassist_content"><![CDATA[共享匿名性能运行数据，帮助我们定位卡顿、崩溃问题并针对性修复。
+    <string name="help_improve_codestudio">帮助我们改进 CodeStudio</string>
+    <string name="help_improve_codestudio_content"><![CDATA[共享匿名性能运行数据，帮助我们定位卡顿、崩溃问题并针对性修复。
 
 我们会收集以下信息：您的应用版本和设备型号、构建、索引和代码补全所需时间、构建成功/失败情况以及已清理的崩溃报告。
 
@@ -46,7 +46,7 @@
     <string name="your_files_content">项目文件存储于应用独立目录，任意文件管理器均可查看、编辑，也可复制至电脑修改；无需额外权限，无任何隐藏文件</string>
     <string name="jetpack_compose">Jetpack Compose</string>
     <string name="jetpack_compose_title">基于 Jetpack Compose 全新重构</string>
-    <string name="jetpack_compose_content">CodeAssist 运行更快、操作更流畅，全界面原生搭载 Jetpack Compose，支持 @Preview 实时预览。</string>
+    <string name="jetpack_compose_content">CodeStudio 运行更快、操作更流畅，全界面原生搭载 Jetpack Compose，支持 @Preview 实时预览。</string>
     <string name="create_your_first_project">创建你的第一个项目</string>
     <string name="github">GitHub</string>
     <string name="github_title">Your code, in the cloud.</string>
@@ -68,7 +68,7 @@
     <string name="git_history_content">Branches, commits, and diffs without ever leaving the project.</string>
     <string name="gradle_import">Gradle import</string>
     <string name="gradle_import_title">Bring your own Gradle build.</string>
-    <string name="gradle_import_content">Open an existing Gradle build directly, or convert it to the CodeAssist module system.</string>
+    <string name="gradle_import_content">Open an existing Gradle build directly, or convert it to the CodeStudio module system.</string>
     <string name="shortcuts">Shortcuts</string>
     <string name="shortcuts_title">Everything, in one reach.</string>
     <string name="shortcuts_content">Commands, files, and symbols from a single palette, with shortcuts for everything.</string>
@@ -82,11 +82,11 @@
     <string name="import_by">作者：%1$s</string>
     <string name="import_section_contents">内容</string>
     <string name="import_more">还有 %1$d 项</string>
-    <string name="import_incompatible">导入该项目工程包需要更高版本的CodeAssist！</string>
+    <string name="import_incompatible">导入该项目工程包需要更高版本的CodeStudio！</string>
     <string name="import_deps_bundled">已内置依赖库</string>
     <string name="import_failed">无法导入该项目工程包！</string>
     <string name="import_unrecognized_title">该文件导入失败!</string>
-    <string name="import_unrecognized">CodeAssist 无法识别此文件！请选择 .caproj 格式项目工程包进行导入。</string>
+    <string name="import_unrecognized">CodeStudio 无法识别此文件！请选择 .caproj 格式项目工程包进行导入。</string>
     <!-- Gradle 项目导入（尽力而为的兼容模式） -->
     <string name="import_gradle_title">导入 Gradle 项目</string>
     <string name="import_gradle_subtitle">打开现有的 Gradle 构建（尽力而为）</string>
@@ -116,7 +116,7 @@
     <string name="export_retry">重试</string>
     <string name="join_the_community">加入交流社区</string>
     <string name="join_the_community_content">可在Discord内交流、寻求帮助、分享你开发的项目</string>
-    <string name="support_title">支持 CodeAssist</string>
+    <string name="support_title">支持 CodeStudio</string>
     <string name="support_content">本项目由我业余独立开发的，坚持免费开源。如果它帮助到了你，赞助或收藏项目仓库便是极大的鼓励支持</string>
     <string name="support_chip_free">100% 免费</string>
     <string name="support_chip_open_source">开源</string>
@@ -128,7 +128,7 @@
     <string name="support_ad_privacy_desc">查看或更改你的广告隐私选择。</string>
     <string name="support_ad_privacy_button">管理</string>
     <string name="ad_label">广告</string>
-    <string name="house_ad_support_title">喜欢 CodeAssist 吗?</string>
+    <string name="house_ad_support_title">喜欢 CodeStudio 吗?</string>
     <string name="house_ad_support_content">可通过GitHub赞助渠道支持本项目开发</string>
     <string name="no_project_yet">还没有项目哦~新建项目即可开始开发</string>
     <string name="your_projects">你的项目</string>
@@ -157,8 +157,8 @@
     <string name="beta_notice">您当前使用的是 %1$s 版本</string>
     <string name="beta_notice_content">部分功能尚未完善，后续可能调整。欢迎反馈问题，告诉我们缺失或异常的功能。</string>
     <string name="submit_suggestion">提交建议</string>
-    <string name="your_codeassist_files">你的 CodeAssist 文件</string>
-    <string name="your_codeassist_files_content">可使用文件管理器打开该目录管理项目（存放在Projects目录的旧版项目也包含在内），可添加图标、资源文件，或在电脑端编辑文件。</string>
+    <string name="your_codestudio_files">你的 CodeStudio 文件</string>
+    <string name="your_codestudio_files_content">可使用文件管理器打开该目录管理项目（存放在Projects目录的旧版项目也包含在内），可添加图标、资源文件，或在电脑端编辑文件。</string>
     <string name="open_in_the_file_manager">在文件管理器中打开</string>
     <string name="choose_start_point">选择起始位置</string>
     <string name="backup">备份</string>
@@ -456,7 +456,7 @@
     <string name="structure_no_file">打开文件以查看其结构</string>
     <string name="comingsoon_footnote">即将推出</string>
     <string name="edscreen_project_root">项目根目录</string>
-    <!-- NOTE: CodeAssistApp.kt reuses settings_title (must exist — expect from settings batch); dep flagged -->
+    <!-- NOTE: CodeStudioApp.kt reuses settings_title (must exist — expect from settings batch); dep flagged -->
 
     <!-- home/store/learn/search/logs/palette — reuses projects, join_the_community -->
     <string name="home_store">发现</string>
@@ -586,10 +586,10 @@
     <string name="run_conflict_dont_ask">不再询问</string>
     <!-- Build notifications: the first-build permission prompt + its in-process fallback, and the Settings re-request -->
     <string name="build_notif_title">显示构建通知？</string>
-    <string name="build_notif_message">CodeAssist 可以在独立的隔离进程中运行构建和程序，并在运行期间显示进度通知。这能避免你切换应用时 Android 中止构建，也方便你跟踪进度。允许通知即可启用此功能。</string>
+    <string name="build_notif_message">CodeStudio 可以在独立的隔离进程中运行构建和程序，并在运行期间显示进度通知。这能避免你切换应用时 Android 中止构建，也方便你跟踪进度。允许通知即可启用此功能。</string>
     <string name="build_notif_not_now">暂不</string>
     <string name="build_notif_inprocess_title">构建将在应用内运行</string>
-    <string name="build_notif_inprocess_message">未授予通知权限时，构建会在 CodeAssist 内部运行，而不是使用独立进程，你也不会收到构建进度通知。可随时在“设置”的“构建运行时”中开启通知。</string>
+    <string name="build_notif_inprocess_message">未授予通知权限时，构建会在 CodeStudio 内部运行，而不是使用独立进程，你也不会收到构建进度通知。可随时在“设置”的“构建运行时”中开启通知。</string>
     <string name="build_notif_enabled">已启用构建通知</string>
     <string name="preview_live">实时</string>
     <string name="preview_paused">已暂停</string>
@@ -752,7 +752,7 @@
     <string name="perm_allow_always">始终允许此项目执行</string>
     <string name="perm_deny">拒绝</string>
 
-    <!-- settings (SettingsScreen/SettingsControls/SettingsHubScreen) — provides settings_title reused by CodeAssistApp -->
+    <!-- settings (SettingsScreen/SettingsControls/SettingsHubScreen) — provides settings_title reused by CodeStudioApp -->
     <string name="settings_title">设置</string>
     <string name="settings_no_settings_available">没有可用设置。</string>
     <string name="settings_all_settings">全部设置</string>

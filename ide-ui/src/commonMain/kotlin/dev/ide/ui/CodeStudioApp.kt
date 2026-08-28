@@ -30,7 +30,7 @@ import dev.ide.ui.navigation.ScreenHost
 import dev.ide.ui.platform.PlatformBackHandler
 import dev.ide.ui.platform.PlatformSystemBars
 import dev.ide.ui.screens.GradleImportModeDialog
-import dev.ide.ui.theme.CodeAssistTheme
+import dev.ide.ui.theme.CodeStudioTheme
 import dev.ide.ui.theme.rememberJetBrainsMono
 import org.jetbrains.compose.resources.stringResource
 
@@ -39,14 +39,14 @@ import org.jetbrains.compose.resources.stringResource
  * supply an [IdeBackend] plus optional brand fonts and a [FileActions] bridge; the screens, theme,
  * navigation, and state are shared.
  *
- * The shell's own state and the flows that drive it live in [CodeAssistAppState]; this body is the theme,
+ * The shell's own state and the flows that drive it live in [CodeStudioAppState]; this body is the theme,
  * the back gesture, the screen host ([AppNavGraph]), and the app-wide overlays. Screens transition with a
  * platform-differentiated feel ([ScreenHost]); the active project's UI state is re-keyed on
  * [IdeBackend.projectEpoch] so creating/opening a project rebuilds the tree and tabs. A first-launch
  * [OnboardingSheet] introduces the IDE over the picker.
  */
 @Composable
-fun CodeAssistApp(
+fun CodeStudioApp(
     backend: IdeBackend,
     uiFont: FontFamily = FontFamily.SansSerif,
     codeFont: FontFamily = rememberJetBrainsMono(),
@@ -69,7 +69,7 @@ fun CodeAssistApp(
         UiPluginHost.ensureLoaded()
     }
 
-    val app = rememberCodeAssistAppState(backend, fileActions, adHost)
+    val app = rememberCodeStudioAppState(backend, fileActions, adHost)
 
     // The active project changes (create/open) bump the epoch; re-key per-project state on it.
     val state = remember(backend, app.epoch) {
@@ -105,7 +105,7 @@ fun CodeAssistApp(
         is ImportError.GradleFailed -> error.message.ifBlank { importGradleFailedMsg }
     }
 
-    CodeAssistTheme(
+    CodeStudioTheme(
         dark = dark,
         accent = accentOf(app.settings),
         // A Custom accent seeds the whole expressive theme from the user's chosen color; a "Dynamic" accent

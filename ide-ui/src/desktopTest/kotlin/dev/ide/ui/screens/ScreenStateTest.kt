@@ -60,7 +60,7 @@ class ScreenStateTest {
     // ---- dependencies ----
 
     private open class DepsBackend : StubBackend() {
-        var moduleDeps = UiModuleDeps("app", "codeassist", true, emptyList(), emptyList())
+        var moduleDeps = UiModuleDeps("app", "codestudio", true, emptyList(), emptyList())
         var loads = 0
         val removed = ArrayList<String>()
         val exclusions = ArrayList<Pair<String, List<String>>>()

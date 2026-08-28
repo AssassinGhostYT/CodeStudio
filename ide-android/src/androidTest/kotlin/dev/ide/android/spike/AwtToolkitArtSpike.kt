@@ -28,7 +28,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * On-device (ART) proof that a Java **Swing** program runs on CodeAssist.
+ * On-device (ART) proof that a Java **Swing** program runs on CodeStudio.
  *
  * The fixture (`swingfixture.SwingFixture`) is an ordinary Swing app compiled against the REAL
  * `java.awt`/`javax.swing` on a desktop JDK. Its class bytes are bundled as an asset, never dexed and never

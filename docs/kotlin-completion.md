@@ -1,6 +1,6 @@
 # How Kotlin completion and editor analysis work
 
-CodeAssist provides Kotlin editor support — completion, resolution, diagnostics, quick-fixes, and the
+CodeStudio provides Kotlin editor support — completion, resolution, diagnostics, quick-fixes, and the
 usual highlighting/navigation surface — **on device**, without running the Kotlin compiler's resolution
 pipeline. The Kotlin backend uses the compiler only to *parse*, then builds its own symbol model, a
 type-inference subset, a flow/reachability layer, and completion + a semantic-diagnostics engine on top

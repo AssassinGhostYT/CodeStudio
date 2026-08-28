@@ -31,15 +31,15 @@ import androidx.compose.ui.unit.dp
 import dev.ide.ui.generated.resources.Res
 import dev.ide.ui.generated.resources.storage_copy_path
 import dev.ide.ui.generated.resources.open_in_the_file_manager
-import dev.ide.ui.generated.resources.your_codeassist_files
-import dev.ide.ui.generated.resources.your_codeassist_files_content
+import dev.ide.ui.generated.resources.your_codestudio_files
+import dev.ide.ui.generated.resources.your_codestudio_files_content
 import dev.ide.ui.icons.CaIcons
 import dev.ide.ui.theme.Ca
 import org.jetbrains.compose.resources.stringResource
 
 /**
  * A persistent "where your files live" panel for the Projects screen. Shows the on-disk app folder (the
- * whole CodeAssist directory: projects plus the SDK, keystore, and caches), tap to copy, explains that
+ * whole CodeStudio directory: projects plus the SDK, keystore, and caches), tap to copy, explains that
  * it's reachable from any file manager, and offers a one-tap "Open in Files" — the in-app counterpart to
  * the on-device DocumentsProvider. Doubles as the first-run storage explainer: users coming from a version
  * that hid files in the sandbox can now find and share them. Renders nothing when there's no managed
@@ -70,9 +70,9 @@ fun StorageAccessCard(path: String?, onOpenInFiles: (() -> Unit)?, modifier: Mod
                 Icon(CaIcons.folder, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
             }
             Column(Modifier.weight(1f)) {
-                Text(stringResource(Res.string.your_codeassist_files), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(Res.string.your_codestudio_files), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
                 Text(
-                    stringResource(Res.string.your_codeassist_files_content),
+                    stringResource(Res.string.your_codestudio_files_content),
                     color = MaterialTheme.colorScheme.outline,
                     style = MaterialTheme.typography.labelSmall,
                 )

@@ -54,7 +54,7 @@ internal object ResourceContextFactory {
         // Build an ISOLATED Resources/AssetManager over the project's `resources.ap_` so the project arsc is its
         // OWN package at id 0x7f and `getIdentifier(name, type, projectPackage)` resolves. The public
         // `ResourcesLoader` path (`addLoaders`) augments the IDE APP's own Resources, where 0x7f already belongs
-        // to the host (`com.tyron.code`); the project package then collides with the host's and getIdentifier
+        // to the host (`com.codestudio.ide`); the project package then collides with the host's and getIdentifier
         // returns 0 (every project layout reads as "not found"). So the isolated `addAssetPath` path is primary;
         // `ResourcesLoader` is kept only as a fallback for when the hidden-API path is unavailable (API ≥ 30).
         return runCatching {

@@ -10,7 +10,7 @@ import org.objectweb.asm.commons.Remapper
 
 /**
  * The curated build-time type map (§4): the framework view bases the user subclasses, redirected to the
- * CodeAssist owned bases, plus `TypedArray` → `BridgeTypedArray`. Grown alongside the renderer registry. The
+ * CodeStudio owned bases, plus `TypedArray` → `BridgeTypedArray`. Grown alongside the renderer registry. The
  * bridge classes themselves live in the IDE shells (where `android.jar` is on the classpath) — this map only
  * needs the *names*, so the remapper is pure-jvm and android-free.
  */

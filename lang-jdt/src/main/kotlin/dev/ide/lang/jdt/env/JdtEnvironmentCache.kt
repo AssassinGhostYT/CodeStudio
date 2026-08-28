@@ -197,7 +197,7 @@ internal class JdtEnvironmentCache(
         private val LOCATOR_ID = IndexId("java.classLocator")
 
         /** Sentinel for "checked the locator, not on this classpath" (so a negative is cached, not re-queried). */
-        private val NOT_FOUND: Path = Paths.get("__codeassist_locator_miss__")
+        private val NOT_FOUND: Path = Paths.get("__codestudio_locator_miss__")
 
         /**
          * Add every dotted package prefix of [fqcn] to [out] (so `a.b.C` adds `a` and `a.b`). Walks the dots

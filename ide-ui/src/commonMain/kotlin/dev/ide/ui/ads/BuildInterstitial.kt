@@ -34,7 +34,7 @@ private const val BUILD_INTERSTITIAL_MIN_INTERVAL_MS = 60_000L
  * first cancels the timer (via [collectLatest]), so quick compiles never see one. After a show, a cooldown
  * ([BUILD_INTERSTITIAL_MIN_INTERVAL_MS]) suppresses back-to-back ads.
  *
- * Placed once at the app root ([dev.ide.ui.CodeAssistApp]) inside the [LocalAds] scope. It renders nothing —
+ * Placed once at the app root ([dev.ide.ui.CodeStudioApp]) inside the [LocalAds] scope. It renders nothing —
  * the interstitial itself is a full-screen surface the ad SDK presents over the app.
  */
 @Composable

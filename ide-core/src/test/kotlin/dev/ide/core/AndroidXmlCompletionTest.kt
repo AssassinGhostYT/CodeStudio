@@ -222,13 +222,13 @@ class AndroidXmlCompletionTest {
         // to the resource type as the popup hint.
         val svc = XmlCompletion(contributors = {
             listOf(AndroidXmlContributor(resources = { type ->
-                if (type == ResourceType.STRING) listOf(ResourceCandidate("app_name", "CodeAssist"), ResourceCandidate("greeting"))
+                if (type == ResourceType.STRING) listOf(ResourceCandidate("app_name", "CodeStudio"), ResourceCandidate("greeting"))
                 else emptyList()
             }))
         })
         val items = completeItems("<TextView android:text=\"@string/|\"", svc = svc)
         // The resolved value is the popup hint…
-        assertEquals("CodeAssist", items.first { it.label == "@string/app_name" }.detail)
+        assertEquals("CodeStudio", items.first { it.label == "@string/app_name" }.detail)
         // …and an unresolved one falls back to the resource type.
         assertEquals("string", items.first { it.label == "@string/greeting" }.detail)
     }

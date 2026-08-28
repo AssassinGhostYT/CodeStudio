@@ -8,25 +8,25 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import dev.ide.core.IdeServicesBackend
 import dev.ide.core.ProjectManager
-import dev.ide.ui.CodeAssistApp
+import dev.ide.ui.CodeStudioApp
 import java.nio.file.Path
 
 /**
- * Launches the CodeAssist desktop IDE. Projects live under a real projects root (`~/.codeassist/projects`
+ * Launches the CodeStudio desktop IDE. Projects live under a real projects root (`~/.codestudio/projects`
  * by default, one workspace dir each); a [ProjectManager] creates/opens/lists them and the IDE supports
  * live in-session switching. The IDE starts on the project picker; a first-run user creates a project from
  * there (or via the onboarding tour's final step).
  */
 fun main(args: Array<String>) {
     System.setProperty("apple.awt.application.appearance", "system")
-    System.setProperty("apple.awt.application.name", "CodeAssist")
+    System.setProperty("apple.awt.application.name", "CodeStudio")
     // Survive an unexpected exception on the AWT event thread (e.g. the live-preview interpreter crashing deep
     // in Compose's measure/semantics pass on a half-typed buffer) instead of taking the whole IDE down.
     AwtThreadGuard.install()
 
     val projectsRoot = Path.of(
-        System.getProperty("codeassist.projects.root")
-            ?: "${System.getProperty("user.home")}/.codeassist/projects",
+        System.getProperty("codestudio.projects.root")
+            ?: "${System.getProperty("user.home")}/.codestudio/projects",
     )
     val manager = ProjectManager.desktop(projectsRoot)
 
@@ -39,9 +39,9 @@ fun main(args: Array<String>) {
         Window(
             onCloseRequest = ::exitApplication,
             state = state,
-            title = "CodeAssist",
+            title = "CodeStudio",
         ) {
-            CodeAssistApp(
+            CodeStudioApp(
                 backend,
                 fileActions = DesktopFileActions(backend),
                 // Live @Preview rendering on desktop: the interpreter drives Compose for Desktop (see

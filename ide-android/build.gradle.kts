@@ -359,7 +359,7 @@ android {
     defaultConfig {
         // The Play Store identity (immutable once published). The Kotlin source package (namespace,
         // above) stays dev.ide.android — that's an internal build detail, independent of applicationId.
-        applicationId = "com.tyron.code"
+        applicationId = "com.codestudio.ide"
         // The real engine (project-model-impl/lang-jdt/...) leans on java.nio.file (Path/Files/walk),
         // which is API 26+. Targeting 26 keeps it native and avoids core-library desugaring complexity.
         minSdk = 26

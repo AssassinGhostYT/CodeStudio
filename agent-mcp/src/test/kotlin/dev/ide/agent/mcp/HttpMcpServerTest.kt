@@ -21,8 +21,8 @@ class HttpMcpServerTest {
 
     @Test
     fun `streamable HTTP handshake and tool calls work end to end`() {
-        val fake = CodeAssistMcpServerTest.FakeWorkspace("src/Main.kt" to "fun main() { println(\"hi\") }")
-        val server = CodeAssistMcpServer.startHttpServer(
+        val fake = CodeStudioMcpServerTest.FakeWorkspace("src/Main.kt" to "fun main() { println(\"hi\") }")
+        val server = CodeStudioMcpServer.startHttpServer(
             workspace = fake,
             port = 0,
             tools = SimpleToolRegistry(builtinTools(fake)),
@@ -37,7 +37,7 @@ class HttpMcpServerTest {
 
         try {
             val init = client.initialize()
-            assertEquals(CodeAssistMcpServer.DEFAULT_SERVER_NAME, init.serverInfo().name())
+            assertEquals(CodeStudioMcpServer.DEFAULT_SERVER_NAME, init.serverInfo().name())
 
             val toolNames = client.listTools().tools().map { it.name() }.toSet()
             assertTrue("read_file" in toolNames)
@@ -67,8 +67,8 @@ class HttpMcpServerTest {
 
     @Test
     fun `second client gets its own session`() {
-        val fake = CodeAssistMcpServerTest.FakeWorkspace("a.txt" to "a")
-        val server = CodeAssistMcpServer.startHttpServer(fake, port = 0)
+        val fake = CodeStudioMcpServerTest.FakeWorkspace("a.txt" to "a")
+        val server = CodeStudioMcpServer.startHttpServer(fake, port = 0)
 
         val first = newClient(server.port)
         val second = newClient(server.port)
@@ -86,8 +86,8 @@ class HttpMcpServerTest {
 
     @Test
     fun `raw HTTP wire format matches the streamable transport contract`() {
-        val fake = CodeAssistMcpServerTest.FakeWorkspace()
-        val server = CodeAssistMcpServer.startHttpServer(fake, port = 0)
+        val fake = CodeStudioMcpServerTest.FakeWorkspace()
+        val server = CodeStudioMcpServer.startHttpServer(fake, port = 0)
         val base = "http://127.0.0.1:${server.port}/mcp"
         val http = java.net.http.HttpClient.newHttpClient()
         try {
@@ -106,7 +106,7 @@ class HttpMcpServerTest {
             assertEquals(200, init.statusCode())
             val sessionId = init.headers().firstValue("mcp-session-id").orElseThrow()
             assertTrue(init.body().contains("\"serverInfo\""))
-            assertTrue(init.body().contains("\"codeassist\""))
+            assertTrue(init.body().contains("\"codestudio\""))
 
             val toolsBody = """{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}"""
             val tools = http.send(post(base, toolsBody, sessionId), java.net.http.HttpResponse.BodyHandlers.ofString())
@@ -122,8 +122,8 @@ class HttpMcpServerTest {
 
     @Test
     fun `a body with non-ASCII text is framed by bytes, not chars`() {
-        val fake = CodeAssistMcpServerTest.FakeWorkspace("a.kt" to "val greeting = \"hi\"")
-        val server = CodeAssistMcpServer.startHttpServer(fake, port = 0)
+        val fake = CodeStudioMcpServerTest.FakeWorkspace("a.kt" to "val greeting = \"hi\"")
+        val server = CodeStudioMcpServer.startHttpServer(fake, port = 0)
         val http = java.net.http.HttpClient.newHttpClient()
         try {
             val base = "http://127.0.0.1:${server.port}/mcp"
@@ -143,7 +143,7 @@ class HttpMcpServerTest {
 
     @Test
     fun `a foreign Origin is refused so a rebound hostname cannot drive the server`() {
-        val server = CodeAssistMcpServer.startHttpServer(CodeAssistMcpServerTest.FakeWorkspace(), port = 0)
+        val server = CodeStudioMcpServer.startHttpServer(CodeStudioMcpServerTest.FakeWorkspace(), port = 0)
         val http = java.net.http.HttpClient.newHttpClient()
         try {
             val base = "http://127.0.0.1:${server.port}/mcp"
@@ -165,7 +165,7 @@ class HttpMcpServerTest {
 
     @Test
     fun `an oversized Content-Length is refused instead of allocated`() {
-        val server = CodeAssistMcpServer.startHttpServer(CodeAssistMcpServerTest.FakeWorkspace(), port = 0)
+        val server = CodeStudioMcpServer.startHttpServer(CodeStudioMcpServerTest.FakeWorkspace(), port = 0)
         try {
             java.net.Socket("127.0.0.1", server.port).use { socket ->
                 socket.soTimeout = 20_000

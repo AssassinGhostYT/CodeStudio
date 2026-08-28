@@ -65,13 +65,13 @@ class ProjectManagerTest {
     fun importsLegacyProjectsFromAPreviousStorageLocation() {
         withTempDir("cm-legacy") { tmp ->
             // A previous internal-storage home with one project under its `projects/` dir.
-            val legacyHome = tmp.resolve("internal/codeassist")
+            val legacyHome = tmp.resolve("internal/codestudio")
             ProjectManager.desktop(legacyHome.resolve("projects"))
                 .create("java-console", mapOf("name" to "Old App", "packageName" to "com.acme.old")).use { }
 
             // The new external-storage manager sees none of them until it imports.
             val newManager = ProjectManager.desktop(
-                tmp.resolve("external/codeassist/projects"),
+                tmp.resolve("external/codestudio/projects"),
                 legacyDataDirs = listOf(legacyHome),
             )
             assertTrue(newManager.isEmpty(), "fresh external root starts empty")

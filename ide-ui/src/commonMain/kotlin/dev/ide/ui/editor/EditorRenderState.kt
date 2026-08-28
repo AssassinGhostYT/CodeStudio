@@ -20,7 +20,7 @@ import dev.ide.ui.editor.core.EditorSession
 import dev.ide.ui.editor.core.InlayPiece
 import dev.ide.ui.editor.core.LineRenderCache
 import dev.ide.ui.theme.CaTypography
-import dev.ide.ui.theme.CodeAssistColors
+import dev.ide.ui.theme.CodeStudioColors
 
 /**
  * The editor's text-metrics + per-line render state: the code/gutter [TextStyle]s, the measured
@@ -154,7 +154,7 @@ internal fun rememberEditorRenderState(
     session: EditorSession,
     measurer: TextMeasurer,
     density: Density,
-    colors: CodeAssistColors,
+    colors: CodeStudioColors,
     typography: CaTypography,
     zoom: Float,
     fontLigatures: Boolean,

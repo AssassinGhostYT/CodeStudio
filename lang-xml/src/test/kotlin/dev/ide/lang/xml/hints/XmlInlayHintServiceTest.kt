@@ -15,12 +15,12 @@ class XmlInlayHintServiceTest {
         val xml = """<TextView android:text="@string/app_name" android:src="@drawable/ic" android:hint="@android:string/ok"/>"""
         val parsed = parse(xml)
         val resolver = XmlResourceValueResolver { rClass, name ->
-            if (rClass == "string" && name == "app_name") "CodeAssist" else null // drawable = file (no value); framework skipped
+            if (rClass == "string" && name == "app_name") "CodeStudio" else null // drawable = file (no value); framework skipped
         }
         val hints = XmlInlayHintService({ parsed }, resolver).hints(FakeFile("res/layout/a.xml"), TextRange(0, xml.length))
 
         assertEquals(1, hints.size, "only the resolvable local value reference gets a hint")
-        assertEquals("CodeAssist", hints[0].parts.single().text)
+        assertEquals("CodeStudio", hints[0].parts.single().text)
         assertEquals('"', xml[hints[0].offset - 1], "anchored just past the value's closing quote")
         assertTrue(hints[0].paddingLeft)
     }

@@ -22,11 +22,11 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * The app shell's navigation, first-launch sheets, and project flows live in [CodeAssistAppState] rather than
+ * The app shell's navigation, first-launch sheets, and project flows live in [CodeStudioAppState] rather than
  * in the root composable, so they run headlessly here: no Compose UI, no backend, just the state holder and a
  * fake [dev.ide.ui.backend.IdeBackend].
  */
-class CodeAssistAppStateTest {
+class CodeStudioAppStateTest {
 
     /** A backend with an in-memory preference store and a drivable project epoch. */
     private class AppBackend(
@@ -89,10 +89,10 @@ class CodeAssistAppStateTest {
     private fun TestScope.appState(
         backend: AppBackend,
         fileActions: FileActions = FileActions.None,
-    ): CodeAssistAppState {
+    ): CodeStudioAppState {
         val scope = CoroutineScope(StandardTestDispatcher(testScheduler))
         scopes += scope
-        return CodeAssistAppState(backend, fileActions, scope)
+        return CodeStudioAppState(backend, fileActions, scope)
     }
 
     @Test

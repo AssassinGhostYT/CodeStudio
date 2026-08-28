@@ -43,7 +43,7 @@ class IdeColors(
     val block: BlockColors,
 )
 
-val LocalIdeColors = staticCompositionLocalOf<IdeColors> { error("CodeAssistTheme not applied") }
+val LocalIdeColors = staticCompositionLocalOf<IdeColors> { error("CodeStudioTheme not applied") }
 
 /**
  * Accessor for the IDE-domain design tokens, complementing Material's `MaterialTheme.colorScheme` /

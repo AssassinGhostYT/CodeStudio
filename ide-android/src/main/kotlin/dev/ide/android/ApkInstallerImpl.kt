@@ -35,7 +35,7 @@ class ApkInstallerImpl(context: Context) : ApkInstaller {
         if (!Files.exists(apk)) { log("APK not found: $apk"); return@withContext false }
         val pm = context.packageManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !pm.canRequestPackageInstalls()) {
-            log("Allow CodeAssist to install apps (Settings → Install unknown apps), then Run again.")
+            log("Allow CodeStudio to install apps (Settings → Install unknown apps), then Run again.")
             runCatching {
                 context.startActivity(
                     Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}"))

@@ -1,4 +1,4 @@
-rootProject.name = "codeassist"
+rootProject.name = "codestudio"
 
 pluginManagement {
     // build-logic hosts plugins that depend on AGP (the `dev.ide.kotlinc-art` Kotlin-compiler-on-ART

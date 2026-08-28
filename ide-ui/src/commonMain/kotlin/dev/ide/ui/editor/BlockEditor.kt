@@ -130,7 +130,7 @@ import dev.ide.ui.generated.resources.delete
 import dev.ide.ui.generated.resources.expand
 import dev.ide.ui.icons.CaIcons
 import dev.ide.ui.theme.Ca
-import dev.ide.ui.theme.CodeAssistTheme
+import dev.ide.ui.theme.CodeStudioTheme
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -1556,7 +1556,7 @@ internal object PreviewBackend : IdeBackend,
 @Composable
 private fun SamplePreview(dark: Boolean, sample: () -> Pair<UiBlockNode, String> = ::sampleFile) {
     val (file, src) = remember { sample() }
-    CodeAssistTheme(dark = dark) {
+    CodeStudioTheme(dark = dark) {
         val drag = remember { DragState() }
         val scope = rememberCoroutineScope()
         val ctx = remember { Ctx("/preview/Sample.java", PreviewBackend, scope, src, null, null, drag, {}, {}, { _, _ -> }, {}) }
@@ -1585,7 +1585,7 @@ private fun PreviewTypedBlocksLight() = SamplePreview(dark = false, sample = ::t
 @Preview
 @Composable
 private fun PreviewBlockPalette() {
-    CodeAssistTheme(dark = true) {
+    CodeStudioTheme(dark = true) {
         val drag = remember { DragState() }
         val scope = rememberCoroutineScope()
         val ctx = remember { Ctx("/preview/Sample.java", PreviewBackend, scope, "", null, null, drag, {}, {}, { _, _ -> }, {}) }

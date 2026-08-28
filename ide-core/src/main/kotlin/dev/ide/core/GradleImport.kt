@@ -677,7 +677,7 @@ object GradleImport {
 
     private fun readStripped(path: Path): String? = readOrNull(path)?.let { GradleScript.stripComments(it) }
 
-    // --- convert to a native CodeAssist project ---
+    // --- convert to a native CodeStudio project ---
 
     private const val BACKUP_DIR = "gradle-backup"
 
@@ -727,7 +727,7 @@ object GradleImport {
             return ConvertOutcome(false, "Conversion failed and was rolled back: ${e.message ?: e.javaClass.simpleName}")
         }
         ExternalProjectMarker.clear(root)
-        return ConvertOutcome(true, "Converted to a CodeAssist project.", canRevert = moved.isNotEmpty())
+        return ConvertOutcome(true, "Converted to a CodeStudio project.", canRevert = moved.isNotEmpty())
     }
 
     /** Restore a converted project: move the backed-up Gradle files back and re-enter compatibility mode. */

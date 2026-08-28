@@ -1130,7 +1130,7 @@ data class UiCompatibilityInfo(
 data class UiSyncResult(val ok: Boolean, val message: String, val notes: List<String> = emptyList())
 
 /**
- * The result of converting a Gradle compatibility-mode project to a native CodeAssist project — or reverting
+ * The result of converting a Gradle compatibility-mode project to a native CodeStudio project — or reverting
  * one (see [ProjectService.convertToNative]/[ProjectService.revertToGradle]). [canRevert] is true after a
  * successful convert (the Gradle files were backed up and can be restored).
  */
@@ -1170,8 +1170,8 @@ data class TreeNode(
     val sourceRootPath: String? = null,
     /**
      * For a (possibly compacted) `Package` node, one entry per package level — its dotted package name and
-     * directory — so a New-Class action can target any intermediate level (e.g. `com.tyron` inside a
-     * collapsed `com.tyron.codeassist`). Empty for non-package nodes.
+     * directory — so a New-Class action can target any intermediate level (e.g. `com.assassinghost` inside a
+     * collapsed `com.assassinghost.codestudio`). Empty for non-package nodes.
      */
     val packageSegments: List<PackageSegment> = emptyList(),
     /**

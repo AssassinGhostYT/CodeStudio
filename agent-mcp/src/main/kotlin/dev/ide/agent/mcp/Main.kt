@@ -12,7 +12,7 @@ import java.nio.file.Paths
 import java.util.concurrent.CountDownLatch
 
 /**
- * The standalone stdio entry point for the CodeAssist MCP server.
+ * The standalone stdio entry point for the CodeStudio MCP server.
  *
  * Usage:
  * ```
@@ -22,7 +22,7 @@ import java.util.concurrent.CountDownLatch
  *
  * A client (Claude Desktop, opencode, Cursor, ...) spawns this process and speaks newline-delimited
  * JSON-RPC over stdin/stdout. It serves the built-in agent tools over a [FileSystemAgentWorkspace]
- * rooted at `--project` (defaulting to the current directory or `$CODEASSIST_MCP_PROJECT`), so a client
+ * rooted at `--project` (defaulting to the current directory or `$CODESTUDIO_MCP_PROJECT`), so a client
  * can read, search, edit, and reorganize a real project without the IDE. The engine-backed capabilities
  * (diagnostics, completion, semantic rename, builds/runs) report "not supported" here — host the server
  * in the IDE to get those.
@@ -32,7 +32,7 @@ import java.util.concurrent.CountDownLatch
  * [AgentPermissionGate] for interactive approval.
  */
 fun main(args: Array<String>) {
-    var project = System.getenv("CODEASSIST_MCP_PROJECT")
+    var project = System.getenv("CODESTUDIO_MCP_PROJECT")
     var autoAccept = false
     var httpPort: Int? = null
     var ftpPort: Int? = null
@@ -43,12 +43,12 @@ fun main(args: Array<String>) {
             "--auto-accept" -> autoAccept = true
             "--http" -> {
                 val next = args.getOrNull(i + 1)
-                httpPort = next?.toIntOrNull() ?: CodeAssistMcpServer.DEFAULT_HTTP_PORT
+                httpPort = next?.toIntOrNull() ?: CodeStudioMcpServer.DEFAULT_HTTP_PORT
                 if (next?.toIntOrNull() != null) i++
             }
             "--ftp" -> {
                 val next = args.getOrNull(i + 1)
-                ftpPort = next?.toIntOrNull() ?: CodeAssistMcpServer.DEFAULT_FTP_PORT
+                ftpPort = next?.toIntOrNull() ?: CodeStudioMcpServer.DEFAULT_FTP_PORT
                 if (next?.toIntOrNull() != null) i++
             }
             "--help", "-h" -> {
@@ -57,15 +57,15 @@ fun main(args: Array<String>) {
                     |Usage: agent-mcp [--project <dir>] [--auto-accept] [--http [<port>]] [--ftp [<port>]]
                     |
                     |  --project <dir>  Project root to serve (default: current directory, or
-                    |                   ${'$'}CODEASSIST_MCP_PROJECT).
+                    |                   ${'$'}CODESTUDIO_MCP_PROJECT).
                     |  --auto-accept    Authorize mutating tools (writes, deletes, HTTP requests) without
                     |                   prompting. Off by default: they are refused.
                     |  --http [<port>]  Serve over HTTP (Streamable HTTP, request-response mode) instead of
-                    |                   stdio. Defaults to port ${'$'}{CodeAssistMcpServer.DEFAULT_HTTP_PORT}.
+                    |                   stdio. Defaults to port ${'$'}{CodeStudioMcpServer.DEFAULT_HTTP_PORT}.
                     |                   Useful for the standalone binary with an adb forward + a remote MCP
                     |                   server; the IDE's in-app server uses the same code path.
                     |  --ftp [<port>]   Also serve an anonymous local FTP asset server (defaults to port
-                    |                   ${'$'}{CodeAssistMcpServer.DEFAULT_FTP_PORT}) rooted at <project>/assets.
+                    |                   ${'$'}{CodeStudioMcpServer.DEFAULT_FTP_PORT}) rooted at <project>/assets.
                     |                   Uploads land directly in the workspace for the agent to consume.
                     |                   Passive transfers use the next port up, so an adb forward needs
                     |                   both that port and the one after it.
@@ -90,8 +90,8 @@ fun main(args: Array<String>) {
     if (httpPort != null || ftpPort != null) {
         val servers = mutableListOf<AutoCloseable>()
         if (httpPort != null) {
-            val server = CodeAssistMcpServer.startHttpServer(workspace, port = httpPort, gate = gate)
-            System.err.println("CodeAssist MCP server ready over HTTP (project: $root, port: ${server.port})")
+            val server = CodeStudioMcpServer.startHttpServer(workspace, port = httpPort, gate = gate)
+            System.err.println("CodeStudio MCP server ready over HTTP (project: $root, port: ${server.port})")
             System.err.println("Mutating tools: ${if (autoAccept) "auto-accepted" else "denied"}.")
             servers += server
         }
@@ -104,12 +104,12 @@ fun main(args: Array<String>) {
     }
 
     // MCP output MUST be the only thing on stdout; anything else a client parses as a protocol message.
-    System.err.println("CodeAssist MCP server ready (project: $root)")
+    System.err.println("CodeStudio MCP server ready (project: $root)")
     System.err.println("Mutating tools: ${if (autoAccept) "auto-accepted" else "denied"}. Waiting for protocol messages on stdin.")
 
     val mapper = McpJsonDefaults.getMapper()
     val transport = StdioServerTransportProvider(mapper, System.`in`, System.out)
-    val server = CodeAssistMcpServer.build(transport, workspace, gate = gate, mapper = mapper)
+    val server = CodeStudioMcpServer.build(transport, workspace, gate = gate, mapper = mapper)
 
     Runtime.getRuntime().addShutdownHook(Thread { server.close() })
     // The stdio transport owns an inbound thread; this latch just keeps main alive until the process ends.
@@ -128,7 +128,7 @@ private object ReadOnlyGate : AgentPermissionGate {
 /** Starts the FTP asset server rooted at `<project>/assets` and logs where uploads land. */
 private fun startFtpServer(root: Path, port: Int): FtpServer {
     val assets = root.resolve("assets")
-    val server = CodeAssistMcpServer.startFtpServer(assets, port)
+    val server = CodeStudioMcpServer.startFtpServer(assets, port)
     System.err.println("FTP asset server ready on 127.0.0.1:${server.boundPort} (uploads → $assets)")
     return server
 }

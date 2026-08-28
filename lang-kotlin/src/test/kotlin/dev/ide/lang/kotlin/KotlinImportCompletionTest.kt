@@ -52,17 +52,17 @@ class KotlinImportCompletionTest {
 
     @Test
     fun topLevelDeclarationsAreImportableAfterAPackageDot() {
-        // The reported case: `fun Test()` (a top-level function) in `com.tyron.test` was NOT offered at
-        // `import com.tyron.test.<caret>` — package-member completion listed only types. Top-level functions AND
+        // The reported case: `fun Test()` (a top-level function) in `com.assassinghost.test` was NOT offered at
+        // `import com.assassinghost.test.<caret>` — package-member completion listed only types. Top-level functions AND
         // properties declared in the package are importable by name, so both must appear.
         val srcDir = tempProject(
             mapOf(
-                "test/Api.kt" to "package com.tyron.test\nfun Test() {}\nval flag = true",
+                "test/Api.kt" to "package com.assassinghost.test\nfun Test() {}\nval flag = true",
                 "Use.kt" to "package other\n",
             ),
         )
         val analyzer = KotlinSourceAnalyzer(fakeContext(srcDir))
-        val items = runBlocking { analyzer.completeAtCaret(srcDir, "Use.kt", "package other\nimport com.tyron.test.|") }.items
+        val items = runBlocking { analyzer.completeAtCaret(srcDir, "Use.kt", "package other\nimport com.assassinghost.test.|") }.items
         assertTrue(items.any { it.symbol?.name == "Test" }, "a top-level function must be importable; got ${items.map { it.label }}")
         assertTrue(items.any { it.symbol?.name == "flag" }, "a top-level property must be importable; got ${items.map { it.label }}")
     }

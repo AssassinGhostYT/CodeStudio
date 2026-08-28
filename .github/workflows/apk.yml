@@ -52,7 +52,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: codeassist-debug-apk
+          name: codestudio-debug-apk
           path: ide-android/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 30

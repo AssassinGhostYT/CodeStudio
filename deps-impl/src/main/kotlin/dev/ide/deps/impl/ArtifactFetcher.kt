@@ -46,7 +46,7 @@ fun interface ArtifactFetcher {
 class HttpArtifactFetcher(
     private val connectTimeoutMs: Int = 15_000,
     private val readTimeoutMs: Int = 30_000,
-    private val userAgent: String = "CodeAssist-deps/1.0",
+    private val userAgent: String = "CodeStudio-deps/1.0",
 ) : ArtifactFetcher {
     override fun fetch(url: String): ByteArray? =
         openResolved(url)?.inputStream?.use { it.readBytes() }

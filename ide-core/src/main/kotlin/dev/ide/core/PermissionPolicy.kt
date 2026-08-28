@@ -50,7 +50,7 @@ internal class PermissionPolicy(private val permissionsFile: Path) {
             permissionsFile.parent?.let { Files.createDirectories(it) }
             val p = Properties()
             alwaysAllowed.forEach { p.setProperty(it.name, "always") }
-            Files.newOutputStream(permissionsFile).use { p.store(it, "CodeAssist run permissions (always-allowed categories)") }
+            Files.newOutputStream(permissionsFile).use { p.store(it, "CodeStudio run permissions (always-allowed categories)") }
         }
     }
 }

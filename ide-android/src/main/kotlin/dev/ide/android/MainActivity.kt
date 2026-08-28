@@ -19,7 +19,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import dev.ide.core.CaprojFormat
 import dev.ide.core.IdeServicesBackend
-import dev.ide.ui.CodeAssistApp
+import dev.ide.ui.CodeStudioApp
 import dev.ide.ui.backend.FileActions
 import dev.ide.ui.backend.IdeBackend
 import kotlinx.coroutines.Dispatchers
@@ -29,7 +29,7 @@ import java.io.File
 
 /**
  * The Android host. Bootstraps the real on-device engine ([AndroidIde]) off the main thread, then renders the
- * shared Compose IDE UI ([CodeAssistApp]) over the resulting [IdeBackend] — the same path the desktop runs.
+ * shared Compose IDE UI ([CodeStudioApp]) over the resulting [IdeBackend] — the same path the desktop runs.
  * The SAF/FileProvider plumbing lives in [AndroidFileOps]; the small host helpers (splash, "Save As" contract,
  * ad init, source-root search) in AndroidHostUi. This activity is just lifecycle + the Compose host + the SAF
  * launchers (which must be remembered in composition). A splash shows while the engine starts.
@@ -220,7 +220,7 @@ class MainActivity : ComponentActivity() {
 
             val b = backend
             when {
-                b != null -> CodeAssistApp(
+                b != null -> CodeStudioApp(
                     b,
                     fileActions = fileActions,
                     adHost = adHost,
@@ -231,7 +231,7 @@ class MainActivity : ComponentActivity() {
                 )
 
                 error != null -> Splash("Failed to start: $error")
-                else -> Splash("Starting CodeAssist…")
+                else -> Splash("Starting CodeStudio…")
             }
         }
     }

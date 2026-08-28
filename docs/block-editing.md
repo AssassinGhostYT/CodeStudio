@@ -1,6 +1,6 @@
 # How the block (projectional) editor works
 
-CodeAssist can show any Java file as a Scratch-style tree of interlocking blocks, edit it there, and
+CodeStudio can show any Java file as a Scratch-style tree of interlocking blocks, edit it there, and
 write the changes straight back into the source — leaving every untouched line, comment, and bit of
 formatting **byte-for-byte intact**. The block view is a *live projection of the shared DOM*, not a
 parallel model.

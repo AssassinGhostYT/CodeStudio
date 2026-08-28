@@ -341,7 +341,7 @@ renders a `Spacer(Modifier)` preview through it). This is the component the edit
 
 **Editor wiring (live pixels).** The toolbar Preview button now opens a `ComposePreviewDialog` that renders
 the selected `@Preview` as real UI. The cross-module seam: `ide-ui` defines `ComposePreviewHost` (a
-`@Composable Preview(path, fn, text, modifier)`), threaded through `CodeAssistApp` → `IdeUiState`. The bridge
+`@Composable Preview(path, fn, text, modifier)`), threaded through `CodeStudioApp` → `IdeUiState`. The bridge
 + render surface live in **`:interp-compose`** (a Compose Multiplatform KMP module — desktop + android — that
 re-exports `:interp-core`), so the SAME `ComposePreviewRenderer` runs on both hosts: each lowers the open file
 via `IdeServicesBackend.lowerComposePreview` (off the UI thread, serialized on the engine dispatcher) and

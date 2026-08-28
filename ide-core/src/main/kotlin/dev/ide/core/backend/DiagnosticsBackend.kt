@@ -44,7 +44,7 @@ internal class DiagnosticsBackend(private val ctx: BackendContext) : Diagnostics
         runCatching {
             val dir = ctx.manager?.storageRoot ?: ctx.servicesOrNull?.workspaceRoot ?: return@runCatching null
             Files.createDirectories(dir)
-            val file = dir.resolve("codeassist-log-${System.currentTimeMillis()}.txt")
+            val file = dir.resolve("codestudio-log-${System.currentTimeMillis()}.txt")
             file.toFile().writeText(renderLogs(Log.recent()))
             file.toString()
         }.getOrNull()
@@ -58,7 +58,7 @@ internal class DiagnosticsBackend(private val ctx: BackendContext) : Diagnostics
 
     /** Render log records as a plain-text dump (one record per block, stack traces inline) for export/copy. */
     private fun renderLogs(records: List<LogRecord>): String = buildString {
-        append("CodeAssist log — ${records.size} records\n")
+        append("CodeStudio log — ${records.size} records\n")
         append("exported ${runCatching { java.time.LocalDateTime.now().withNano(0) }.getOrDefault("")}\n\n")
         for (r in records) {
             val time = runCatching { java.time.Instant.ofEpochMilli(r.timestampMs).toString() }.getOrDefault(r.timestampMs.toString())

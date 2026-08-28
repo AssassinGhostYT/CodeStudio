@@ -1,4 +1,4 @@
-CodeAssist 3.0.2
+CodeStudio 3.0.2
 
 * Your projects now survive app updates, and projects from older versions are recovered automatically. Older-format Gradle projects open in a read-only compatibility view (#1003, #1024, #1041, #1042).
 * Dependencies resolve more reliably: an incomplete library (a transitive that failed to download, such as androidx.activity behind activity-compose) is now healed when the project opens, and download failures are reported instead of silently dropped.
@@ -8,4 +8,4 @@ CodeAssist 3.0.2
 * SDK Manager fixes.
 * Fixed: the soft keyboard now reappears after being dismissed (#1039).
 
-Full changelog: https://github.com/tyron12233/CodeAssist/releases/tag/v3.0.2
+Full changelog: https://github.com/AssassinGhostYT/CodeStudio/releases/tag/v3.0.2

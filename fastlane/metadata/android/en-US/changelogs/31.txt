@@ -1,4 +1,4 @@
-CodeAssist 3.0 — rebuilt from the ground up.
+CodeStudio 3.0 — rebuilt from the ground up.
 
 * New native incremental build engine and on-device Android APK pipeline
   (aapt2, R, D8 dexing, packaging, signing) — build and install on-device.

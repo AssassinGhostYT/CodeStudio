@@ -126,7 +126,7 @@ internal class AndroidFileOps(private val activity: ComponentActivity) {
     }.getOrElse { Toast.makeText(activity, "Couldn't export file", Toast.LENGTH_SHORT).show() }
 
     /**
-     * Open the system Files app on CodeAssist's storage (served by `ProjectsDocumentsProvider`) so the user
+     * Open the system Files app on CodeStudio's storage (served by `ProjectsDocumentsProvider`) so the user
      * can browse/manage there. Best-effort across OEM file managers: first tries to deep-link to [path]'s own
      * directory (a document-URI VIEW — DocumentsUI honors it; our doc ids are absolute paths), then the
      * provider root, then a generic Files launch, and finally explains where to look.
@@ -147,7 +147,7 @@ internal class AndroidFileOps(private val activity: ComponentActivity) {
         if (runCatching { activity.startActivity(viewRoot); true }.getOrDefault(false)) return
         val browse = Intent("android.provider.action.BROWSE", rootUri)
         runCatching { activity.startActivity(browse) }.getOrElse {
-            Toast.makeText(activity, "Open the Files app → CodeAssist to browse your projects", Toast.LENGTH_LONG).show()
+            Toast.makeText(activity, "Open the Files app → CodeStudio to browse your projects", Toast.LENGTH_LONG).show()
         }
     }
 

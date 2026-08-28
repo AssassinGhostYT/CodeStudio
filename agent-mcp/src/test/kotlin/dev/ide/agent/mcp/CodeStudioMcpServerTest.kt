@@ -43,7 +43,7 @@ import kotlin.test.assertTrue
  * in-process pipe streams, so the full wire path (initialize handshake, tools/list, tools/call, resources,
  * prompts) is exercised offline with no subprocess.
  */
-class CodeAssistMcpServerTest {
+class CodeStudioMcpServerTest {
 
     @Test
     fun `initialize and tools list expose the agent tool set`() {
@@ -52,7 +52,7 @@ class CodeAssistMcpServerTest {
 
         try {
             val init = client.initialize()
-            assertEquals(CodeAssistMcpServer.DEFAULT_SERVER_NAME, init.serverInfo().name())
+            assertEquals(CodeStudioMcpServer.DEFAULT_SERVER_NAME, init.serverInfo().name())
 
             val toolNames = client.listTools().tools().map { it.name() }.toSet()
             assertTrue("read_file" in toolNames)
@@ -147,22 +147,22 @@ class CodeAssistMcpServerTest {
         try {
             client.initialize()
             val resourceUris = client.listResources().resources().map { it.uri() }
-            assertTrue(CodeAssistMcpServer.PROJECT_OVERVIEW_URI in resourceUris)
-            assertTrue(CodeAssistMcpServer.PROJECT_MEMORY_URI in resourceUris)
+            assertTrue(CodeStudioMcpServer.PROJECT_OVERVIEW_URI in resourceUris)
+            assertTrue(CodeStudioMcpServer.PROJECT_MEMORY_URI in resourceUris)
 
             val memory = client.readResource(
-                McpSchema.ReadResourceRequest.builder(CodeAssistMcpServer.PROJECT_MEMORY_URI).build(),
+                McpSchema.ReadResourceRequest.builder(CodeStudioMcpServer.PROJECT_MEMORY_URI).build(),
             )
             val memoryText = (memory.contents().single() as McpSchema.TextResourceContents).text()
             assertTrue("Convention: use spaces." in memoryText)
 
             val prompt = client.getPrompt(
-                McpSchema.GetPromptRequest.builder(CodeAssistMcpServer.AGENT_PROMPT).build(),
+                McpSchema.GetPromptRequest.builder(CodeStudioMcpServer.AGENT_PROMPT).build(),
             )
             val systemMessage = prompt.messages().first()
             assertEquals(McpSchema.Role.USER, systemMessage.role())
             val body = (systemMessage.content() as McpSchema.TextContent).text()
-            assertTrue("CodeAssist" in body)
+            assertTrue("CodeStudio" in body)
             assertTrue("read_file" in body)
         } finally {
             client.closeGracefully()
@@ -210,7 +210,7 @@ class CodeAssistMcpServerTest {
         val serverToClient = PipedOutputStream()
         val clientInput = PipedInputStream(serverToClient)
 
-        val server = CodeAssistMcpServer.build(
+        val server = CodeStudioMcpServer.build(
             transportProvider = StdioServerTransportProvider(mapper, serverInput, serverToClient),
             workspace = workspace,
             tools = SimpleToolRegistry(builtinTools(workspace)),

@@ -294,7 +294,7 @@ internal class ProjectBackend(private val ctx: BackendContext) : ProjectService 
                     files = preview.entries.map { UiPackagedEntry(it.path, it.size) },
                     compatible = compatible,
                     incompatibleReason = if (compatible) null
-                    else "This package was created by a newer version of CodeAssist. Update to import it.",
+                    else "This package was created by a newer version of CodeStudio. Update to import it.",
                     screenshots = preview.screenshots,
                 )
             }.getOrNull()
@@ -308,7 +308,7 @@ internal class ProjectBackend(private val ctx: BackendContext) : ProjectService 
                 val next = mgr.importProject(archivePath)
                     ?: return@runCatching UiProjectResult(
                         false,
-                        "That file isn't a CodeAssist project package, or it needs a newer version of CodeAssist.",
+                        "That file isn't a CodeStudio project package, or it needs a newer version of CodeStudio.",
                     )
                 ctx.swapEngine(next)
                 UiProjectResult(true, "Imported ${next.projectDisplayName()}", next.workspaceRoot.toString())

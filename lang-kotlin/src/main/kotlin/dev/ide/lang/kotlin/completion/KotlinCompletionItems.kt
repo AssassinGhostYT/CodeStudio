@@ -66,7 +66,7 @@ internal object KotlinCompletionItems {
         val callSyntaxFollows = followingChar == '(' || followingChar == '{'
         val trailingLambda = if (isFunction && !infix && !callableRef && !bareCallable && !callSyntaxFollows) trailingLambdaParam(s) else null
         val (insert, caret) = when {
-            // A PACKAGE segment (`import com.tyron.█`, `java.util.█`) is a navigational prefix, never a terminal
+            // A PACKAGE segment (`import com.assassinghost.█`, `java.util.█`) is a navigational prefix, never a terminal
             // completion — append `.` so the next segment can be typed/completed right away (unless a `.` already
             // follows the caret, which would otherwise double it).
             s.kind == SymbolKind.PACKAGE ->

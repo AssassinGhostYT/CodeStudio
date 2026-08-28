@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.Density
 import dev.ide.ui.StubBackend
 import dev.ide.ui.backend.IdeBackend
 import dev.ide.ui.backend.UiPluginInfo
-import dev.ide.ui.theme.CodeAssistTheme
+import dev.ide.ui.theme.CodeStudioTheme
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test
@@ -43,7 +43,7 @@ class PluginsScreenSnapshot {
     @OptIn(ExperimentalComposeUiApi::class)
     private fun snapshot(name: String, w: Int, h: Int, backend: IdeBackend) {
         val scene = ImageComposeScene(width = w, height = h, density = Density(2f)) {
-            CodeAssistTheme(dark = true) {
+            CodeStudioTheme(dark = true) {
                 Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { PluginsScreen(backend, onBack = {}) }
             }
         }
@@ -59,6 +59,6 @@ class PluginsScreenSnapshot {
     }
 
     private companion object {
-        val OUT_DIR: String = File(System.getProperty("java.io.tmpdir"), "codeassist-snapshots").absolutePath
+        val OUT_DIR: String = File(System.getProperty("java.io.tmpdir"), "codestudio-snapshots").absolutePath
     }
 }

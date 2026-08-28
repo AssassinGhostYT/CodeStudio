@@ -43,7 +43,7 @@ fun openWorkspace(
  * project/module graph is constructed inside [block] off the supplied [ProjectModelStore].
  */
 inline fun <T> withWorkspace(
-    prefix: String = "codeassist-ws",
+    prefix: String = "codestudio-ws",
     codecs: FacetCodecRegistry = FacetCodecRegistry(),
     block: (PlatformCore, ProjectModelStore) -> T,
 ): T = testEnv(prefix) { env ->

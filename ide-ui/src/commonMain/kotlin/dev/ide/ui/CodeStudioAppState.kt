@@ -54,7 +54,7 @@ sealed interface ImportError {
  * The app shell's state and the intents that change it: which screen is showing, where each sub-screen
  * returns to, the first-launch sheets, and the project create/open/import/export flows.
  *
- * Held outside the composition (see [rememberCodeAssistAppState]) so the root composable stays a pure
+ * Held outside the composition (see [rememberCodeStudioAppState]) so the root composable stays a pure
  * rendering of [screen] plus the state below, and so this logic can be exercised in a plain unit test.
  * State flows out as read-only properties; the UI calls the intent functions and never assigns.
  *
@@ -62,7 +62,7 @@ sealed interface ImportError {
  * started once in [init] and live in [scope], the caller's coroutine scope.
  */
 @Stable
-class CodeAssistAppState(
+class CodeStudioAppState(
     val backend: IdeBackend,
     private val fileActions: FileActions,
     private val scope: CoroutineScope,
@@ -537,17 +537,17 @@ class CodeAssistAppState(
 }
 
 /**
- * Creates (and remembers) the [CodeAssistAppState] for this composition, tied to a scope that is cancelled
+ * Creates (and remembers) the [CodeStudioAppState] for this composition, tied to a scope that is cancelled
  * when the app leaves it. Re-created only if the backend or a host bridge is swapped.
  */
 @Composable
-fun rememberCodeAssistAppState(
+fun rememberCodeStudioAppState(
     backend: IdeBackend,
     fileActions: FileActions = FileActions.None,
     adHost: AdHost = AdHost.None,
     scope: CoroutineScope = rememberCoroutineScope(),
-): CodeAssistAppState = remember(backend, fileActions, adHost, scope) {
-    CodeAssistAppState(backend, fileActions, scope, adHost)
+): CodeStudioAppState = remember(backend, fileActions, adHost, scope) {
+    CodeStudioAppState(backend, fileActions, scope, adHost)
 }
 
 /** The accent palette a settings profile selects. */

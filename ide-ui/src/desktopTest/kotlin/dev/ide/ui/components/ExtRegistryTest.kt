@@ -31,7 +31,7 @@ import dev.ide.ui.ext.ToolWindowContribution
 import dev.ide.ui.ext.ToolWindowRegistry
 import dev.ide.ui.ext.UiActionHost
 import dev.ide.ui.ext.UiActionRegistry
-import dev.ide.ui.theme.CodeAssistTheme
+import dev.ide.ui.theme.CodeStudioTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.jetbrains.skia.EncodedImageFormat
@@ -122,7 +122,7 @@ class ExtRegistryTest {
     @OptIn(ExperimentalComposeUiApi::class)
     private fun snapshot(name: String, w: Int, h: Int, content: @Composable () -> Unit) {
         val scene = ImageComposeScene(width = w, height = h, density = Density(2f)) {
-            CodeAssistTheme(dark = true) { content() }
+            CodeStudioTheme(dark = true) { content() }
         }
         try {
             scene.render()
@@ -137,6 +137,6 @@ class ExtRegistryTest {
     }
 
     private companion object {
-        const val OUT_DIR = "/private/tmp/claude-501/-Users-tyronscott-JavaProjects-CodeAssist/8c43bdb9-8226-43cd-9fd3-d7d5ec53763d/scratchpad"
+        const val OUT_DIR = "/private/tmp/claude-501/-Users-AssassinGhost-JavaProjects-CodeStudio/8c43bdb9-8226-43cd-9fd3-d7d5ec53763d/scratchpad"
     }
 }

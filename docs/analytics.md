@@ -1,6 +1,6 @@
 # Usage analytics
 
-CodeAssist collects **opt-in, anonymous performance metrics** to see what's slow and what's failing (build,
+CodeStudio collects **opt-in, anonymous performance metrics** to see what's slow and what's failing (build,
 indexing, and completion timings; crashes). It is **performance-only** — no feature-usage tracking. It is
 off by default; nothing is collected until the user explicitly taps **Allow** on the first-launch consent
 prompt, and it can be turned off again anytime from the project picker.

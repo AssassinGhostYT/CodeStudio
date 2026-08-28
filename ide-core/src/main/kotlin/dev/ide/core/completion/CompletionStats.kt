@@ -50,7 +50,7 @@ class CompletionStats(private val file: Path) {
                 file.parent?.let(Files::createDirectories)
                 val props = Properties()
                 for ((k, v) in map) props.setProperty(k, v.toString())
-                Files.newOutputStream(file).use { props.store(it, "CodeAssist completion acceptance stats") }
+                Files.newOutputStream(file).use { props.store(it, "CodeStudio completion acceptance stats") }
             }
         }
     }

@@ -4,7 +4,7 @@ plugins {
 }
 
 // agent-impl — the agent engine behind agent-api (see docs/agentic-coding.md): OkHttp/SSE transport, the
-// Anthropic/OpenAI/Gemini/OpenRouter providers, the agent loop, the built-in tools, and the CodeAssist
+// Anthropic/OpenAI/Gemini/OpenRouter providers, the agent loop, the built-in tools, and the CodeStudio
 // system prompt.
 dependencies {
     api(project(":agent-api"))

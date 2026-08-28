@@ -10,7 +10,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
-import dev.ide.ui.theme.CodeAssistTheme
+import dev.ide.ui.theme.CodeStudioTheme
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test
@@ -31,7 +31,7 @@ class SymbolBarSnapshot {
     @OptIn(ExperimentalComposeUiApi::class)
     private fun snapshot(name: String, w: Int, h: Int, content: @Composable () -> Unit) {
         val scene = ImageComposeScene(width = w, height = h, density = Density(2f)) {
-            CodeAssistTheme(dark = true) { content() }
+            CodeStudioTheme(dark = true) { content() }
         }
         try {
             scene.render()
@@ -46,6 +46,6 @@ class SymbolBarSnapshot {
     }
 
     private companion object {
-        const val OUT_DIR = "/private/tmp/claude-501/-Users-tyronscott-JavaProjects-CodeAssist/8b7a0e57-9bee-4671-94e9-9bfc2f97e5ba/scratchpad"
+        const val OUT_DIR = "/private/tmp/claude-501/-Users-AssassinGhost-JavaProjects-CodeStudio/8b7a0e57-9bee-4671-94e9-9bfc2f97e5ba/scratchpad"
     }
 }

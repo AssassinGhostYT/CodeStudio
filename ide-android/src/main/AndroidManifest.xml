@@ -16,7 +16,7 @@
     </queries>
 
     <!-- The android "Run" builds a debug APK and installs it via PackageInstaller; the OS shows its own
-         install-confirmation. The user must also grant "install unknown apps" to CodeAssist (we deep-link
+         install-confirmation. The user must also grant "install unknown apps" to CodeStudio (we deep-link
          to that Settings screen when it isn't granted yet). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
@@ -64,7 +64,7 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- "Open with CodeAssist": another app hands us a single file to import into the project. -->
+            <!-- "Open with CodeStudio": another app hands us a single file to import into the project. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -73,7 +73,7 @@
                 <data android:mimeType="application/json" />
                 <data android:mimeType="application/xml" />
             </intent-filter>
-            <!-- "Share to CodeAssist": receive a shared file from another app. -->
+            <!-- "Share to CodeStudio": receive a shared file from another app. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -82,10 +82,10 @@
                 <data android:mimeType="application/json" />
                 <data android:mimeType="application/xml" />
             </intent-filter>
-            <!-- Import a shared CodeAssist project package (.caproj) via "Open with". Best-effort: matches
+            <!-- Import a shared CodeStudio project package (.caproj) via "Open with". Best-effort: matches
                  the application/x-caproj MIME and file:// paths by extension; content:// URIs don't expose an
                  extension, so those are imported via the in-app Import button instead. Deliberately only VIEW
-                 (open-with), NOT SEND — a SEND filter would list CodeAssist in its own .caproj share sheet. -->
+                 (open-with), NOT SEND — a SEND filter would list CodeStudio in its own .caproj share sheet. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

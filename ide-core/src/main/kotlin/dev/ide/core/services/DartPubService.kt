@@ -214,7 +214,7 @@ internal class DartPubService(private val ctx: EngineContext) : Disposable {
         val url = "https://raw.githubusercontent.com/$repo/stable/$path"
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000; readTimeout = 60_000; instanceFollowRedirects = true
-            setRequestProperty("User-Agent", "CodeAssist")
+            setRequestProperty("User-Agent", "CodeStudio")
         }
         if (conn.responseCode != 200) return@runCatching false
         Files.createDirectories(target.parent)

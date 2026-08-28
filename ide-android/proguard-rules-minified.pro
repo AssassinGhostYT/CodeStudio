@@ -1,5 +1,5 @@
 # ============================================================================
-# EXPERIMENTAL R8 keep rules for the CodeAssist app's own (non-shipping)
+# EXPERIMENTAL R8 keep rules for the CodeStudio app's own (non-shipping)
 # `minified` build type. See the `minified` block in build.gradle.kts.
 #
 # The app HOSTS a full on-device toolchain: the Kotlin K2 compiler, the IntelliJ

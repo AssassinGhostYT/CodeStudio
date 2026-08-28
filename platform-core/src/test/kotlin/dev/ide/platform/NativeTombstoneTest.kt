@@ -59,7 +59,7 @@ class NativeTombstoneTest {
     fun reducesPathsToBasenames() {
         val bytes =
             varint(F_TID, 9) +
-                str(F_ABORT_MESSAGE, "opened /storage/emulated/0/codeassist/projects/Secret/app/Main.kt") +
+                str(F_ABORT_MESSAGE, "opened /storage/emulated/0/codestudio/projects/Secret/app/Main.kt") +
                 thread(9, "main", frame("", "/data/app/~~q==/dev.ide.assist-2/oat/arm64/base.odex"))
 
         val t = assertNotNull(NativeTombstone.parse(ByteArrayInputStream(bytes)))

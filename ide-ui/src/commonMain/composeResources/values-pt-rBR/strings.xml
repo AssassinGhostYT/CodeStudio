@@ -2,14 +2,14 @@
 <resources>
     <string name="projects">Projetos</string>
     <string name="a_new_build_system">Um novo sistema de compilação</string>
-    <string name="a_new_build_system_content"><![CDATA[O CodeAssist foi reconstruído com um novo sistema de compilação no dispositivo. Ele usa sua própria configuração de projeto, portanto, os projetos de versões anteriores não são compatíveis e não serão abertos automaticamente.
+    <string name="a_new_build_system_content"><![CDATA[O CodeStudio foi reconstruído com um novo sistema de compilação no dispositivo. Ele usa sua própria configuração de projeto, portanto, os projetos de versões anteriores não são compatíveis e não serão abertos automaticamente.
 
 Faça um backup dos seus projetos em um arquivo .zip agora, seus arquivos de código permanecerão seguros e você poderá adicioná-los novamente a um novo projeto.]]></string>
     <string name="preparing_backup">Preparando backup…</string>
     <string name="backup_projects">Fazer backup dos projetos</string>
     <string name="got_it">Entendi</string>
-    <string name="help_improve_codeassist">Ajude a melhorar o CodeAssist</string>
-    <string name="help_improve_codeassist_content"><![CDATA[Compartilhe dados anônimos de desempenho para que possamos ver o que está lento e o que está falhando, e corrigir as coisas certas.
+    <string name="help_improve_codestudio">Ajude a melhorar o CodeStudio</string>
+    <string name="help_improve_codestudio_content"><![CDATA[Compartilhe dados anônimos de desempenho para que possamos ver o que está lento e o que está falhando, e corrigir as coisas certas.
 
 Coletamos: a versão do seu aplicativo e modelo de dispositivo, quanto tempo levam as compilações, a indexação e a conclusão do código, sucesso/falha da compilação e relatórios de erros limpos.
 
@@ -46,7 +46,7 @@ Nunca coletamos seu código, nomes de arquivos ou projetos, quais recursos você
     <string name="your_files_content">Os projetos ficam no armazenamento do aplicativo e você pode abri-los em qualquer gerenciador de arquivos, arrastar ícones, layouts ou recursos, ou editar pelo PC. Sem permissões especiais, nada oculto.</string>
     <string name="jetpack_compose">Jetpack Compose</string>
     <string name="jetpack_compose_title">Reconstruído no Jetpack Compose.</string>
-    <string name="jetpack_compose_content">Um CodeAssist mais rápido e fluido, Compose nativo em toda a interface, com @Preview em tempo real.</string>
+    <string name="jetpack_compose_content">Um CodeStudio mais rápido e fluido, Compose nativo em toda a interface, com @Preview em tempo real.</string>
     <string name="create_your_first_project">Crie seu primeiro projeto</string>
     <string name="github">GitHub</string>
     <string name="github_title">Your code, in the cloud.</string>
@@ -68,7 +68,7 @@ Nunca coletamos seu código, nomes de arquivos ou projetos, quais recursos você
     <string name="git_history_content">Branches, commits, and diffs without ever leaving the project.</string>
     <string name="gradle_import">Gradle import</string>
     <string name="gradle_import_title">Bring your own Gradle build.</string>
-    <string name="gradle_import_content">Open an existing Gradle build directly, or convert it to the CodeAssist module system.</string>
+    <string name="gradle_import_content">Open an existing Gradle build directly, or convert it to the CodeStudio module system.</string>
     <string name="shortcuts">Shortcuts</string>
     <string name="shortcuts_title">Everything, in one reach.</string>
     <string name="shortcuts_content">Commands, files, and symbols from a single palette, with shortcuts for everything.</string>
@@ -81,11 +81,11 @@ Nunca coletamos seu código, nomes de arquivos ou projetos, quais recursos você
     <string name="import_by">por %1$s</string>
     <string name="import_section_contents">Conteúdo</string>
     <string name="import_more">+%1$d mais</string>
-    <string name="import_incompatible">Este pacote precisa de uma versão mais recente do CodeAssist para ser importado.</string>
+    <string name="import_incompatible">Este pacote precisa de uma versão mais recente do CodeStudio para ser importado.</string>
     <string name="import_deps_bundled">Dependências incluídas</string>
     <string name="import_failed">Não foi possível importar o pacote do projeto.</string>
     <string name="import_unrecognized_title">Não foi possível importar este arquivo</string>
-    <string name="import_unrecognized">O CodeAssist não reconhece este arquivo. Escolha um pacote de projeto .caproj para importar.</string>
+    <string name="import_unrecognized">O CodeStudio não reconhece este arquivo. Escolha um pacote de projeto .caproj para importar.</string>
 
     <string name="export_title">Exportar projeto</string>
     <string name="export_intro">Empacote este projeto como um arquivo .caproj que você pode compartilhar com qualquer pessoa.</string>
@@ -107,7 +107,7 @@ Nunca coletamos seu código, nomes de arquivos ou projetos, quais recursos você
     <string name="export_retry">Tentar novamente</string>
     <string name="join_the_community">Junte-se à comunidade</string>
     <string name="join_the_community_content">Converse, obtenha ajuda e compartilhe o que você constrói no Discord.</string>
-    <string name="support_title">Apoie o CodeAssist</string>
+    <string name="support_title">Apoie o CodeStudio</string>
     <string name="support_content">Desenvolvido no meu tempo livre e mantido gratuito para todos. Se ajudou você, um patrocínio ou uma estrela significam muito.</string>
     <string name="support_chip_free">100% gratuito</string>
     <string name="support_chip_open_source">Código aberto</string>
@@ -116,7 +116,7 @@ Nunca coletamos seu código, nomes de arquivos ou projetos, quais recursos você
     <string name="support_show_ads">Mostrar anúncios</string>
     <string name="support_show_ads_desc">Mostrar anúncios no aplicativo. Você pode desativá-los a qualquer momento.</string>
     <string name="ad_label">Anúncio</string>
-    <string name="house_ad_support_title">Gostando do CodeAssist?</string>
+    <string name="house_ad_support_title">Gostando do CodeStudio?</string>
     <string name="house_ad_support_content">Apoie o projeto no GitHub Sponsors.</string>
     <string name="no_project_yet">Nenhum projeto ainda. Crie um para começar.</string>
     <string name="your_projects">Seus projetos</string>
@@ -125,8 +125,8 @@ Nunca coletamos seu código, nomes de arquivos ou projetos, quais recursos você
     <string name="beta_notice">Você está no %1$s</string>
     <string name="beta_notice_content">Alguns recursos podem estar incompletos ou mudar. Adoraríamos receber seu feedback, conte-nos o que está faltando ou quebrado.</string>
     <string name="submit_suggestion">Enviar sugestões</string>
-    <string name="your_codeassist_files">Seus arquivos do CodeAssist</string>
-    <string name="your_codeassist_files_content">Abra esta pasta em qualquer gerenciador de arquivos para navegar pelos seus projetos, adicionar ícones ou recursos, ou editar pelo PC.</string>
+    <string name="your_codestudio_files">Seus arquivos do CodeStudio</string>
+    <string name="your_codestudio_files_content">Abra esta pasta em qualquer gerenciador de arquivos para navegar pelos seus projetos, adicionar ícones ou recursos, ou editar pelo PC.</string>
     <string name="open_in_the_file_manager">Abrir no gerenciador de arquivos</string>
     <string name="choose_start_point">Escolha um ponto de partida.</string>
     <string name="backup">Fazer backup</string>
@@ -495,10 +495,10 @@ Nunca coletamos seu código, nomes de arquivos ou projetos, quais recursos você
     <string name="run_conflict_stop_and_run">Interromper e executar</string>
     <string name="run_conflict_dont_ask">Não perguntar novamente</string>
     <string name="build_notif_title">Mostrar notificações de compilação?</string>
-    <string name="build_notif_message">O CodeAssist pode executar compilações e seu programa em um processo separado e isolado, e mostrar uma notificação de progresso enquanto são executados. Isso impede que o Android interrompa a compilação quando você troca de app e permite acompanhar o progresso. Permita as notificações para ativar isso.</string>
+    <string name="build_notif_message">O CodeStudio pode executar compilações e seu programa em um processo separado e isolado, e mostrar uma notificação de progresso enquanto são executados. Isso impede que o Android interrompa a compilação quando você troca de app e permite acompanhar o progresso. Permita as notificações para ativar isso.</string>
     <string name="build_notif_not_now">Agora não</string>
     <string name="build_notif_inprocess_title">As compilações serão executadas no app</string>
-    <string name="build_notif_inprocess_message">Sem a permissão de notificação, as compilações são executadas dentro do CodeAssist em vez de um processo separado, e você não verá notificações de progresso da compilação. Você pode ativar as notificações a qualquer momento nas Configurações, em Ambiente de compilação.</string>
+    <string name="build_notif_inprocess_message">Sem a permissão de notificação, as compilações são executadas dentro do CodeStudio em vez de um processo separado, e você não verá notificações de progresso da compilação. Você pode ativar as notificações a qualquer momento nas Configurações, em Ambiente de compilação.</string>
     <string name="build_notif_enabled">Notificações de compilação ativadas</string>
     <string name="preview_live">Ao vivo</string>
     <string name="preview_paused">Pausado</string>

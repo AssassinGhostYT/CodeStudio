@@ -54,12 +54,16 @@ import dev.ide.ui.generated.resources.new_project
 import dev.ide.ui.generated.resources.no_templates_available
 import dev.ide.ui.generated.resources.package_name
 import dev.ide.ui.generated.resources.project_name
+import dev.ide.ui.generated.resources.store_coming_soon
 import dev.ide.ui.icons.CaIcons
 import dev.ide.ui.icons.TreeIcon
 import dev.ide.ui.icons.TreeIcons
 import dev.ide.ui.theme.resolveTint
 import dev.ide.ui.theme.Ca
 import org.jetbrains.compose.resources.stringResource
+
+/** Template ids that are shown but not yet usable on-device (Dart/Flutter can't run in a mobile sandbox). */
+private val COMING_SOON_IDS: Set<String> = setOf("dart-console", "flutter-app")
 
 /**
  * The Create-Project flow: a template gallery (cards grouped by category, from
@@ -81,27 +85,43 @@ fun CreateProjectScreen(
     // partitions on. A sample can still be created here when deep-linked from Explore, since
     // `initialTemplateId` resolves against the full list below.
     val galleryTemplates = remember(templates) { templates.filterNot { it.id.startsWith("sample-") } }
+    // Dart and Flutter can't run inside a mobile sandbox (no terminal/toolchain), so they are
+    // surfaced in the gallery but blocked behind a "Coming Soon" notice instead of letting the
+    // user create a project they can't actually build or run on-device.
+    val comingSoonName = remember(initialTemplateId) {
+        mutableStateOf<String?>(
+            initialTemplateId?.let { id -> templates.firstOrNull { it.id in COMING_SOON_IDS && it.id == id }?.displayName }
+        )
+    }
     var selected by remember(initialTemplateId) {
-        mutableStateOf(initialTemplateId?.let { id -> templates.firstOrNull { it.id == id } })
+        mutableStateOf(initialTemplateId?.let { id -> templates.firstOrNull { it.id == id && it.id !in COMING_SOON_IDS } })
     }
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), contentAlignment = Alignment.TopCenter) {
         Column(
             Modifier.widthIn(max = 640.dp).fillMaxSize().padding(horizontal = 24.dp, vertical = 32.dp),
         ) {
-            val sel = selected
-            if (sel == null) {
-                Gallery(
-                    templates = galleryTemplates,
-                    onBack = onCancel,
-                    onPick = { selected = it },
-                )
+            val cs = comingSoonName.value
+            if (cs != null) {
+                ComingSoonScreen(templateName = cs) { comingSoonName.value = null }
             } else {
-                Configure(
-                    backend = backend,
-                    template = sel,
-                    onBack = { selected = null },
-                    onCreated = onCreated,
-                )
+                val sel = selected
+                if (sel == null) {
+                    Gallery(
+                        templates = galleryTemplates,
+                        onBack = onCancel,
+                        onPick = { t ->
+                            if (t.id in COMING_SOON_IDS) comingSoonName.value = t.displayName
+                            else selected = t
+                        },
+                    )
+                } else {
+                    Configure(
+                        backend = backend,
+                        template = sel,
+                        onBack = { selected = null },
+                        onCreated = onCreated,
+                    )
+                }
             }
         }
     }
@@ -150,6 +170,42 @@ private fun TemplateCard(template: UiProjectTemplate, delayMillis: Int, onClick:
             Text(template.description, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
         }
         Icon(CaIcons.chevronRight, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.outline)
+    }
+}
+
+// ---- "Coming Soon" (Dart / Flutter are not buildable or runnable on-device yet) ----
+
+@Composable
+private fun ComingSoonScreen(templateName: String, onBack: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Header(title = templateName, subtitle = stringResource(Res.string.store_coming_soon), onBack = onBack)
+        Spacer(Modifier.height(8.dp))
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(Ca.radius.lg))
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(Ca.radius.lg))
+                .padding(20.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    stringResource(Res.string.store_coming_soon),
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    "This template isn't available to build or run on your phone yet. " +
+                        "We're working on it and will enable it soon.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+        Spacer(Modifier.weight(1f))
     }
 }
 

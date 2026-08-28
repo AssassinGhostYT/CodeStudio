@@ -175,7 +175,7 @@ fun ProjectPickerScreen(
                 // A secondary path: import an existing Gradle project (best-effort compatibility mode).
                 if (onImportGradle != null) ImportGradleCard(onImportGradle)
 
-                // The support card: CodeAssist is free, ad-free and open source, so the only "monetisation"
+                // The support card: CodeStudio is free, ad-free and open source, so the only "monetisation"
                 // is an optional sponsor/star. Shown whenever the host can open links.
                 if (onSponsor != null || onStarOnGitHub != null) {
                     SupportCard(onSponsor = onSponsor, onStar = onStarOnGitHub)
@@ -400,7 +400,7 @@ private fun DiscordCard(onClick: () -> Unit) {
 private val SponsorPink = Color(0xFFDB61A2)
 
 /**
- * A persistent card asking for support. CodeAssist is free, ad-free and fully open source, so the only
+ * A persistent card asking for support. CodeStudio is free, ad-free and fully open source, so the only
  * ask is an optional GitHub sponsorship or a star. [onSponsor]/[onStar] are wired by the host to open the
  * respective URLs; a null action simply hides that button.
  */
@@ -688,7 +688,7 @@ private fun CompatibilityChip() {
 }
 
 /**
- * A dismissible first-run banner shown when projects were recovered from an older CodeAssist version.
+ * A dismissible first-run banner shown when projects were recovered from an older CodeStudio version.
  * Sets expectations: Gradle-style projects open in a limited compatibility mode and may not be fully
  * supported. [count] is how many compatibility-mode projects were found.
  */

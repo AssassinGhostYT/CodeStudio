@@ -35,7 +35,7 @@ object SwingApiStubs {
      * write at startup.
      */
     @Synchronized
-    fun bundled(): Path? = extracted ?: extractTo(Path.of(System.getProperty("java.io.tmpdir"), "codeassist-swing-api"))
+    fun bundled(): Path? = extracted ?: extractTo(Path.of(System.getProperty("java.io.tmpdir"), "codestudio-swing-api"))
         ?.also { extracted = it }
 
     /** Write the bundled jar into [cachesRoot], replacing whatever was there. */

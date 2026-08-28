@@ -310,7 +310,7 @@ class AndroidXmlContributor(
             }
             for (c in runCatching { resources(type) }.getOrDefault(emptyList())) {
                 val ref = "@${type.rClass}/${c.name}"
-                // Show the resolved value as the hint (@string/app_name → "CodeAssist", @color/primary → #6200EE)
+                // Show the resolved value as the hint (@string/app_name → "CodeStudio", @color/primary → #6200EE)
                 // so the right resource is pickable at a glance; fall back to the resource type for file resources.
                 out += CompletionItem(
                     ref,

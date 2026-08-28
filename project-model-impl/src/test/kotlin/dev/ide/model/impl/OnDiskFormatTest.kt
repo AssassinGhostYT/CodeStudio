@@ -24,7 +24,7 @@ import kotlin.test.assertContains
 class OnDiskFormatTest {
 
     @Test
-    fun writesReadableWorkspaceJsonAndModuleToml() = withTempDir("codeassist-format") { dir ->
+    fun writesReadableWorkspaceJsonAndModuleToml() = withTempDir("codestudio-format") { dir ->
         val platform = PlatformCore()
         platform.registerTestTypes()
         try {
@@ -74,7 +74,7 @@ class OnDiskFormatTest {
     /** A variant-qualified dependency lands under a nested `[dependencies.<config>]` table; the bare
      *  `[dependencies]` table keeps only the shared (unqualified) entries, byte-identical to the old format. */
     @Test
-    fun variantQualifiedDependenciesUseNestedTables() = withTempDir("codeassist-variant-format") { dir ->
+    fun variantQualifiedDependenciesUseNestedTables() = withTempDir("codestudio-variant-format") { dir ->
         val platform = PlatformCore()
         platform.registerTestTypes()
         try {

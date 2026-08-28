@@ -1,6 +1,6 @@
 # Android resource preview
 
-CodeAssist renders Android resources visually next to their source — a third **Preview** view-mode
+CodeStudio renders Android resources visually next to their source — a third **Preview** view-mode
 (beside Code and Blocks) that appears whenever the open file is a previewable resource. It draws
 drawables, color swatches, and bitmaps with every `@color`/`@dimen`/`@drawable` reference resolved
 against the *project's own* merged resources, so a preview reflects what the app will actually show.

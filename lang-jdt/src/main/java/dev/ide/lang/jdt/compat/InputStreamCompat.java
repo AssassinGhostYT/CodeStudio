@@ -9,7 +9,7 @@ import java.io.InputStream;
  * {@link java.io.InputStream#readNBytes(int)}.
  *
  * <p>Both methods were added to {@code InputStream} in Java 9, but on Android they only exist from API
- * level 33. CodeAssist's {@code minSdk} is 26 and core-library desugaring is intentionally off, so on an
+ * level 33. CodeStudio's {@code minSdk} is 26 and core-library desugaring is intentionally off, so on an
  * API 26 to 32 device the calls resolve to nothing and throw {@link NoSuchMethodError} at runtime. Eclipse
  * ecj reaches {@code readAllBytes()} on its very first parse: {@code Parser.<clinit>} loads the parser
  * tables through {@code Util.getInputStreamAsByteArray(InputStream)}, whose whole body is a single

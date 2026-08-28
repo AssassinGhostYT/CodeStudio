@@ -15,7 +15,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.Density
 import dev.ide.ui.components.PushDrawer
 import dev.ide.ui.editor.core.EditorSession
-import dev.ide.ui.theme.CodeAssistTheme
+import dev.ide.ui.theme.CodeStudioTheme
 import dev.ide.ui.theme.Ide
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -65,7 +65,7 @@ class EditorTwoAxisScrollTest {
         val session = EditorSession(longLine, languageFor("Sample.kt"), TextRange(0))
         val offsets = mutableListOf<Float>()
         val scene = ImageComposeScene(width = 760, height = 400, density = Density(2f)) {
-            CodeAssistTheme(dark = true) { content(session, twoAxis) }
+            CodeStudioTheme(dark = true) { content(session, twoAxis) }
         }
         try {
             scene.render()

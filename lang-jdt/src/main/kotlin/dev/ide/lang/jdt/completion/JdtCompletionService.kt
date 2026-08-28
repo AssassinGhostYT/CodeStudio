@@ -9,7 +9,7 @@ import dev.ide.lang.jdt.JdtSourceAnalyzer
 import org.eclipse.jdt.core.compiler.IProblem
 
 /** The marker spliced at the caret. A valid identifier, unlikely to collide with real code. */
-internal const val COMPLETION_MARKER = "__codeassist_completion__"
+internal const val COMPLETION_MARKER = "__codestudio_completion__"
 
 /** Android framework FQN prefixes hidden from index-backed auto-import in a non-Android (JVM) module. */
 private val ANDROID_TYPE_PREFIXES = listOf("android.", "androidx.", "com.android.", "com.google.android.", "dalvik.")

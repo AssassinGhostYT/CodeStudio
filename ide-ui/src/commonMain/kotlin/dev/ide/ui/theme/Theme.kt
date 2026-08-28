@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.sp
 import dev.ide.ui.platform.dynamicColorSchemeOrNull
 
 /**
- * The CodeAssist design system, now built on **Material 3 Expressive**. [CodeAssistTheme] installs a real
+ * The CodeStudio design system, now built on **Material 3 Expressive**. [CodeStudioTheme] installs a real
  * [MaterialTheme] — an expressive tonal [ColorScheme] (Material You dynamic color on Android 12+, else a
  * fixed palette seeded from the chosen accent), the expressive type scale, and the rounder expressive shape
  * scale — so native M3 components render correctly. IDE-domain colors with no Material role (editor
@@ -26,7 +26,7 @@ import dev.ide.ui.platform.dynamicColorSchemeOrNull
  * App UI (screens, components, shell) reads Material roles directly (`MaterialTheme.colorScheme` /
  * `MaterialTheme.typography`) plus [Ide] for the IDE-domain tokens. The [Ca] accessor is retained as the
  * **editor rendering subsystem's palette** (`CodeEditor` / the render state consume a whole
- * [CodeAssistColors] / [CaTypography]); its generic fields are M3-derived from the active [ColorScheme] via
+ * [CodeStudioColors] / [CaTypography]); its generic fields are M3-derived from the active [ColorScheme] via
  * [bridgedTo], so the editor tracks the expressive theme while its code-specific tones stay bespoke.
  */
 
@@ -93,7 +93,7 @@ private val LightBlocks = BlockColors(
 )
 
 @Immutable
-data class CodeAssistColors(
+data class CodeStudioColors(
     val isDark: Boolean,
     // surfaces
     val bg: Color,
@@ -181,7 +181,7 @@ private val LightSyntax = SyntaxColors(
     suspendFn = Color(0xFF9C4E8A),
 )
 
-private fun darkColors(accent: Color, accentStrong: Color) = CodeAssistColors(
+private fun darkColors(accent: Color, accentStrong: Color) = CodeStudioColors(
     isDark = true,
     bg = Color(0xFF161719),
     editorBg = Color(0xFF1B1C1F),
@@ -221,7 +221,7 @@ private fun darkColors(accent: Color, accentStrong: Color) = CodeAssistColors(
     block = DarkBlocks,
 )
 
-private fun lightColors(accent: Color, accentStrong: Color) = CodeAssistColors(
+private fun lightColors(accent: Color, accentStrong: Color) = CodeStudioColors(
     isDark = false,
     bg = Color(0xFFECEBE7),
     editorBg = Color(0xFFFAF9F6),
@@ -261,10 +261,10 @@ private fun lightColors(accent: Color, accentStrong: Color) = CodeAssistColors(
     block = LightBlocks,
 )
 
-fun caColors(dark: Boolean, accent: CaAccent): CodeAssistColors = when {
+fun caColors(dark: Boolean, accent: CaAccent): CodeStudioColors = when {
     dark && accent == CaAccent.Violet -> darkColors(Color(0xFFB487F7), Color(0xFFA06BFF))
     dark && accent == CaAccent.Teal -> darkColors(Color(0xFF5CCFE6), Color(0xFF3FBDD9))
-    // Legacy CodeAssist orange (the Darcula `#CC7832` from the classic `<>` logo).
+    // Legacy CodeStudio orange (the Darcula `#CC7832` from the classic `<>` logo).
     dark && accent == CaAccent.Orange -> darkColors(Color(0xFFD98A3D), Color(0xFFCC7832))
     !dark && accent == CaAccent.Violet -> lightColors(Color(0xFF8B5CF6), Color(0xFF7C3AED))
     !dark && accent == CaAccent.Orange -> lightColors(Color(0xFFC16A1C), Color(0xFFA85614))
@@ -303,12 +303,12 @@ class CaTypography(ui: FontFamily, code: FontFamily) {
     val codeFamily = code
 }
 
-val LocalCaColors = staticCompositionLocalOf<CodeAssistColors> { error("CodeAssistTheme not applied") }
-val LocalCaType = staticCompositionLocalOf<CaTypography> { error("CodeAssistTheme not applied") }
+val LocalCaColors = staticCompositionLocalOf<CodeStudioColors> { error("CodeStudioTheme not applied") }
+val LocalCaType = staticCompositionLocalOf<CaTypography> { error("CodeStudioTheme not applied") }
 
 /** Token accessor: `Ca.colors`, `Ca.type`, `Ca.spacing`, `Ca.radius`. */
 object Ca {
-    val colors: CodeAssistColors
+    val colors: CodeStudioColors
         @Composable @ReadOnlyComposable get() = LocalCaColors.current
     val type: CaTypography
         @Composable @ReadOnlyComposable get() = LocalCaType.current
@@ -317,13 +317,13 @@ object Ca {
 }
 
 /**
- * Bridge the bespoke [CodeAssistColors] onto the active M3 [ColorScheme]: the generic chrome fields
+ * Bridge the bespoke [CodeStudioColors] onto the active M3 [ColorScheme]: the generic chrome fields
  * (surfaces, text, accent, separators, error) are re-pointed at Material roles so every screen still on the
  * `Ca` token accessor reskins to the expressive scheme automatically, while the IDE-domain fields
  * (editor/console surfaces, gutter, git, glass, syntax, blocks) keep their tuned bespoke values. Migration
  * scaffold — call sites move to `MaterialTheme.colorScheme` / `Ide.colors` and this is deleted last.
  */
-private fun CodeAssistColors.bridgedTo(scheme: ColorScheme): CodeAssistColors = copy(
+private fun CodeStudioColors.bridgedTo(scheme: ColorScheme): CodeStudioColors = copy(
     bg = scheme.background,
     surface = scheme.surface,
     surface2 = scheme.surfaceContainerHigh,
@@ -342,7 +342,7 @@ private fun CodeAssistColors.bridgedTo(scheme: ColorScheme): CodeAssistColors = 
 )
 
 /** Project the IDE-domain fields (unchanged by the bridge) into the [Ide] provider. */
-private fun CodeAssistColors.toIdeColors(): IdeColors = IdeColors(
+private fun CodeStudioColors.toIdeColors(): IdeColors = IdeColors(
     isDark = isDark,
     editorBg = editorBg, consoleBg = consoleBg,
     gutterText = gutterText, currentLine = currentLine, selection = selection,
@@ -354,7 +354,7 @@ private fun CodeAssistColors.toIdeColors(): IdeColors = IdeColors(
 )
 
 @Composable
-fun CodeAssistTheme(
+fun CodeStudioTheme(
     dark: Boolean = true,
     accent: CaAccent = CaAccent.Violet,
     /** A user-chosen custom seed color. When set it overrides the preset [accent] palette and wallpaper

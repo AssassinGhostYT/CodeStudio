@@ -1,4 +1,4 @@
--- CodeAssist analytics: daily rollup + prune, scheduled with pg_cron.
+-- CodeStudio analytics: daily rollup + prune, scheduled with pg_cron.
 -- Idempotent: safe to run repeatedly. Paste into Supabase -> SQL Editor -> Run (needs the postgres role;
 -- the sb_secret API key CANNOT run DDL, so this can't go through PostgREST).
 --

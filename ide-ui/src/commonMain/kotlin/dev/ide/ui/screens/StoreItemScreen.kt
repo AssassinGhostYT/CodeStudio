@@ -146,7 +146,7 @@ fun StoreItemScreen(
                         ) {
                             SpecRow(stringResource(Res.string.store_item_type), kindLabel(item), first = true)
                             item.language?.let { SpecRow(stringResource(Res.string.store_item_language), it) }
-                            SpecRow(stringResource(Res.string.store_item_publisher), item.author ?: "CodeAssist")
+                            SpecRow(stringResource(Res.string.store_item_publisher), item.author ?: "CodeStudio")
                             if (item.installs >= 0) SpecRow(stringResource(Res.string.store_item_downloads), compactCount(item.installs))
                         }
                     }

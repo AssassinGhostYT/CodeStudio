@@ -51,7 +51,7 @@ class CodeActionsTest {
         // An expression whose type lives in another package + carries generics: `java.util.Arrays.asList(..)`
         // → `List<String>`. The intention must render `List<String>` and add `import java.util.List;`.
         val text = Files.readString(main).replace(
-            "System.out.println(formatter.banner(\"CodeAssist\"));",
+            "System.out.println(formatter.banner(\"CodeStudio\"));",
             "System.out.println(java.util.Arrays.asList(\"a\"));",
         )
         val caret = text.indexOf("asList(") + 1
@@ -83,7 +83,7 @@ class CodeActionsTest {
         // Throw a checked exception with no `throws` / try — the IntelliJ-PSI backend flags it, and the native
         // fix appends it to `main`'s signature + imports it.
         val text = Files.readString(main).replace(
-            "System.out.println(formatter.banner(\"CodeAssist\"));",
+            "System.out.println(formatter.banner(\"CodeStudio\"));",
             "throw new java.io.IOException();",
         )
         runBlocking { ide.analyzeDiagnostics(main, text) } // publish the unhandled-exception error so the fix attaches
@@ -99,7 +99,7 @@ class CodeActionsTest {
     @Test
     fun changeVariableTypeRetypesTheDeclaration() = demo { ide, main ->
         val text = Files.readString(main).replace(
-            "System.out.println(formatter.banner(\"CodeAssist\"));",
+            "System.out.println(formatter.banner(\"CodeStudio\"));",
             "String n = 5;",
         )
         runBlocking { ide.analyzeDiagnostics(main, text) } // publish the type-mismatch error so the fix attaches
@@ -114,7 +114,7 @@ class CodeActionsTest {
     @Test
     fun createMethodFromUsageInsertsStub() = demo { ide, main ->
         val text = Files.readString(main).replace(
-            "System.out.println(formatter.banner(\"CodeAssist\"));",
+            "System.out.println(formatter.banner(\"CodeStudio\"));",
             "int r = compute(1, \"x\");",
         )
         runBlocking { ide.analyzeDiagnostics(main, text) } // publish the unresolved-reference error

@@ -58,7 +58,7 @@ class DamagedWorkspaceLoadTest {
         ModelPersistence.load(dir).projects.single().modules.map { it.name }.sorted()
 
     @Test
-    fun aMissingModuleManifestLeavesTheRestOfTheWorkspaceOpenable() = withTempDir("codeassist-damaged") { dir ->
+    fun aMissingModuleManifestLeavesTheRestOfTheWorkspaceOpenable() = withTempDir("codestudio-damaged") { dir ->
         twoModuleWorkspace(dir)
         // The module directory was deleted outside the IDE; workspace.json still lists it.
         Files.delete(dir.resolve("shared/module.toml"))
@@ -67,7 +67,7 @@ class DamagedWorkspaceLoadTest {
     }
 
     @Test
-    fun anUnparsableModuleManifestIsSkippedAndLeftOnDisk() = withTempDir("codeassist-damaged") { dir ->
+    fun anUnparsableModuleManifestIsSkippedAndLeftOnDisk() = withTempDir("codestudio-damaged") { dir ->
         twoModuleWorkspace(dir)
         val broken = dir.resolve("shared/module.toml")
         val garbage = "[module\ntype = \"java-lib\""
@@ -78,7 +78,7 @@ class DamagedWorkspaceLoadTest {
     }
 
     @Test
-    fun aModuleManifestMissingItsModuleTableIsSkippedRatherThanGuessed() = withTempDir("codeassist-damaged") { dir ->
+    fun aModuleManifestMissingItsModuleTableIsSkippedRatherThanGuessed() = withTempDir("codestudio-damaged") { dir ->
         twoModuleWorkspace(dir)
         // Parses as TOML, but has no [module] table, so there is no module type to honour.
         Files.writeString(dir.resolve("shared/module.toml"), "[sourceSets.main]\nscope = \"IMPLEMENTATION\"\n")
@@ -87,7 +87,7 @@ class DamagedWorkspaceLoadTest {
     }
 
     @Test
-    fun aWorkspaceMissingItsSchemaVersionStillOpens() = withTempDir("codeassist-damaged") { dir ->
+    fun aWorkspaceMissingItsSchemaVersionStillOpens() = withTempDir("codestudio-damaged") { dir ->
         twoModuleWorkspace(dir)
         val ws = dir.resolve(".platform/workspace.json")
         Files.writeString(ws, Files.readString(ws).replace("\"version\": 1", "\"schema\": 1"))
@@ -98,7 +98,7 @@ class DamagedWorkspaceLoadTest {
     }
 
     @Test
-    fun aSchemaVersionHeldAsAStringStillOpens() = withTempDir("codeassist-damaged") { dir ->
+    fun aSchemaVersionHeldAsAStringStillOpens() = withTempDir("codestudio-damaged") { dir ->
         twoModuleWorkspace(dir)
         val ws = dir.resolve(".platform/workspace.json")
         Files.writeString(ws, Files.readString(ws).replace("\"version\": 1", "\"version\": \"1\""))
@@ -107,7 +107,7 @@ class DamagedWorkspaceLoadTest {
     }
 
     @Test
-    fun unreadableSdksAndLibrariesCostAReResolveNotTheProject() = withTempDir("codeassist-damaged") { dir ->
+    fun unreadableSdksAndLibrariesCostAReResolveNotTheProject() = withTempDir("codestudio-damaged") { dir ->
         twoModuleWorkspace(dir)
         Files.writeString(dir.resolve(".platform/sdks.json"), "{ \"sdks\": [ { \"name\": ")
         Files.writeString(dir.resolve(".platform/libraries.json"), "not json at all")
@@ -119,7 +119,7 @@ class DamagedWorkspaceLoadTest {
     }
 
     @Test
-    fun oneUnreadableProjectEntryDoesNotHideTheOthers() = withTempDir("codeassist-damaged") { dir ->
+    fun oneUnreadableProjectEntryDoesNotHideTheOthers() = withTempDir("codestudio-damaged") { dir ->
         twoModuleWorkspace(dir)
         val ws = dir.resolve(".platform/workspace.json")
         // A second project entry with no `root`, as a partially written or hand-edited entry looks.
@@ -131,7 +131,7 @@ class DamagedWorkspaceLoadTest {
     }
 
     @Test
-    fun aMissingWorkspaceFileAndANewerSchemaStillFail() = withTempDir("codeassist-damaged") { dir ->
+    fun aMissingWorkspaceFileAndANewerSchemaStillFail() = withTempDir("codestudio-damaged") { dir ->
         twoModuleWorkspace(dir)
         val ws = dir.resolve(".platform/workspace.json")
         val original = Files.readString(ws)

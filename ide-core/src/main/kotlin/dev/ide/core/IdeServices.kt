@@ -1171,7 +1171,7 @@ class IdeServices private constructor(
 
         // Ensure the bundled jar is actually on disk AND the `kotlin-stdlib` library points at it. [extractTo]
         // is idempotent — it reuses a present current-version copy and RE-EXTRACTS a missing one — so a
-        // `.platform` that was cleared, or a CodeAssist update that renamed the jar to a new version, heals
+        // `.platform` that was cleared, or a CodeStudio update that renamed the jar to a new version, heals
         // here instead of leaving a persisted classpath entry that dangles ("non-existent location:
         // …/kotlin-stdlib-<v>.jar"). A dangling entry silently drops the stdlib from the compile/dex classpaths
         // (the runtime `NoClassDefFoundError: kotlin/collections/CollectionsKt`); previously the library was
@@ -1581,7 +1581,7 @@ class IdeServices private constructor(
     /** Write a per-project generic-settings value. */
     fun setProjectPref(key: String, value: String) {
         val props = loadProps(projectSettingsFile).apply { setProperty(key, value) }
-        storeProps(projectSettingsFile, props, "CodeAssist project settings")
+        storeProps(projectSettingsFile, props, "CodeStudio project settings")
     }
 
     // --- active build variant (per module) -----------------------------------------------------
@@ -1637,7 +1637,7 @@ class IdeServices private constructor(
         for ((id, sev) in profile.severityOverrides) if (id !in profile.disabled) props.setProperty(
             id.value, sev.name
         )
-        storeProps(inspectionsFile, props, "CodeAssist inspection profile")
+        storeProps(inspectionsFile, props, "CodeStudio inspection profile")
     }
 
     private fun loadInspectionProfile(): AnalysisProfile {
@@ -1730,7 +1730,7 @@ class IdeServices private constructor(
      */
     internal suspend fun syncFromBuildFiles(): ProjectSyncOutcome = projectSync.sync(SyncReason.MANUAL)
 
-    /** Convert this compatibility-mode project to a native CodeAssist project (see [GradleImport.convertToNative]).
+    /** Convert this compatibility-mode project to a native CodeStudio project (see [GradleImport.convertToNative]).
      *  Pure disk operation — the model is already the source of truth, so nothing needs re-resolving. */
     internal fun convertToNative(): GradleImport.ConvertOutcome = GradleImport.convertToNative(workspaceRoot)
 

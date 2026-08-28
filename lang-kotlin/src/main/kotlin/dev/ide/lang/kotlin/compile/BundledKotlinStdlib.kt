@@ -53,7 +53,7 @@ object BundledKotlinStdlib {
      */
     fun cached(): Path? {
         cachedPath?.let { if (Files.isRegularFile(it)) return it }
-        val dir = Paths.get(System.getProperty("java.io.tmpdir"), "codeassist", "kotlin-stdlib")
+        val dir = Paths.get(System.getProperty("java.io.tmpdir"), "codestudio", "kotlin-stdlib")
         return extractTo(dir)?.also { cachedPath = it }
     }
 

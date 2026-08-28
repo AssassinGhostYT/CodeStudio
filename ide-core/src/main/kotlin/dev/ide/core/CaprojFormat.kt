@@ -3,7 +3,7 @@ package dev.ide.core
 import dev.ide.model.impl.format.Json
 
 /**
- * A shareable CodeAssist project package (`.caproj`): a deflate zip carrying a project's
+ * A shareable CodeStudio project package (`.caproj`): a deflate zip carrying a project's
  * source-of-truth (declared config + sources, never regenerable caches) plus a [CaprojManifest]
  * describing it and an optional embedded preview icon. The internal layout is:
  *
@@ -29,7 +29,7 @@ object CaprojFormat {
     const val MIME = "application/x-caproj"
 
     /** Product name stamped into [CaprojManifest.createdBy]. */
-    const val APP_NAME = "CodeAssist"
+    const val APP_NAME = "CodeStudio"
 
     const val KIND_PROJECT = "project"
 
@@ -127,7 +127,7 @@ data class CaprojManifest(
     val name: String,
     val description: String,
     val author: String,
-    /** The tool that produced the package (e.g. `CodeAssist`). */
+    /** The tool that produced the package (e.g. `CodeStudio`). */
     val createdBy: String,
     /** Epoch milliseconds when the package was written. */
     val exportedAt: Long,

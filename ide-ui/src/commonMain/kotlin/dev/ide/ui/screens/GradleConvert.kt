@@ -59,7 +59,7 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * The import-time choice between opening a Gradle project in **compatibility mode** (keep the scripts,
- * re-syncable) and **converting** it to a native CodeAssist project right away. Both first import in
+ * re-syncable) and **converting** it to a native CodeStudio project right away. Both first import in
  * compatibility mode; picking Convert flags the freshly-opened editor to run the convert flow (see
  * [ConvertToNativeDialog]).
  */
@@ -100,7 +100,7 @@ internal fun GradleImportModeDialog(
 }
 
 /**
- * The shared "Convert to a CodeAssist project?" flow, hosted in [EditorCenter]. Opened from the compatibility
+ * The shared "Convert to a CodeStudio project?" flow, hosted in [EditorCenter]. Opened from the compatibility
  * banner's Convert action or auto-opened once after an import where Convert was chosen. Lists the importer's
  * unresolved [notes] as a caution (they won't be re-checked after conversion), performs the move-to-backup via
  * [IdeBackend.projects] convertToNative, then offers an Undo (revert) before dismissing.

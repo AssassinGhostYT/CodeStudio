@@ -16,7 +16,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import dev.ide.ui.editor.blocks.DragState
-import dev.ide.ui.theme.CodeAssistTheme
+import dev.ide.ui.theme.CodeStudioTheme
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test
@@ -80,7 +80,7 @@ class BlockRenderSnapshot {
     @OptIn(ExperimentalComposeUiApi::class)
     private fun snapshot(name: String, w: Int, h: Int, content: @Composable () -> Unit) {
         val scene = ImageComposeScene(width = w, height = h, density = Density(2f)) {
-            CodeAssistTheme(dark = true) { content() }
+            CodeStudioTheme(dark = true) { content() }
         }
         try {
             scene.render()                       // first frame (fonts may still be the fallback)
@@ -95,6 +95,6 @@ class BlockRenderSnapshot {
     }
 
     private companion object {
-        const val OUT_DIR = "/private/tmp/claude-501/-Users-tyronscott-JavaProjects-CodeAssist/52154a21-c913-4db9-af75-e8600ca9445f/scratchpad"
+        const val OUT_DIR = "/private/tmp/claude-501/-Users-AssassinGhost-JavaProjects-CodeStudio/52154a21-c913-4db9-af75-e8600ca9445f/scratchpad"
     }
 }

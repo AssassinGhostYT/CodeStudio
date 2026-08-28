@@ -673,7 +673,7 @@ interface ProjectService {
     suspend fun syncProject(): UiSyncResult = UiSyncResult(false, "This project has no build files to sync from.")
 
     /**
-     * Convert the open Gradle compatibility-mode project to a native CodeAssist project: the leftover Gradle
+     * Convert the open Gradle compatibility-mode project to a native CodeStudio project: the leftover Gradle
      * build files are MOVED to a backup folder and the compatibility marker is dropped, so `module.toml`
      * becomes the sole source of truth (Re-sync no longer applies). The model is unchanged — no re-resolve or
      * re-index needed. No-op returning `ok = false` when the project isn't a compatibility-mode import.

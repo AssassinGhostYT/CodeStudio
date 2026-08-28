@@ -2,14 +2,14 @@
 <resources>
     <string name="projects">المشاريع</string>
     <string name="a_new_build_system">نظام بناء جديد</string>
-    <string name="a_new_build_system_content"><![CDATA[تمت إعادة بناء CodeAssist باستخدام نظام بناء جديد على الجهاز. يستخدم تكوين المشروع الخاص به، لذا فإن المشاريع من الإصدارات السابقة غير متوافقة ولن تفتح تلقائيًا.
+    <string name="a_new_build_system_content"><![CDATA[تمت إعادة بناء CodeStudio باستخدام نظام بناء جديد على الجهاز. يستخدم تكوين المشروع الخاص به، لذا فإن المشاريع من الإصدارات السابقة غير متوافقة ولن تفتح تلقائيًا.
 
 قم بعمل نسخة احتياطية لمشاريعك إلى ملف .zip الآن، وستظل ملفات المصدر آمنة ويمكنك إعادة إضافتها إلى مشروع جديد.]]></string>
     <string name="preparing_backup">جاري إعداد النسخة الاحتياطية…</string>
     <string name="backup_projects">نسخ المشاريع احتياطيًا</string>
     <string name="got_it">حسناً</string>
-    <string name="help_improve_codeassist">المساعدة في تحسين CodeAssist</string>
-    <string name="help_improve_codeassist_content"><![CDATA[شارِك بيانات الأداء مجهولة الهوية حتى نتمكن من معرفة ما هو بطيء وما يفشل، وإصلاح الأشياء الصحيحة.
+    <string name="help_improve_codestudio">المساعدة في تحسين CodeStudio</string>
+    <string name="help_improve_codestudio_content"><![CDATA[شارِك بيانات الأداء مجهولة الهوية حتى نتمكن من معرفة ما هو بطيء وما يفشل، وإصلاح الأشياء الصحيحة.
 
 نجمع: إصدار التطبيق ونموذج الجهاز، والوقت الذي تستغرقه عمليات البناء والفهرسة وإكمال الكود، ونجاح/فشل البناء، وتقارير العطل المنظفة.
 
@@ -46,7 +46,7 @@
     <string name="your_files_content">توجد المشاريع في سعة تخزين التطبيق التي يمكنك فتحها من أي مدير ملفات، أو إفلات الأيقونات أو المخططات أو الأصول، أو التعديل من جهاز الكمبيوتر. لا توجد أذونات خاصة، ولا شيء مخفي.</string>
     <string name="jetpack_compose">Jetpack Compose</string>
     <string name="jetpack_compose_title">إعادة البناء على Jetpack Compose.</string>
-    <string name="jetpack_compose_content">تجربة CodeAssist أسرع وأسلس، مع Compose الأصلي في كل مكان مع المعاينة المباشرة.</string>
+    <string name="jetpack_compose_content">تجربة CodeStudio أسرع وأسلس، مع Compose الأصلي في كل مكان مع المعاينة المباشرة.</string>
     <string name="create_your_first_project">أنشئ مشروعك الأول</string>
     <string name="github">GitHub</string>
     <string name="github_title">Your code, in the cloud.</string>
@@ -68,7 +68,7 @@
     <string name="git_history_content">Branches, commits, and diffs without ever leaving the project.</string>
     <string name="gradle_import">Gradle import</string>
     <string name="gradle_import_title">Bring your own Gradle build.</string>
-    <string name="gradle_import_content">Open an existing Gradle build directly, or convert it to the CodeAssist module system.</string>
+    <string name="gradle_import_content">Open an existing Gradle build directly, or convert it to the CodeStudio module system.</string>
     <string name="shortcuts">Shortcuts</string>
     <string name="shortcuts_title">Everything, in one reach.</string>
     <string name="shortcuts_content">Commands, files, and symbols from a single palette, with shortcuts for everything.</string>
@@ -81,11 +81,11 @@
     <string name="import_by">بواسطة %1$s</string>
     <string name="import_section_contents">المحتويات</string>
     <string name="import_more">+%1$d المزيد</string>
-    <string name="import_incompatible">تحتاج هذه الحزمة إلى إصدار أحدث من CodeAssist للاستيراد.</string>
+    <string name="import_incompatible">تحتاج هذه الحزمة إلى إصدار أحدث من CodeStudio للاستيراد.</string>
     <string name="import_deps_bundled">المكتبات المضمنة</string>
     <string name="import_failed">تعذر استيراد حزمة المشروع.</string>
     <string name="import_unrecognized_title">تعذر استيراد هذا الملف</string>
-    <string name="import_unrecognized">لا يتعرف CodeAssist على هذا الملف. اختر حزمة مشروع .caproj للاستيراد.</string>
+    <string name="import_unrecognized">لا يتعرف CodeStudio على هذا الملف. اختر حزمة مشروع .caproj للاستيراد.</string>
 
     <string name="export_title">تصدير المشروع</string>
     <string name="export_intro">حزم هذا المشروع كملف .caproj يمكنك مشاركته مع أي شخص.</string>
@@ -107,7 +107,7 @@
     <string name="export_retry">إعادة المحاولة</string>
     <string name="join_the_community">الانضمام إلى المجتمع</string>
     <string name="join_the_community_content">دردش واحصل على المساعدة وشارك ما تبنيه على Discord.</string>
-    <string name="support_title">دعم CodeAssist</string>
+    <string name="support_title">دعم CodeStudio</string>
     <string name="support_content">تم بناؤه في وقت فراغي وهو مجاني للجميع. إذا كان يساعدك، فإن الرعاية أو النجمة تعني الكثير.</string>
     <string name="support_chip_free">100% مجاني</string>
     <string name="support_chip_open_source">مفتوح المصدر</string>
@@ -116,7 +116,7 @@
     <string name="support_show_ads">إظهار الإعلانات</string>
     <string name="support_show_ads_desc">إظهار الإعلانات في التطبيق. يمكنك إيقاف تشغيلها في أي وقت.</string>
     <string name="ad_label">إعلان</string>
-    <string name="house_ad_support_title">تستمتع بـ CodeAssist؟</string>
+    <string name="house_ad_support_title">تستمتع بـ CodeStudio؟</string>
     <string name="house_ad_support_content">ادعم المشروع على GitHub Sponsors.</string>
     <string name="no_project_yet">لا توجد مشاريع بعد. أنشئ واحدًا للبدء.</string>
     <string name="your_projects">مشاريعك</string>
@@ -125,8 +125,8 @@
     <string name="beta_notice">أنت على %1$s</string>
     <string name="beta_notice_content">قد تكون بعض الميزات غير مكتملة أو تتغير. نود الحصول على ملاحظاتك، أخبرنا بما هو مفقود أو مكسور.</string>
     <string name="submit_suggestion">إرسال الاقتراحات</string>
-    <string name="your_codeassist_files">ملفات CodeAssist الخاصة بك</string>
-    <string name="your_codeassist_files_content">افتح هذا المجلد في أي مدير ملفات لتصفح مشاريعك، أو إضافة أيقونات أو أصول، أو التعديل من جهاز كمبيوتر.</string>
+    <string name="your_codestudio_files">ملفات CodeStudio الخاصة بك</string>
+    <string name="your_codestudio_files_content">افتح هذا المجلد في أي مدير ملفات لتصفح مشاريعك، أو إضافة أيقونات أو أصول، أو التعديل من جهاز كمبيوتر.</string>
     <string name="open_in_the_file_manager">الفتح في مدير الملفات</string>
     <string name="choose_start_point">اختر نقطة البداية.</string>
     <string name="backup">نسخ احتياطي</string>
@@ -562,10 +562,10 @@
 
     <!-- Build notifications -->
     <string name="build_notif_title">عرض إشعارات البناء؟</string>
-    <string name="build_notif_message">يمكن لـ CodeAssist تشغيل عمليات البناء وبرنامجك في عملية منفصلة ومعزولة وعرض إشعار تقدّم أثناء تشغيلها. يمنع هذا Android من إيقاف البناء عند التبديل إلى تطبيق آخر، ويتيح لك متابعة التقدّم. اسمح بالإشعارات لتفعيل هذا.</string>
+    <string name="build_notif_message">يمكن لـ CodeStudio تشغيل عمليات البناء وبرنامجك في عملية منفصلة ومعزولة وعرض إشعار تقدّم أثناء تشغيلها. يمنع هذا Android من إيقاف البناء عند التبديل إلى تطبيق آخر، ويتيح لك متابعة التقدّم. اسمح بالإشعارات لتفعيل هذا.</string>
     <string name="build_notif_not_now">ليس الآن</string>
     <string name="build_notif_inprocess_title">ستُشغَّل عمليات البناء داخل التطبيق</string>
-    <string name="build_notif_inprocess_message">بدون إذن الإشعارات، تُشغَّل عمليات البناء داخل CodeAssist بدلاً من عملية منفصلة، ولن ترى إشعارات تقدّم البناء. يمكنك تفعيل الإشعارات في أي وقت من الإعدادات، ضمن وقت تشغيل البناء.</string>
+    <string name="build_notif_inprocess_message">بدون إذن الإشعارات، تُشغَّل عمليات البناء داخل CodeStudio بدلاً من عملية منفصلة، ولن ترى إشعارات تقدّم البناء. يمكنك تفعيل الإشعارات في أي وقت من الإعدادات، ضمن وقت تشغيل البناء.</string>
     <string name="build_notif_enabled">تم تفعيل إشعارات البناء</string>
 
     <!-- Preview -->

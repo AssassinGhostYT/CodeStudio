@@ -235,13 +235,13 @@ class FileSystemAgentWorkspace(
         return if (p.isAbsolute) p.normalize() else root.resolve(p).normalize()
     }
 
-    private fun memoryFile(): Path = root.resolve(".codeassist-memory.md")
+    private fun memoryFile(): Path = root.resolve(".codestudio-memory.md")
 
     private fun instructionFile(): Path {
         val candidate = root.resolve("AGENTS.md")
         return candidate.takeIf { Files.isRegularFile(candidate) }
             ?: root.resolve(".agent").resolve("AGENTS.md").takeIf { Files.isRegularFile(it) }
-            ?: root.resolve(".codeassist").resolve("AGENTS.md")
+            ?: root.resolve(".codestudio").resolve("AGENTS.md")
     }
 
     private fun sliceLines(text: String, startLine: Int, endLine: Int): String {

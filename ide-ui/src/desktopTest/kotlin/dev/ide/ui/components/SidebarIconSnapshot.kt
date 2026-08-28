@@ -12,7 +12,7 @@ import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
-import dev.ide.ui.theme.CodeAssistTheme
+import dev.ide.ui.theme.CodeStudioTheme
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test
@@ -24,7 +24,7 @@ class SidebarIconSnapshot {
     @Test
     fun renderFractionSweep() {
         val scene = ImageComposeScene(width = 520, height = 120, density = Density(2f)) {
-            CodeAssistTheme(dark = true) {
+            CodeStudioTheme(dark = true) {
                 Row(
                     Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(horizontal = 12.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly,
@@ -47,6 +47,6 @@ class SidebarIconSnapshot {
     }
 
     private companion object {
-        const val OUT = "/private/tmp/claude-501/-Users-tyronscott-JavaProjects-CodeAssist/3ef37a35-7870-4cde-976f-e90e5e713766/scratchpad"
+        const val OUT = "/private/tmp/claude-501/-Users-AssassinGhost-JavaProjects-CodeStudio/3ef37a35-7870-4cde-976f-e90e5e713766/scratchpad"
     }
 }

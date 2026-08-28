@@ -20,7 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import dev.ide.ui.icons.CaIcons
-import dev.ide.ui.theme.CodeAssistTheme
+import dev.ide.ui.theme.CodeStudioTheme
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test
@@ -98,7 +98,7 @@ class SidebarRailSnapshot {
     @OptIn(ExperimentalComposeUiApi::class)
     private fun snapshot(name: String, w: Int, h: Int, content: @Composable () -> Unit) {
         val scene = ImageComposeScene(width = w, height = h, density = Density(2f)) {
-            CodeAssistTheme(dark = true) { content() }
+            CodeStudioTheme(dark = true) { content() }
         }
         try {
             // Pump several frames so the measured sliding indicator (onGloballyPositioned → state → relayout)
@@ -117,6 +117,6 @@ class SidebarRailSnapshot {
     }
 
     private companion object {
-        const val OUT_DIR = "/private/tmp/claude-501/-Users-tyronscott-JavaProjects-CodeAssist/5b990da4-7091-443b-954a-44e3c60dc588/scratchpad"
+        const val OUT_DIR = "/private/tmp/claude-501/-Users-AssassinGhost-JavaProjects-CodeStudio/5b990da4-7091-443b-954a-44e3c60dc588/scratchpad"
     }
 }

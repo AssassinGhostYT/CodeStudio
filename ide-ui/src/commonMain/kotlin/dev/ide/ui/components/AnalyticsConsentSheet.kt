@@ -29,8 +29,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.ide.ui.generated.resources.Res
 import dev.ide.ui.generated.resources.allow
-import dev.ide.ui.generated.resources.help_improve_codeassist
-import dev.ide.ui.generated.resources.help_improve_codeassist_content
+import dev.ide.ui.generated.resources.help_improve_codestudio
+import dev.ide.ui.generated.resources.help_improve_codestudio_content
 import dev.ide.ui.generated.resources.learn_more
 import dev.ide.ui.generated.resources.no_thanks
 import dev.ide.ui.generated.resources.not_sharing_performance_data
@@ -100,14 +100,14 @@ private fun ConsentBody(
         }
         Spacer(Modifier.height(20.dp))
         Text(
-            stringResource(Res.string.help_improve_codeassist),
+            stringResource(Res.string.help_improve_codestudio),
             color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            stringResource(Res.string.help_improve_codeassist_content),
+            stringResource(Res.string.help_improve_codestudio_content),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,

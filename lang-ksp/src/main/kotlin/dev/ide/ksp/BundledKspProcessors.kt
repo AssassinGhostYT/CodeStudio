@@ -34,7 +34,7 @@ object BundledKspProcessors {
     fun jarsFor(id: String): List<Path> = extracted.getOrPut(id) {
         val bytes = BundledKspProcessors::class.java.getResourceAsStream("/processors/$id.zip")
             ?.use { it.readBytes() } ?: return@getOrPut emptyList()
-        val dir = Paths.get(System.getProperty("java.io.tmpdir"), "codeassist", "ksp-processors", "$id-${hash16(bytes)}")
+        val dir = Paths.get(System.getProperty("java.io.tmpdir"), "codestudio", "ksp-processors", "$id-${hash16(bytes)}")
         extractZipOfJars(bytes, dir)
     }
 

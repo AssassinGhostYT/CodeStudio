@@ -19,7 +19,7 @@ import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * A minimal embedded FTP server used as the CodeAssist asset inbox: anonymous, bound to 127.0.0.1 only,
+ * A minimal embedded FTP server used as the CodeStudio asset inbox: anonymous, bound to 127.0.0.1 only,
  * rooted at [root] (typically `<project>/assets`). Files uploaded with `STOR` land directly in [root], so
  * a client can drop screenshots, APKs, or any binary and they appear in the workspace for the agent to
  * consume. Serves the passive-mode subset a stock client (curl, `ftplib`, the OS file manager) needs:
@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  */
 class FtpServer(
     root: Path,
-    private val port: Int = CodeAssistMcpServer.DEFAULT_FTP_PORT,
+    private val port: Int = CodeStudioMcpServer.DEFAULT_FTP_PORT,
     /** The port passive transfers prefer; see the class doc for why it is fixed rather than ephemeral. */
     private val passivePort: Int = if (port == 0) 0 else port + 1,
 ) : AutoCloseable {
@@ -115,7 +115,7 @@ class FtpServer(
 
         fun run() {
             try {
-                reply(220, "CodeAssist FTP asset server ready.")
+                reply(220, "CodeStudio FTP asset server ready.")
                 while (true) {
                     val line = reader.readLine() ?: break
                     if (line.isBlank()) continue

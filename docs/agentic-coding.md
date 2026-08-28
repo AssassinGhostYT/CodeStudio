@@ -5,7 +5,7 @@ and edits the open project. Built entirely on the existing plugin substrate (`pl
 `BuiltInPlugins`), the scoped-service container, and the `IdeBackend` port, so it adds no privileged
 host wiring and can be enabled or disabled like any other built-in plugin.
 
-The agent is CodeAssist's own agent. It is grounded as this IDE (on-device, interpreter-based runs,
+The agent is CodeStudio's own agent. It is grounded as this IDE (on-device, interpreter-based runs,
 no hosted Gradle, ART constraints), never as another product. Users bring their own API key for one of
 several providers; nothing is bundled or proxied.
 
@@ -73,7 +73,7 @@ Provider-neutral contracts, extensible by third-party plugins:
   latency, not the sum); mutating/unknown calls run sequentially afterward so permission prompts never race
   and writes stay ordered. Result order always matches the model's call order.
 - `builtinTools(workspace)`: the built-in tool set bound to an `AgentWorkspace`.
-- `SystemPrompt`: assembles the CodeAssist grounding plus live project context.
+- `SystemPrompt`: assembles the CodeStudio grounding plus live project context.
 
 ## Provider abstraction
 
@@ -111,7 +111,7 @@ envelope, nests each streamed candidate under `response`, and sends the Antigrav
 The credential (`ProviderConfig.apiKey`) is an OAuth **refresh token** (starts with `1//`, exchanged for
 short-lived access tokens here via `postForm` to `oauth2.googleapis.com/token`, cached until near expiry) or
 a raw **access token**, optionally suffixed with an explicit project id: `<token>` or `<token>|<projectId>`.
-With no project id, the free-tier project is discovered via `loadCodeAssist` (falling back to `onboardUser`).
+With no project id, the free-tier project is discovered via `loadCodeStudio` (falling back to `onboardUser`).
 `AntigravitySession` holds this token + project state per client session behind a mutex.
 
 **Sign-in flow (`AntigravityOAuth`, mobile + desktop):** the provider card's "Sign in with Google" button
@@ -230,7 +230,7 @@ keys in `strings.xml`.
 
 ## System prompt
 
-`SystemPrompt` grounds the agent as CodeAssist and states the platform's real shape and limits: an
+`SystemPrompt` grounds the agent as CodeStudio and states the platform's real shape and limits: an
 on-device Android/Java IDE, program runs execute by interpreting bytecode on the in-process VM (not a
 forked JVM), the build system is native (no hosted Gradle), and the runtime is ART (single-threaded VM
 for user code, no `invokedynamic` bootstrap, minSdk floor). It lists the available tools and the active

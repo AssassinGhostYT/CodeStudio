@@ -75,7 +75,7 @@ internal fun EditorCenter(
     val compatInfo = remember(project.rootPath, compatEpoch) { state.backend.projects.compatibilityInfo() }
     var showCompatBanner by remember(project.rootPath) { mutableStateOf(compatInfo != null) }
     var showConvertDialog by remember(project.rootPath) { mutableStateOf(false) }
-    // One-shot: an import where "Convert to CodeAssist project" was chosen at the picker. Now that the editor
+    // One-shot: an import where "Convert to CodeStudio project" was chosen at the picker. Now that the editor
     // is open (so the reader's notes are known), run the convert flow — the confirm dialog is the gate when
     // `gradle.convert.warnUnresolved` is on (default); otherwise convert straight away.
     LaunchedEffect(project.rootPath) {

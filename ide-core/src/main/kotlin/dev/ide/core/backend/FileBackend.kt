@@ -238,8 +238,8 @@ internal class FileBackend(private val ctx: BackendContext) : FileService {
 
     /**
      * A package node that **compacts middle packages**: starting at [startDir], it follows the chain while
-     * each level has exactly one subdirectory and no files, so `com/ → tyron/ → codeassist/` becomes one
-     * `com.tyron.codeassist` node. The chain's [PackageSegment]s (one per level, each with its dotted
+     * each level has exactly one subdirectory and no files, so `com/ → assassinghost/ → codestudio/` becomes one
+     * `com.assassinghost.codestudio` node. The chain's [PackageSegment]s (one per level, each with its dotted
      * package and directory) are kept so a New-Class action can target any intermediate level.
      */
     private fun packageNode(startDir: Path, sourceRoot: Path, module: Module): TreeNode {

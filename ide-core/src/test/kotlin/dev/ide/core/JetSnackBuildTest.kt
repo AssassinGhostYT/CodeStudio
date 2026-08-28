@@ -15,7 +15,7 @@ import kotlin.io.path.name
 import kotlin.test.Test
 
 /**
- * End-to-end: convert a real Gradle Compose sample (JetSnack) to a native CodeAssist project and assemble a
+ * End-to-end: convert a real Gradle Compose sample (JetSnack) to a native CodeStudio project and assemble a
  * debug APK — the "compile it on device" path (desktop runs the same build engine). Opt-in and heavy (Maven
  * resolution of the whole Compose/AndroidX graph + a full aapt2/kotlinc+Compose/D8/sign build), so gated:
  *   RUN_JETSNACK_BUILD=1 JETSNACK_SRC=/abs/path/to/Jetsnack ANDROID_HOME=... \

@@ -123,7 +123,7 @@ class ProjectPackagingTest {
     fun manifestJsonRoundTrips() {
         val manifest = CaprojManifest(
             format = 1, kind = "project", name = "My App", description = "d", author = "a",
-            createdBy = "CodeAssist", exportedAt = 42L, isAndroid = true, packageName = "com.x",
+            createdBy = "CodeStudio", exportedAt = 42L, isAndroid = true, packageName = "com.x",
             moduleCount = 2, modules = listOf("app", "core"), fileCount = 10, uncompressedSize = 999L,
             hasBundledDeps = true, iconEntry = "icon.png",
         )
@@ -136,7 +136,7 @@ class ProjectPackagingTest {
         // incompatible rather than silently failing.
         val newer = CaprojManifest(
             format = CaprojFormat.FORMAT_VERSION + 5, kind = "project", name = "X", description = "", author = "",
-            createdBy = "CodeAssist", exportedAt = 0L, isAndroid = false, packageName = null,
+            createdBy = "CodeStudio", exportedAt = 0L, isAndroid = false, packageName = null,
             moduleCount = 0, modules = emptyList(), fileCount = 0, uncompressedSize = 0L,
             hasBundledDeps = false, iconEntry = null,
         )

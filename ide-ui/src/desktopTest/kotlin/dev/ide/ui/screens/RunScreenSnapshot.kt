@@ -26,7 +26,7 @@ import dev.ide.ui.backend.TreeViewMode
 import dev.ide.ui.backend.UiCompletionResult
 import dev.ide.ui.backend.UiDiagnostic
 import dev.ide.ui.backend.UiSeverity
-import dev.ide.ui.theme.CodeAssistTheme
+import dev.ide.ui.theme.CodeStudioTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.jetbrains.skia.EncodedImageFormat
@@ -94,7 +94,7 @@ class RunScreenSnapshot {
     @OptIn(ExperimentalComposeUiApi::class)
     private fun snapshot(name: String, w: Int, h: Int, backend: IdeBackend, dark: Boolean = true) {
         val scene = ImageComposeScene(width = w, height = h, density = Density(2f)) {
-            CodeAssistTheme(dark = dark) {
+            CodeStudioTheme(dark = dark) {
                 Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { RunScreen(backend, onBack = {}) }
             }
         }
@@ -110,6 +110,6 @@ class RunScreenSnapshot {
     }
 
     private companion object {
-        const val OUT_DIR = "/private/tmp/claude-501/-Users-tyronscott-JavaProjects-CodeAssist/b65de382-ff5b-4a3c-9931-04443b19714a/scratchpad"
+        const val OUT_DIR = "/private/tmp/claude-501/-Users-AssassinGhost-JavaProjects-CodeStudio/b65de382-ff5b-4a3c-9931-04443b19714a/scratchpad"
     }
 }

@@ -1,7 +1,7 @@
 package dev.ide.agent
 
 /**
- * Immutable session binding record between a CodeAssist project and OpenCode.
+ * Immutable session binding record between a CodeStudio project and OpenCode.
  * Pure DTO model for future persistence mapping.
  */
 data class OpenCodeSessionRecord(

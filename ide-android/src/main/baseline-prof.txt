@@ -1,4 +1,4 @@
-# Baseline profile for the installed IDE app (com.tyron.code).
+# Baseline profile for the installed IDE app (com.codestudio.ide).
 #
 # AGP compiles this into assets/dexopt/baseline.prof, and the package manager AOT-compiles the listed classes
 # at install time (dex2oat) instead of leaving them to interpret + JIT on first use. It targets the editor +

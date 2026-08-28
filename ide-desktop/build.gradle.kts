@@ -46,7 +46,7 @@ compose.desktop {
         mainClass = "dev.ide.desktop.MainKt"
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Deb)
-            packageName = "CodeAssist"
+            packageName = "CodeStudio"
             packageVersion = "1.0.0"
         }
     }
