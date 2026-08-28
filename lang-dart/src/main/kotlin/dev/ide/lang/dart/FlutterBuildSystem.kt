@@ -88,7 +88,7 @@ class FlutterBuildSystem : BuildSystem {
             if (!supports(module.type)) continue
             val dir = File(project.rootDir.path).resolve(module.name)
             val args = listOf("build", goalName, "--$variant")
-            tasks += cliTask(TaskName("flutter:${module.name}:build-$goalName"), dir, "flutter", args)
+            tasks += cliTask(TaskName("flutter:${module.name}:build-$goalName"), dir, args)
         }
         if (tasks.isEmpty()) {
             throw IllegalArgumentException("No Flutter/Dart modules to build in '${project.name}'.")
@@ -104,7 +104,7 @@ class FlutterBuildSystem : BuildSystem {
         val args = mutableListOf("run", "--$variant")
         return RunAction(
             header = "Flutter Run · ${module.name} ($variant)",
-            graph = cliTaskGraph(TaskName("flutter:${module.name}:run"), dir, "flutter", args),
+            graph = cliTaskGraph(TaskName("flutter:${module.name}:run"), dir, args),
             onSuccess = { log -> log("App started") }
         )
     }
@@ -119,13 +119,13 @@ class FlutterBuildSystem : BuildSystem {
         }
         return RunAction(
             header = "Flutter Build $buildType · ${module.name} ($variant)",
-            graph = cliTaskGraph(TaskName("flutter:${module.name}:build-$buildType"), dir, "flutter", args),
+            graph = cliTaskGraph(TaskName("flutter:${module.name}:build-$buildType"), dir, args),
             banner = "Output: ${output.absolutePath}",
             onSuccess = { log -> log("Build succeeded: ${output.absolutePath}") }
         )
     }
 
-    private fun cliTask(name: TaskName, workingDir: File, cmd: String, args: List<String>): Task = object : Task {
+    private fun cliTask(name: TaskName, workingDir: File, args: List<String>): Task = object : Task {
         override val name: TaskName = name
         override val inputs: TaskInputs = object : TaskInputs {
             override fun files(key: String, files: Iterable<VirtualFile>) {}
@@ -140,9 +140,19 @@ class FlutterBuildSystem : BuildSystem {
         }
         override suspend fun execute(ctx: TaskContext): TaskResult {
             val log = ctx.logger()
-            log("Running: $cmd ${args.joinToString(" ")}")
+            val flutter = findFlutter()
+            if (flutter == null) {
+                log("Flutter SDK not found on this device.")
+                log("The 'flutter' executable is required to run or build a Flutter app.")
+                log("Install Flutter (e.g. via Termux) and make sure 'flutter' is on the PATH,")
+                log("or set the FLUTTER_BIN environment variable to the full path of the flutter binary.")
+                return TaskResult.Failed(
+                    "Flutter SDK not found. Install Flutter and add it to PATH, or set FLUTTER_BIN to the flutter binary path."
+                )
+            }
+            log("Running: $flutter ${args.joinToString(" ")}")
             return try {
-                val pb = ProcessBuilder(listOf(cmd) + args)
+                val pb = ProcessBuilder(listOf(flutter.absolutePath) + args)
                     .directory(workingDir)
                     .redirectErrorStream(true)
                 val proc = pb.start()
@@ -155,8 +165,32 @@ class FlutterBuildSystem : BuildSystem {
         }
     }
 
-    private fun cliTaskGraph(name: TaskName, workingDir: File, cmd: String, args: List<String>): TaskGraph {
-        val task = cliTask(name, workingDir, cmd, args)
+    /** Locate the `flutter` binary: the FLUTTER_BIN env var, then the PATH, then common Android/Termux paths. */
+    private fun findFlutter(): File? {
+        System.getenv("FLUTTER_BIN")?.let {
+            val f = File(it)
+            if (f.canExecute()) return f
+        }
+        System.getenv("PATH")?.split(File.pathSeparator)?.forEach {
+            val f = File(it, "flutter")
+            if (f.canExecute()) return f
+        }
+        val common = listOf(
+            "/data/data/com.termux/files/usr/bin/flutter",
+            "/data/data/com.termux/files/usr/local/bin/flutter",
+            System.getProperty("user.home") + "/flutter/bin/flutter",
+            System.getProperty("user.home") + "/development/flutter/bin/flutter",
+            "/data/data/com.termux/files/home/flutter/bin/flutter",
+        )
+        for (p in common) {
+            val f = File(p)
+            if (f.canExecute()) return f
+        }
+        return null
+    }
+
+    private fun cliTaskGraph(name: TaskName, workingDir: File, args: List<String>): TaskGraph {
+        val task = cliTask(name, workingDir, args)
         return object : TaskGraph {
             override val tasks: List<Task> = listOf(task)
             override fun dependencies(t: Task): List<Task> = emptyList()
