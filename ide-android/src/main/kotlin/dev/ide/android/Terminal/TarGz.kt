@@ -59,7 +59,9 @@ internal object TarGz {
                         FileOutputStream(target).use { out ->
                             copyExactly(input, out, size)
                         }
-                        skipData(input, size)
+                        // copyExactly already consumed `size` bytes — skip only the trailing padding.
+                        val padded = (size + (BLOCK - 1)) / BLOCK * BLOCK
+                        skipData(input, padded - size)
                     }
                     '5' -> {
                         val dir = File(dest, pendingName ?: name)
