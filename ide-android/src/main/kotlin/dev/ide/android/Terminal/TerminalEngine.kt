@@ -77,12 +77,19 @@ object TerminalEngine {
         try {
             val rootfs = rootfsDir()
             ensureToolkit()
+            val report: (String) -> Unit = { msg ->
+                // Surface percent progress through the observable state, not just the callback.
+                if (msg.startsWith("Downloading ") && msg.contains('%')) {
+                    _setup.value = SetupState.Downloading(msg)
+                }
+                onProgress(msg)
+            }
             if (!File(rootfs, "/bin/bash").exists()) {
                 _setup.value = SetupState.Downloading("Downloading rootfs (~76 MB)…")
-                onProgress("Downloading rootfs…")
-                val archive = downloadToCache(ROOTFS_URL, ROOTFS_FILE, onProgress)
+                report("Downloading rootfs…")
+                val archive = downloadToCache(ROOTFS_URL, ROOTFS_FILE, report)
                 _setup.value = SetupState.Extracting
-                onProgress("Extracting rootfs…")
+                report("Extracting rootfs…")
                 rootfs.mkdirs()
                 TarGz.extract(archive, rootfs)
                 archive.delete()
@@ -193,11 +200,19 @@ object TerminalEngine {
         val cacheDir = File(filesDir ?: error("TerminalEngine.init() not called"), "cache").apply { mkdirs() }
         val target = File(cacheDir, name)
         if (target.exists() && target.length() > 0) return target
-        downloadTo(url, target, onProgress)
-        return target
+        // Write to a temp file and rename only on success, so an interrupted download is never
+        // mistaken for a complete archive on the next attempt.
+        val part = File(cacheDir, "$name.part")
+        try {
+            streamTo(url, part, onProgress)
+            if (!part.renameTo(target)) part.copyTo(target, overwrite = true).also { part.delete() }
+            return target
+        } finally {
+            part.delete()
+        }
     }
 
-    private fun downloadTo(url: String, target: File, onProgress: (String) -> Unit) {
+    private fun streamTo(url: String, target: File, onProgress: (String) -> Unit) {
         if (target.exists() && target.length() > 0) return
         target.parentFile?.mkdirs()
         val conn = URL(url).openConnection() as HttpURLConnection
