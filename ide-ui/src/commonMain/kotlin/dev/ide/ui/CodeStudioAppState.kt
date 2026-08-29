@@ -554,7 +554,7 @@ fun rememberCodeStudioAppState(
 internal fun accentOf(settings: UiSettings): CaAccent = when (settings.accent) {
     UiAccent.Teal -> CaAccent.Teal
     UiAccent.Orange -> CaAccent.Orange
-    else -> CaAccent.Violet
+    else -> CaAccent.Graphite
 }
 
 /** The color a Custom accent seeds the whole expressive theme from, or null for every other accent. */

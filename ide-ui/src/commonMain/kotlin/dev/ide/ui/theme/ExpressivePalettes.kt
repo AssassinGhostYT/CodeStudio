@@ -145,9 +145,29 @@ private val OrangeDark = AccentRoles(
     tertiaryContainer = Color(0xFF434A21), onTertiaryContainer = Color(0xFFDFE7B0),
 )
 
+private val GraphiteLight = AccentRoles(
+    primary = Color(0xFF5F646B), onPrimary = Color(0xFFFFFFFF),
+    primaryContainer = Color(0xFFE9EAEE), onPrimaryContainer = Color(0xFF1B1D20),
+    inversePrimary = Color(0xFFCCD0D6),
+    secondary = Color(0xFF656B72), onSecondary = Color(0xFFFFFFFF),
+    secondaryContainer = Color(0xFFEBEDF2), onSecondaryContainer = Color(0xFF202329),
+    tertiary = Color(0xFF60656C), onTertiary = Color(0xFFFFFFFF),
+    tertiaryContainer = Color(0xFFE8E9EE), onTertiaryContainer = Color(0xFF1D2023),
+)
+private val GraphiteDark = AccentRoles(
+    primary = Color(0xFFC1C7D0), onPrimary = Color(0xFF2B2F36),
+    primaryContainer = Color(0xFF454A52), onPrimaryContainer = Color(0xFFDDE2EA),
+    inversePrimary = Color(0xFF5F646B),
+    secondary = Color(0xFFC0C6CE), onSecondary = Color(0xFF2A2E35),
+    secondaryContainer = Color(0xFF41464E), onSecondaryContainer = Color(0xFFDBE1E8),
+    tertiary = Color(0xFFC3C7CE), onTertiary = Color(0xFF2D3138),
+    tertiaryContainer = Color(0xFF44484F), onTertiaryContainer = Color(0xFFDFE3EA),
+)
+
 /** The fixed expressive [ColorScheme] for an [accent] in the given mode (the non-dynamic fallback). */
 fun expressiveColorScheme(accent: CaAccent, dark: Boolean): ColorScheme {
     val roles = when (accent) {
+        CaAccent.Graphite -> if (dark) GraphiteDark else GraphiteLight
         CaAccent.Violet -> if (dark) VioletDark else VioletLight
         CaAccent.Teal -> if (dark) TealDark else TealLight
         CaAccent.Orange -> if (dark) OrangeDark else OrangeLight

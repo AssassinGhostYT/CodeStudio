@@ -30,7 +30,7 @@ import dev.ide.ui.platform.dynamicColorSchemeOrNull
  * [bridgedTo], so the editor tracks the expressive theme while its code-specific tones stay bespoke.
  */
 
-enum class CaAccent { Violet, Teal, Orange }
+enum class CaAccent { Graphite, Violet, Teal, Orange }
 
 @Immutable
 data class SyntaxColors(
@@ -262,10 +262,12 @@ private fun lightColors(accent: Color, accentStrong: Color) = CodeStudioColors(
 )
 
 fun caColors(dark: Boolean, accent: CaAccent): CodeStudioColors = when {
+    dark && accent == CaAccent.Graphite -> darkColors(Color(0xFFB9BEC6), Color(0xFFA7ADB5))
     dark && accent == CaAccent.Violet -> darkColors(Color(0xFFB487F7), Color(0xFFA06BFF))
     dark && accent == CaAccent.Teal -> darkColors(Color(0xFF5CCFE6), Color(0xFF3FBDD9))
     // Legacy CodeStudio orange (the Darcula `#CC7832` from the classic `<>` logo).
     dark && accent == CaAccent.Orange -> darkColors(Color(0xFFD98A3D), Color(0xFFCC7832))
+    !dark && accent == CaAccent.Graphite -> lightColors(Color(0xFF6B7076), Color(0xFF5D6268))
     !dark && accent == CaAccent.Violet -> lightColors(Color(0xFF8B5CF6), Color(0xFF7C3AED))
     !dark && accent == CaAccent.Orange -> lightColors(Color(0xFFC16A1C), Color(0xFFA85614))
     else -> lightColors(Color(0xFF1C9BBD), Color(0xFF137E9C))
@@ -356,7 +358,7 @@ private fun CodeStudioColors.toIdeColors(): IdeColors = IdeColors(
 @Composable
 fun CodeStudioTheme(
     dark: Boolean = true,
-    accent: CaAccent = CaAccent.Violet,
+    accent: CaAccent = CaAccent.Graphite,
     /** A user-chosen custom seed color. When set it overrides the preset [accent] palette and wallpaper
      *  dynamic color — the whole expressive scheme is generated from this seed. */
     seedColor: Color? = null,
