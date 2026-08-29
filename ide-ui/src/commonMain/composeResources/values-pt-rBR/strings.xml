@@ -251,6 +251,7 @@ Nunca coletamos seu código, nomes de arquivos ou projetos, quais recursos você
     <string name="buildc_tab_log">Log</string>
     <string name="buildc_tab_steps">Etapas</string>
     <string name="buildc_tab_logcat">Logcat</string>
+    <string name="buildc_tab_terminal">Terminal</string>
     <string name="buildc_filter_all">Todos %1$d</string>
     <string name="buildc_filter_errors">Erros %1$d</string>
     <string name="buildc_filter_warnings">Avisos %1$d</string>

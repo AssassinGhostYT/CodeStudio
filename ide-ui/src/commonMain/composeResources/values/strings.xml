@@ -277,6 +277,7 @@ Nunca recopilamos su código, nombres de archivos o proyectos, qué funciones us
     <string name="buildc_tab_log">Registro</string>
     <string name="buildc_tab_steps">Pasos</string>
     <string name="buildc_tab_logcat">Logcat</string>
+    <string name="buildc_tab_terminal">Terminal</string>
     <string name="buildc_filter_all">Todos %1$d</string>
     <string name="buildc_filter_errors">Errores %1$d</string>
     <string name="buildc_filter_warnings">Advertencias %1$d</string>

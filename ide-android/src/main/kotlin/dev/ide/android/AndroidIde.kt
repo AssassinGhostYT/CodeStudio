@@ -81,6 +81,9 @@ object AndroidIde {
         // is the app-global "Build in a separate process" setting (default ON), checked in
         // IdeServicesBackend.buildRunnerFor. A build OOM then kills only that process, not the IDE.
         val appContext = context.applicationContext
+        // The PRoot terminal ships in the app (no bundling): wire the engine + register the BOTTOM tool
+        // window. Assets (proot/libs/rootfs) download on first open. Idempotent across re-bootsstraps.
+        TerminalPlugin.install(appContext)
         // Analytics is an application-scoped host service now; register it before the backend resolves it.
         manager.applicationContainer.registerServiceIfAbsent(ANALYTICS_SERVICE) { analytics }
         val backend = IdeServicesBackend(

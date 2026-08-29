@@ -221,6 +221,7 @@
     <string name="buildc_tab_log">Журнал</string>
     <string name="buildc_tab_steps">Шаги</string>
     <string name="buildc_tab_logcat">Logcat</string>
+    <string name="buildc_tab_terminal">Terminal</string>
     <string name="buildc_filter_all">Все %1$d</string>
     <string name="buildc_filter_errors">Ошибки %1$d</string>
     <string name="buildc_filter_warnings">Предупреждения %1$d</string>

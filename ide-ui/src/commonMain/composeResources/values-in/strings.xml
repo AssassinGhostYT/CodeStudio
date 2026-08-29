@@ -248,6 +248,7 @@ Kami tidak pernah mengumpulkan kode, nama file atau proyek Anda, fitur apa yang 
     <string name="buildc_tab_log">Log</string>
     <string name="buildc_tab_steps">Langkah</string>
     <string name="buildc_tab_logcat">Logcat</string>
+    <string name="buildc_tab_terminal">Terminal</string>
     <string name="buildc_filter_all">Semua %1$d</string>
     <string name="buildc_filter_errors">Kesalahan %1$d</string>
     <string name="buildc_filter_warnings">Peringatan %1$d</string>

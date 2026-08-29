@@ -294,6 +294,7 @@
     <string name="buildc_tab_log">السجل</string>
     <string name="buildc_tab_steps">الخطوات</string>
     <string name="buildc_tab_logcat">Logcat</string>
+    <string name="buildc_tab_terminal">Terminal</string>
     <string name="buildc_filter_all">الكل %1$d</string>
     <string name="buildc_filter_errors">الأخطاء %1$d</string>
     <string name="buildc_filter_warnings">التحذيرات %1$d</string>

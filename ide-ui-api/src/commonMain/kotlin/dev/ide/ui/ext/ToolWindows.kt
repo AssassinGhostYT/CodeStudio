@@ -21,6 +21,10 @@ import dev.ide.ui.backend.IdeBackend
 /** Where a tool window docks. LEFT = the side-rail / navigator region; BOTTOM = the build-console region. */
 enum class ToolWindowAnchor { LEFT, RIGHT, BOTTOM }
 
+/** The BOTTOM tool window hosting the PRoot Linux terminal (Android). The console header shows its
+ *  "open terminal" icon next to Run and surfaces its tab next to the Steps/Pasos tab when registered. */
+const val TERMINAL_TOOL_WINDOW_ID = "terminal"
+
 /** What a tool-window body is handed when rendered. */
 interface ToolWindowContext {
     val backend: IdeBackend

@@ -82,6 +82,7 @@ import dev.ide.ui.ext.ToolWindowAnchor
 import dev.ide.ui.ext.ToolWindowContext
 import dev.ide.ui.ext.ToolWindowContribution
 import dev.ide.ui.ext.ToolWindowRegistry
+import dev.ide.ui.ext.TERMINAL_TOOL_WINDOW_ID
 import dev.ide.ui.icons.CaIcons
 import dev.ide.ui.theme.Ca
 import dev.ide.ui.theme.Motion
@@ -101,6 +102,7 @@ import dev.ide.ui.generated.resources.buildc_tab_problems
 import dev.ide.ui.generated.resources.buildc_tab_log
 import dev.ide.ui.generated.resources.buildc_tab_steps
 import dev.ide.ui.generated.resources.buildc_tab_logcat
+import dev.ide.ui.generated.resources.buildc_tab_terminal
 import dev.ide.ui.generated.resources.buildc_exit_fullscreen
 import dev.ide.ui.generated.resources.buildc_fullscreen
 import dev.ide.ui.generated.resources.buildc_logcat_empty
@@ -178,8 +180,16 @@ fun BuildConsole(
         }
     }
 
+    // The PRoot terminal (Android) shows as both an icon next to Run and a tab next to Pasos/Steps — only
+    // while its BOTTOM tool window is registered (never on hosts that don't ship it, e.g. desktop).
+    val terminalTw = pluginTabs.firstOrNull { it.id == TERMINAL_TOOL_WINDOW_ID }
+    val onOpenTerminal: (() -> Unit)? = terminalTw?.let { tw -> { activePluginTab = tw.id } }
+
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Header(buildState, errors, warnings, tab, activePluginTab != null, onRun, onStop, onCollapse)
+        Header(
+            buildState, errors, warnings, tab, activePluginTab != null,
+            onRun, onStop, onCollapse, onOpenTerminal,
+        )
         if (indexStatus.building) IndexingSection(indexStatus)
         buildState.banner?.let { FirstBuildBanner(it) }
         if (running) RunningStrip(buildState.steps)
@@ -232,7 +242,8 @@ private fun Header(
     pluginActive: Boolean,
     onRun: () -> Unit,
     onStop: () -> Unit,
-    onCollapse: () -> Unit
+    onCollapse: () -> Unit,
+    onOpenTerminal: (() -> Unit)? = null,
 ) {
     val running = state.status == RunStatus.Running
     Row(
@@ -268,6 +279,17 @@ private fun Header(
             )
         }
         StatusPill(state.status)
+        if (onOpenTerminal != null) {
+            // The Linux terminal, one tap away from Run (matches the icon-only ask; no text label).
+            IconButtonCa(
+                CaIcons.terminal,
+                stringResource(Res.string.buildc_tab_terminal),
+                onOpenTerminal,
+                boxSize = 28,
+                iconSize = 16,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         val (copyTab, copyProvide) = copyForTab(state, tab, pluginActive)
         if (copyProvide != null) CopyButton(copyTab, copyProvide)
         if (running) IconButtonCa(
@@ -526,6 +548,11 @@ private fun ConsoleTabs(
                 badge = stepsTotal.takeIf { it > 0 }?.let { "$stepsDone/$it" },
                 badgeColor = MaterialTheme.colorScheme.outline
             ) { onSelect(BuildTab.Steps) }
+            // The PRoot terminal sits right after the built-in Pasos/Steps tab (its host places it there via
+            // ToolWindowRegistry; rendered at that spot only, so it reads as a first-class console tab).
+            pluginTabs.firstOrNull { it.id == TERMINAL_TOOL_WINDOW_ID }?.let { tw ->
+                TabItem(tw.title, activePluginTab == tw.id) { onSelectPlugin(tw.id) }
+            }
             // A green dot when a debug app is connected, else the line count once any logs have arrived.
             TabItem(
                 stringResource(Res.string.buildc_tab_logcat),
@@ -533,8 +560,8 @@ private fun ConsoleTabs(
                 badge = if (appLog.connected) "●" else appLog.lines.size.takeIf { it > 0 }?.toString(),
                 badgeColor = if (appLog.connected) Ide.colors.success else MaterialTheme.colorScheme.outline,
             ) { onSelect(BuildTab.Logcat) }
-            // Plugin-contributed BOTTOM tool windows.
-            pluginTabs.forEach { tw ->
+            // Plugin-contributed BOTTOM tool windows (other than the terminal, shown above next to Steps).
+            pluginTabs.filter { it.id != TERMINAL_TOOL_WINDOW_ID }.forEach { tw ->
                 TabItem(tw.title, activePluginTab == tw.id) { onSelectPlugin(tw.id) }
             }
         }
