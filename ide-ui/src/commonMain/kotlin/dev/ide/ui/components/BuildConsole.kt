@@ -160,6 +160,10 @@ fun BuildConsole(
     activeFilePath: String? = null,
     /** Live logcat-style logs from the running (debug) app, shown in the Logcat tab. */
     appLog: AppLogUi = AppLogUi(),
+    /** External focus request: non-null selects that BOTTOM plugin tab (e.g. the top-bar terminal
+     *  icon) and calls [onFocusConsumed] so the parent can clear the pending request. */
+    focusTabId: String? = null,
+    onFocusConsumed: () -> Unit = {},
 ) {
     val running = buildState.status == RunStatus.Running
     val errors = buildState.diagnostics.count { it.severity == UiSeverity.Error }
@@ -177,6 +181,13 @@ fun BuildConsole(
         if (buildState.status == RunStatus.Failed && (errors > 0 || warnings > 0)) {
             tab = BuildTab.Problems
             activePluginTab = null
+        }
+    }
+    // External focus (top-bar terminal icon): activate the requested tab, then clear the request.
+    LaunchedEffect(focusTabId) {
+        if (focusTabId != null && pluginTabs.any { it.id == focusTabId }) {
+            activePluginTab = focusTabId
+            onFocusConsumed()
         }
     }
 

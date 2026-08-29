@@ -363,6 +363,20 @@ class IdeUiState(
     // On mobile the console is a space-consuming sheet — start it closed; on desktop it's a persistent pane.
     var consoleOpen by mutableStateOf(!isMobilePlatform)
 
+    /** Epoch bumped to focus a specific BOTTOM plugin tab when the console opens (e.g. the PRoot
+     *  terminal icon in the top bar) — BuildConsole observes it and activates that tab. 0 = none. */
+    var consoleFocusTabId by mutableStateOf<String?>(null)
+        private set
+
+    fun focusConsoleTab(id: String) {
+        consoleOpen = true
+        consoleFocusTabId = id
+    }
+
+    fun clearFocusConsoleTab() {
+        consoleFocusTabId = null
+    }
+
     var paletteOpen by mutableStateOf(false)
     /** Whether the "More" actions sheet is showing (rail footer / bottom-nav More). */
     var moreOpen by mutableStateOf(false)

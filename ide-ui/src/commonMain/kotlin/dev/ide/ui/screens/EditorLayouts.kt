@@ -345,6 +345,8 @@ internal fun ExpandedLayout(
                                 backend = state.backend,
                                 activeFilePath = state.active?.path,
                                 appLog = appLog,
+                                focusTabId = state.consoleFocusTabId,
+                                onFocusConsumed = { state.clearFocusConsoleTab() },
                             )
                         }
                     }
@@ -490,6 +492,8 @@ internal fun CompactLayout(
                         backend = state.backend,
                         activeFilePath = state.active?.path,
                         appLog = appLog,
+                        focusTabId = state.consoleFocusTabId,
+                        onFocusConsumed = { state.clearFocusConsoleTab() },
                     )
                 }
             }

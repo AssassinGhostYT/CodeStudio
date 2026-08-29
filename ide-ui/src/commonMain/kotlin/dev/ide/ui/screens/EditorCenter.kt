@@ -42,6 +42,7 @@ import dev.ide.ui.editor.preview.ResourcePreviewPane
 import dev.ide.ui.editor.preview.isLayoutPreviewable
 import dev.ide.ui.editor.preview.isMarkdownPreviewable
 import dev.ide.ui.editor.preview.isPreviewable
+import dev.ide.ui.ext.TERMINAL_TOOL_WINDOW_ID
 import dev.ide.ui.ext.ToolWindowAnchor
 import dev.ide.ui.ext.ToolWindowRegistry
 import dev.ide.ui.ext.UiPluginHost
@@ -159,6 +160,9 @@ internal fun EditorCenter(
                 onOptimizeImports = { if (active != null) optimizeImportsEpoch++ },
                 onToggleConsole = { state.consoleOpen = !state.consoleOpen },
                 consoleOpen = state.consoleOpen,
+                onOpenTerminal = if (ToolWindowRegistry.forAnchor(ToolWindowAnchor.BOTTOM).any { it.id == TERMINAL_TOOL_WINDOW_ID }) {
+                    { state.focusConsoleTab(TERMINAL_TOOL_WINDOW_ID) }
+                } else null,
                 rightToolIconId = rightPrimary?.iconId,
                 rightToolTitle = rightPrimary?.title ?: "",
                 rightToolOpen = state.selectedRightPanel != null,

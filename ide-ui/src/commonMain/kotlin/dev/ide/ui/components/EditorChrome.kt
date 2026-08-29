@@ -113,6 +113,7 @@ import dev.ide.ui.generated.resources.edchrome_show_unresolved_dependencies
 import dev.ide.ui.generated.resources.edchrome_toggle_inlay_hints
 import dev.ide.ui.generated.resources.edchrome_toggle_navigator
 import dev.ide.ui.generated.resources.edchrome_unresolved_dependencies
+import dev.ide.ui.generated.resources.buildc_tab_terminal
 import dev.ide.ui.generated.resources.redo
 import dev.ide.ui.generated.resources.edview_no_file_open_hint
 import dev.ide.ui.generated.resources.edview_no_file_open_title
@@ -195,6 +196,8 @@ fun EditorTopBar(
      *  default — built-in chrome stays native; this is the seam a plugin adds a button through. */
     pluginActions: List<UiActionItem> = emptyList(),
     onPluginAction: (String) -> Unit = {},
+    /** When non-null, shows the terminal icon right next to Run — opens the console on the terminal tab. */
+    onOpenTerminal: (() -> Unit)? = null,
     compact: Boolean = false,
 ) {
     val dim = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
@@ -232,6 +235,15 @@ fun EditorTopBar(
                     IconButtonCa(CaIcons.redo, stringResource(Res.string.redo), onRedo, tint = if (canRedo) null else dim)
                 }
                 PluginToolbarActions(pluginActions, dim, onPluginAction)
+                if (onOpenTerminal != null) {
+                    // The Linux terminal, right next to Run — one tap opens the console on the terminal tab.
+                    IconButtonCa(
+                        CaIcons.terminal,
+                        stringResource(Res.string.buildc_tab_terminal),
+                        onOpenTerminal,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 RunControl(runTasks, onPickTask, compact = true)
                 EditorOverflowMenu(
                     onOpenPalette = onOpenPalette,
@@ -288,6 +300,14 @@ fun EditorTopBar(
                     onPickVariant,
                     compact = false
                 )
+                if (onOpenTerminal != null) {
+                    IconButtonCa(
+                        CaIcons.terminal,
+                        stringResource(Res.string.buildc_tab_terminal),
+                        onOpenTerminal,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 RunControl(runTasks, onPickTask, compact = false)
             }
         }

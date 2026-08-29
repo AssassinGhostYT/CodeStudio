@@ -1,6 +1,7 @@
 package dev.ide.android.Terminal
 
 import android.content.Context
+import android.system.Os
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -94,7 +95,7 @@ object TerminalEngine {
                 TarGz.extract(archive, rootfs)
                 archive.delete()
             }
-            TOOLKIT_ASSETS.forEach { File(supportDir(), it).setExecutable(true, true) }
+            TOOLKIT_ASSETS.forEach { chmodExecutable(File(supportDir(), it)) }
             _setup.value = SetupState.Ready
         } catch (e: Exception) {
             _setup.value = SetupState.Failed(e.message ?: e::class.simpleName ?: "Setup failed")
@@ -116,11 +117,12 @@ object TerminalEngine {
         }
     }
 
-    /** Starts an interactive bash under proot, streaming stdout/stderr into [output]. */
-    fun startSession() {
+    /** Also re-applies the exec bit on every start, since data dirs can lose modes across sessions. */
+    private fun startSession() {
         if (process?.isAlive == true) return
         val rootfs = rootfsDir()
         val support = supportDir()
+        TOOLKIT_ASSETS.forEach { chmodExecutable(File(support, it)) }
         _output.value = ""
         _running.value = true
         val pb = ProcessBuilder(
@@ -195,6 +197,20 @@ object TerminalEngine {
     }
 
     private fun prootExecutable(): File = File(supportDir(), "proot")
+
+    /** Applies rwx for the owner and r-x for group/others via the real syscall — `File.setExecutable`
+     *  only toggles the owner bit on webview-ish/Android storage and can silently no-op. */
+    private fun chmodExecutable(file: File): File {
+        if (!file.exists()) return file
+        return try {
+            Os.chmod(file.absolutePath, 0x1ED) // 0755: owner rwx, group/others r-x
+            file
+        } catch (_: Exception) {
+            // Fallback for non-Linux test hosts: just try the JVM API as well, best-effort.
+            file.setExecutable(true, false)
+            file
+        }
+    }
 
     private fun downloadToCache(url: String, name: String, onProgress: (String) -> Unit): File {
         val cacheDir = File(filesDir ?: error("TerminalEngine.init() not called"), "cache").apply { mkdirs() }
