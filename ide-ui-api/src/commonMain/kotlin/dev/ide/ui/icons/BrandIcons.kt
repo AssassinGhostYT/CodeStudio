@@ -21,10 +21,13 @@ object BrandIcons {
     private fun f(d: String, evenOdd: Boolean = false, color: Color = Color.Black) =
         Sub(d, if (evenOdd) PathFillType.EvenOdd else PathFillType.NonZero, color)
 
-    private val kotlinP0 = f("M11.82 11.82 C18.33 18.33 23.69 23.63 23.73 23.62 C23.77 23.61 23.85 23.52 23.91 23.43 C24.00 23.28 23.39 22.66 12.37 11.64 L0.73 0.00 L0.37 0.00 L0.00 0.00 L11.82 11.82 Z", evenOdd = true)
-    private val kotlinP1 = f("M11.75 11.75 C21.03 21.03 23.51 23.47 23.58 23.40 C23.64 23.36 23.75 23.22 23.84 23.09 L24.00 22.88 L12.56 11.44 L1.12 0.00 L0.56 0.00 L0.00 0.00 L11.75 11.75 Z", evenOdd = true)
-    private val kotlinP2 = f("M6.15 6.15 L12.30 12.30 L12.56 12.01 C12.71 11.85 12.91 11.64 13.01 11.54 C13.28 11.26 14.53 9.94 14.89 9.55 C15.07 9.36 15.36 9.05 15.54 8.87 C16.10 8.28 16.17 8.21 16.80 7.55 C17.41 6.90 17.87 6.41 18.54 5.71 C18.74 5.50 19.09 5.12 19.33 4.88 C19.90 4.27 20.33 3.82 20.79 3.34 C21.01 3.12 21.24 2.87 21.31 2.79 C21.87 2.19 22.81 1.21 23.15 0.88 C23.37 0.66 23.55 0.47 23.55 0.45 C23.55 0.43 23.66 0.32 23.78 0.21 L24.00 0.00 L12.42 0.00 L0.85 0.00 L6.78 5.94 L12.71 11.88 L6.76 5.94 L0.81 0.00 L0.40 0.00 L0.00 0.00 L6.15 6.15 Z", evenOdd = true)
-    private val kotlinP3 = f("M10.35 12.00 C3.75 18.60 0.00 22.36 2.01 20.35 L5.67 16.69 L9.33 20.35 L12.98 24.00 L13.15 24.00 L13.32 24.00 L9.58 20.26 L5.84 16.52 L5.89 16.47 L5.95 16.42 L9.74 20.21 L13.53 24.00 L13.78 24.00 L14.02 24.00 L10.11 20.08 L6.19 16.17 L6.22 16.14 L6.26 16.11 L10.20 20.06 L14.14 24.00 L14.44 24.00 L14.73 24.00 L10.64 19.91 C8.39 17.66 6.55 15.82 6.55 15.81 C6.55 15.80 8.40 17.64 10.66 19.90 L14.76 24.00 L18.56 24.00 L22.36 24.00 L22.36 12.00 C22.36 5.40 22.36 0.00 22.35 0.00 C22.35 0.00 16.95 5.40 10.35 12.00 Z", evenOdd = true)
+    /** The Kotlin K letterform — the angular "K" the rhombus logo is built around, drawn in brand purple. */
+    private val kotlinK = f(
+        "M3.4 3.6 L6.0 3.6 L6.0 20.6 L3.4 20.6 Z" +
+            "M6.3 4.4 L21.0 1.6 L21.0 6.4 L6.3 8.8 Z" +
+            "M6.3 10.6 L21.0 17.4 L21.0 12.8 L6.3 9.2 Z" +
+            "M6.3 20.6 L9.0 20.6 L9.0 23.0 L3.4 23.0 L3.4 20.6 Z",
+    )
 
     private val javaBlue0 = f("M8.848 18.553s-0.915 0.532 0.652 0.713c1.898 0.217 2.869 0.186 4.961-0.21c0 0 0.55 0.345 1.318 0.644c-4.69 2.01-10.614-0.116-6.93-1.146", evenOdd = true, color = JAVA_BLUE)
     private val javaBlue1 = f("M8.275 15.93s-1.027 0.76 0.541 0.922c2.028 0.209 3.629 0.226 6.401-0.307c0 0 0.383 0.389 0.986 0.601c-5.67 1.658-11.986 0.131-7.928-1.216", evenOdd = true, color = JAVA_BLUE)
@@ -46,8 +49,8 @@ object BrandIcons {
         return b.build()
     }
 
-    /** Kotlin logo — the rhombus with the stylised K cut out. */
-    val kotlin = build("brand-kotlin", kotlinP0, kotlinP1, kotlinP2, kotlinP3)
+    /** Kotlin — the angular K letterform, so the purple paints the K (never the rhombus backdrop). */
+    val kotlin = build("brand-kotlin", kotlinK)
 
     /** Java logo — coffee cup mark with the steam rising above, blue + orange. */
     val java = build(
@@ -64,6 +67,15 @@ object BrandIcons {
 
     /** XML tag mark. */
     val xml = build("brand-xml", xmlP0)
+
+    /** Dart logo — the D outline with the diagonal slash, from the user's `Dart-logo` SVG. */
+    private val dartP0 = f("M0 12 L0 24 L5.351 23.995 C8.292 23.993 10.662 23.988 10.615 23.984 C10.535 23.974 10.345 23.791 8.395 21.848 C6.073 19.533 6.152 19.62 5.812 19.008 C5.524 18.49 5.231 17.702 5.128 17.168 L5.077 16.91 L5.07 10.945 L5.06 4.98 L8.67 2.59 C10.655 1.275 12.333 0.164 12.401 0.124 C12.469 0.082 12.567 0.037 12.619 0.026 C12.677 0.014 10.287 0.005 6.359 0.002 L0 0 L0 12 Z", evenOdd = true)
+    private val dartP1 = f("M13.163 0.035 C13.24 0.052 13.385 0.098 13.481 0.138 C13.856 0.295 13.943 0.37 15.352 1.765 C16.08 2.487 16.751 3.152 16.842 3.244 L17.006 3.41 L17.309 4.27 L17.609 5.13 L17.74 5.168 C18.469 5.37 19.378 5.841 19.898 6.286 C19.995 6.37 20.937 7.308 21.991 8.372 L23.906 10.308 L23.902 14.873 L23.895 19.439 L22.256 19.962 C21.356 20.25 20.611 20.482 20.599 20.48 C20.59 20.475 20.885 19.788 21.255 18.949 L21.933 17.426 L21.853 17.203 C21.438 16.015 17.599 5.147 17.592 5.14 C17.562 5.107 17.091 5.034 16.793 5.016 C16.584 5.002 14.128 4.992 10.758 4.992 L5.074 4.992 L12.827 12.745 L20.58 20.498 L20.02 22.249 L19.46 24 L21.729 24 L24 24 L24 12 L24 0 L18.511 0.002 C13.891 0.002 13.043 0.009 13.163 0.035 Z", evenOdd = true)
+    val dart = build("brand-dart", dartP0, dartP1)
+
+    /** Flutter logo mark, from the user's `free-flutter-logo` SVG. */
+    private val flutterP0 = f("M0 12 L0 24 L12 24 L24 24 L24 12 L24 0 L22.856 0 L21.703 0 L13.856 7.847 L6 15.703 L4.153 13.847 L2.297 12 L8.297 6 L14.297 0 L7.144 0 L0 0 L0 12 Z M21.562 11.137 C21.562 11.175 19.312 13.453 16.566 16.2 L11.578 21.188 L9.75 19.359 L7.922 17.531 L11.156 14.297 L14.391 11.062 L17.972 11.062 C19.95 11.062 21.562 11.091 21.562 11.137 Z", evenOdd = true)
+    val flutter = build("brand-flutter", flutterP0)
 
     /** Assistant / AI glyph — a minimal robot head with antenna, mono so it tints over the badge. */
     val assistant = build(

@@ -153,14 +153,10 @@ class AndroidAdHost(
         // thin, auto-sized to the screen width, and the only ad that renders now. Everything else uses the
         // native-ad path below (kept for reference; those placements are inactive).
         if (placement == AdPlacement.FOOTER) {
-            // A brand-new/unverified AdMob account has no fill yet, so the AdView would render as an empty
-            // (invisible) strip. Fall back to the house ad on load failure so the footer banner is never a
-            // blank hole — the support card points at our own repo/sponsor page.
-            var failed by remember { mutableStateOf(false) }
-            if (failed) {
-                HouseAd()
-                return
-            }
+            // The lone bottom banner is a real AdMob BANNER (the ad unit the site created as a banner ad
+            // slot) — thin, auto-sized to the screen width, and the only ad that renders now. It shows
+            // whatever AdMob serves; if there's no fill yet the AdView simply stays empty (no house-ad
+            // substitute — the user wants their own Google AdMob banner, nothing else).
             AndroidView(
                 modifier = modifier,
                 factory = { ctx ->
@@ -169,12 +165,9 @@ class AndroidAdHost(
                     AdView(ctx).apply {
                         setAdSize(adSize)
                         adUnitId = BuildConfig.AD_NATIVE_UNIT_ID
-                        adListener = object : AdListener() {
-                            override fun onAdFailedToLoad(error: LoadAdError) { failed = true }
-                        }
                         // Guard against the missing-WebView / SDK-not-initialised case — the banner just
-                        // shows the house ad instead of the slot crashing the app.
-                        runCatching { loadAd(AdRequest.Builder().build()) }.onFailure { failed = true }
+                        // stays empty instead of the slot crashing the app.
+                        runCatching { loadAd(AdRequest.Builder().build()) }
                     }
                 },
             )

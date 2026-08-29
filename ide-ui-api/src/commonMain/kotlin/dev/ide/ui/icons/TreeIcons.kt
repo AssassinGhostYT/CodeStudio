@@ -70,6 +70,8 @@ object TreeIcons {
         register("java", TreeIcon.Glyph(BrandIcons.java, IconTint.Original))
         register("kotlin", TreeIcon.Glyph(BrandIcons.kotlin, IconTint.Fixed(Color(0xFF7F52FF))))
         register("xml", TreeIcon.Glyph(BrandIcons.xml, IconTint.Fixed(Color(0xFF61AFEF))))
+        register("dart", TreeIcon.Glyph(BrandIcons.dart, IconTint.Fixed(Color(0xFF0175C2))))
+        register("flutter", TreeIcon.Glyph(BrandIcons.flutter, IconTint.Fixed(Color(0xFF54C5F8))))
         // ProGuard/R8 keep-rule files (`proguard-rules.pro`, `consumer-rules.pro`) — the shrinker config.
         register("proguard", TreeIcon.Badge("R8", Color(0xFF56B6C2)))
         // Data / config formats — colored letter badges, JSON as the braces glyph (it fits perfectly).
@@ -105,6 +107,8 @@ fun fileIconId(fileName: String): String = when {
     fileName.endsWith(".pro") -> "proguard"
     fileName.endsWith(".java") -> "java"
     fileName.endsWith(".kt") || fileName.endsWith(".kts") -> "kotlin"
+    fileName.endsWith(".dart") -> "dart"
+    fileName.endsWith(".flutter") -> "flutter"
     fileName.endsWith(".gradle") -> "gradle"
     fileName.endsWith(".xml") -> "xml"
     fileName.endsWith(".json") -> "json"
