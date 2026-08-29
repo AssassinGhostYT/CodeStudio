@@ -9,7 +9,8 @@ on:
 # Build the installable Android APK (:ide-android). Unlike the framework jobs, this needs the full
 # module set (CI_CORE_ONLY must stay unset) and the Android SDK; the runner's stock SDK plus the exact
 # platform AGP wants (android-36.1 for compileSdk=36 + compileSdkMinor=1) are provisioned with
-# setup-android. The `debug` variant is signed with the debug key so the artifact installs directly.
+# setup-android. The `profile` variant is non-debuggable, serves the real AdMob ids, and is signed with
+# the debug key so the artifact installs directly.
 env:
   JAVA_VERSION: "25"
 
@@ -19,7 +20,7 @@ concurrency:
 
 jobs:
   build:
-    name: assembleDebug
+    name: assembleProfile
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -46,13 +47,13 @@ jobs:
           mkdir -p ~/.gradle
           echo "kotlin.incremental=false" >> ~/.gradle/gradle.properties
 
-      - name: Build debug APK
-        run: ./gradlew :ide-android:assembleDebug --console=plain --stacktrace
+      - name: Build profile APK
+        run: ./gradlew :ide-android:assembleProfile --console=plain --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: codestudio-debug-apk
-          path: ide-android/build/outputs/apk/debug/*.apk
+          name: codestudio-profile-apk
+          path: ide-android/build/outputs/apk/profile/*.apk
           if-no-files-found: error
           retention-days: 30

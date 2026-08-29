@@ -40,10 +40,10 @@ jobs:
           tar -zxvf opencode.tar.gz -C agent-impl/files/opencode/agents/opencode/1.18.18/
           rm opencode.tar.gz
 
-      - name: Build debug APK
+      - name: Build profile APK
         run: |
           set -o pipefail
-          ./gradlew :ide-android:assembleDebug --stacktrace 2>&1 | tee /tmp/gradle.log
+          ./gradlew :ide-android:assembleProfile --stacktrace 2>&1 | tee /tmp/gradle.log
 
       - name: Report build errors
         if: ${{ always() }}
@@ -59,7 +59,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: codestudio-opencode-debug
+          name: codestudio-opencode-profile
           path: |
-            **/build/outputs/apk/debug/*.apk
+            **/build/outputs/apk/profile/*.apk
           if-no-files-found: error

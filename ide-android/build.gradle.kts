@@ -341,9 +341,9 @@ val testAdmobInterstitialUnitId = "ca-app-pub-3940256099942544/1033173712"
 // The real ids are baked in as the release defaults (AdMob ids are not secret — they ship inside every APK),
 // and stay overridable so a fork can point ads at its own AdMob account instead of the upstream one.
 val realAdmobAppId = (findProperty("ADMOB_APP_ID") as String?) ?: System.getenv("ADMOB_APP_ID")
-    ?: "ca-app-pub-7523005242346905~2985774451"
+    ?: "ca-app-pub-5858301436237272~6064071770"
 val realAdmobNativeUnitId = (findProperty("ADMOB_NATIVE_UNIT_ID") as String?) ?: System.getenv("ADMOB_NATIVE_UNIT_ID")
-    ?: "ca-app-pub-7523005242346905/7440024785"
+    ?: "ca-app-pub-5858301436237272/5840710498"
 // The real interstitial unit (full-screen "long build" ad). Baked in as the release default like the other
 // ids (AdMob ids aren't secret — they ship in every APK), overridable via -PADMOB_INTERSTITIAL_UNIT_ID or the
 // ADMOB_INTERSTITIAL_UNIT_ID env var so a fork can point at its own AdMob account.
@@ -461,11 +461,6 @@ android {
             // locally when no release keystore is present.
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
-            // This build is for on-device perf testing, so keep TEST ads (initWith(release) copied the real
-            // ids — undo that) — a tester must never click a live ad.
-            manifestPlaceholders["admobAppId"] = testAdmobAppId
-            buildConfigField("String", "AD_NATIVE_UNIT_ID", "\"$testAdmobNativeUnitId\"")
-            buildConfigField("String", "AD_INTERSTITIAL_UNIT_ID", "\"$testAdmobInterstitialUnitId\"")
         }
         // EXPERIMENTAL, non-shipping: an R8-minified build used only to measure how far the app's own
         // dex (~61% of the APK, mostly the bundled Kotlin compiler + IntelliJ platform) can shrink. The

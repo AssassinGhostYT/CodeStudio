@@ -34,15 +34,14 @@ enum class AdPlacement {
 
 /**
  * Platform advertising bridge the reusable UI can't express itself. Ads are a host concern (AdMob on
- * Android, none on desktop): the shared screens only ever ask the host to paint a native ad into a slot via
+ * Android, none on desktop): the shared screens only ever ask the host to paint an ad into a slot via
  * [NativeAd] and never link an ad SDK. The host supplies a concrete implementation to
  * [dev.ide.ui.CodeStudioApp]; [None] (the default) means "this platform has no ads".
  *
- * Ad slots are NATIVE — the host renders them inside the app's own card chrome (see
- * [dev.ide.ui.components.AdSlot]), never as banners. The one exception is a single full-screen interstitial
- * shown occasionally at natural breaks ([preloadInterstitial]/[showInterstitial]) — currently a long-running
- * build finishing its wait and a completed tutorial lesson. Whether ads are shown at all — native slots AND
- * that interstitial — is decided in common by [dev.ide.ui.ads.AdController] from the user's "show ads"
+ * The only slot that renders is the bottom [FOOTER] banner, painted by the host as a real AdMob banner;
+ * every other placement is gated off in [dev.ide.ui.components.AdSlot]. Full-screen interstitials
+ * ([preloadInterstitial]/[showInterstitial]) are no longer triggered by the shared UI. Whether the banner
+ * shows at all is decided in common by [dev.ide.ui.ads.AdController] from the user's "show ads"
  * preference; this port only reports whether an ad network is [available] and paints/presents the ad. There is
  * no purchase flow — removing ads is free (the toggle), and supporting the project is a plain donation link the
  * host opens itself.

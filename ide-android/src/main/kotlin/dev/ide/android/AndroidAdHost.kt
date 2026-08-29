@@ -24,6 +24,8 @@ import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdListener
 import com.google.android.gms.ads.AdLoader
 import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.FullScreenContentCallback
 import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.interstitial.InterstitialAd
@@ -56,7 +58,7 @@ private val webViewAvailable: Boolean by lazy {
  * Android advertising bridge for the shared UI (see [AdHost]).
  *
  * Renders real AdMob **native** ads. The ad unit id comes from `BuildConfig.AD_NATIVE_UNIT_ID` (test id in
- * debug/profile, the real id in release — wired in build.gradle.kts), and the app id from the manifest
+ * debug, the real id in release/profile — wired in build.gradle.kts), and the app id from the manifest
  * placeholder. While an ad is loading — or if loading fails — the slot shows the house "support us" ad, so the
  * placement is never empty. `MobileAds.initialize(...)` must have run first (see [MainActivity.onCreate]).
  *
@@ -147,6 +149,27 @@ class AndroidAdHost(
 
     @Composable
     override fun NativeAd(placement: AdPlacement, modifier: Modifier) {
+        // The lone bottom banner is a real AdMob BANNER (the ad unit the site created as a banner ad slot) —
+        // thin, auto-sized to the screen width, and the only ad that renders now. Everything else uses the
+        // native-ad path below (kept for reference; those placements are inactive).
+        if (placement == AdPlacement.FOOTER) {
+            val context = LocalContext.current
+            AndroidView(
+                modifier = modifier,
+                factory = { ctx ->
+                    val widthPx = ctx.resources.displayMetrics.widthPixels
+                    val adSize = AdSize.getCurrentOrientationInlineAdaptiveBannerAdSize(ctx, widthPx)
+                    AdView(ctx).apply {
+                        setAdSize(adSize)
+                        adUnitId = BuildConfig.AD_NATIVE_UNIT_ID
+                        // Guard against the missing-WebView / SDK-not-initialised case — the banner just
+                        // stays empty instead of the slot crashing the app.
+                        runCatching { loadAd(AdRequest.Builder().build()) }
+                    }
+                },
+            )
+            return
+        }
         val context = LocalContext.current
         var ad by remember(placement) { mutableStateOf<NativeAd?>(null) }
 
