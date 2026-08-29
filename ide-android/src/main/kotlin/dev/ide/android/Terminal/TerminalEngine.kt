@@ -15,22 +15,24 @@ import java.util.concurrent.Executors
 /**
  * The PRoot-backed Linux terminal engine.
  *
- * All assets are downloaded on FIRST use (nothing is bundled, keeping the APK small): the proot
- * binary + its runtime libs live under `<filesDir>/support/`, and an Ubuntu rootfs under
- * `<filesDir>/rootfs/`. Once present, tapping the terminal icon launches the session with the
- * canonical PRoot invocation — `--kill-on-exit --link2symlink --sysvipc -L -p -r rootfs
- * --change-id=0:0 --cwd=/root` with `/sdcard`, `/proc`, `/sys` and `/dev` bound in.
+ * The proot toolkit (proot + libtalloc/liblzma/libandroid-shmem, ~450 KB in total) ships INSIDE the
+ * APK under `assets/terminal/` — nothing to fetch, no dead URLs. Only the Ubuntu rootfs is
+ * downloaded, on FIRST use (a ~76 MB tarball that would blow up the APK). The toolkit lives under
+ * `<filesDir>/support/` and the rootfs under `<filesDir>/rootfs/`. Once present, tapping the
+ * terminal icon launches the session with the canonical PRoot invocation — `--kill-on-exit
+ * --link2symlink --sysvipc -L -p -r rootfs --change-id=0:0 --cwd=/root` with `/sdcard`, `/proc`,
+ * `/sys` and `/dev` bound in.
  */
 object TerminalEngine {
 
-    // Asset sources — swap these for the exact URLs you host the files at (the download layer
-    // streams whatever is served, then `support/` files are chmod +x'd).
-    private const val PROOT_URL =
-        "https://github.com/Termux/termux-packages/releases/download/package-proot/proot_5.4.0_aarch64.deb"
-    private const val LIBTALLOC_URL =
-        "https://raw.githubusercontent.com/Termux/termux-packages/master/packages/libtalloc/build.sh"
-    private const val LIBLZMA_URL =
-        "https://raw.githubusercontent.com/Termux/termux-packages/master/packages/liblzma/build.sh"
+    /** Files shipped inside the APK under `assets/terminal/`, copied to `support/` on first use. */
+    private val TOOLKIT_ASSETS = listOf(
+        "proot",
+        "libtalloc.so.2",
+        "liblzma.so.5",
+        "libandroid-shmem.so",
+    )
+
     private const val ROOTFS_URL =
         "https://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04.5-base-arm64.tar.gz"
 
@@ -54,12 +56,14 @@ object TerminalEngine {
     val output: StateFlow<String> = _output
 
     private var filesDir: File? = null
+    private var appContext: Context? = null
     private var process: Process? = null
     private val pool = Executors.newFixedThreadPool(2) { r ->
         Thread(r, "terminal-io").apply { isDaemon = true }
     }
 
     fun init(context: Context) {
+        appContext = context.applicationContext
         filesDir = context.applicationContext.filesDir
     }
 
@@ -72,23 +76,36 @@ object TerminalEngine {
         if (_setup.value is SetupState.Downloading || _setup.value is SetupState.Extracting) return@withContext
         try {
             val rootfs = rootfsDir()
-            if (!prootExecutable().exists()) download(PROOT_URL, File(supportDir(), "proot"))
-            if (!File(supportDir(), "libtalloc.so.2").exists()) download(LIBTALLOC_URL, File(supportDir(), "libtalloc.so.2"))
-            if (!File(supportDir(), "liblzma.so.5").exists()) download(LIBLZMA_URL, File(supportDir(), "liblzma.so.5"))
+            ensureToolkit()
             if (!File(rootfs, "/bin/bash").exists()) {
+                _setup.value = SetupState.Downloading("Downloading rootfs (~76 MB)…")
+                onProgress("Downloading rootfs…")
+                val archive = downloadToCache(ROOTFS_URL, ROOTFS_FILE, onProgress)
                 _setup.value = SetupState.Extracting
                 onProgress("Extracting rootfs…")
-                val archive = downloadToCache(ROOTFS_URL, ROOTFS_FILE, onProgress)
                 rootfs.mkdirs()
                 TarGz.extract(archive, rootfs)
                 archive.delete()
             }
-            prootExecutable().setExecutable(true, true)
-            File(supportDir(), "libtalloc.so.2").setExecutable(true, true)
-            File(supportDir(), "liblzma.so.5").setExecutable(true, true)
+            TOOLKIT_ASSETS.forEach { File(supportDir(), it).setExecutable(true, true) }
             _setup.value = SetupState.Ready
         } catch (e: Exception) {
             _setup.value = SetupState.Failed(e.message ?: e::class.simpleName ?: "Setup failed")
+        }
+    }
+
+    /** Copies the APK-bundled proot + libs into `support/` if (any of them) is missing. */
+    private fun ensureToolkit() {
+        val context = appContext ?: return // assets not reachable before init() — still fine
+        val support = supportDir()
+        if (TOOLKIT_ASSETS.all { name -> File(support, name).exists() && File(support, name).length() > 0 }) return
+        _setup.value = SetupState.Extracting
+        for (name in TOOLKIT_ASSETS) {
+            val target = File(support, name)
+            if (target.exists() && target.length() > 0) continue
+            context.assets.open("terminal/$name").use { input ->
+                target.outputStream().use { input.copyTo(it) }
+            }
         }
     }
 
@@ -171,10 +188,6 @@ object TerminalEngine {
     }
 
     private fun prootExecutable(): File = File(supportDir(), "proot")
-
-    private fun download(url: String, target: File) {
-        downloadTo(url, target) { _setup.value = SetupState.Downloading("Downloading ${target.name}") }
-    }
 
     private fun downloadToCache(url: String, name: String, onProgress: (String) -> Unit): File {
         val cacheDir = File(filesDir ?: error("TerminalEngine.init() not called"), "cache").apply { mkdirs() }

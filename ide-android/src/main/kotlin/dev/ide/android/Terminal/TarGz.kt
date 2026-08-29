@@ -45,9 +45,10 @@ internal object TarGz {
                 when (type) {
                     // GNU long-name extension: the following entry is the real path of the next header.
                     'L' -> {
-                        pendingName = String(header, NAME, 100, Charsets.UTF_8).trimEnd('\u0000', ' ') +
-                                readTextBlock(input, size).trimEnd('\u0000')
-                        skipData(input, size)
+                        pendingName = readTextBlock(input, size).trimEnd('\u0000')
+                        // readTextBlock already consumed `size` bytes — skip only the trailing padding.
+                        val padded = (size + (BLOCK - 1)) / BLOCK * BLOCK
+                        skipData(input, padded - size)
                     }
                     'x', 'g' -> skipData(input, size) // PAX extended headers: metadata only, drop.
                     'K' -> skipData(input, size)      // GNU long link name: not needed for extraction.
