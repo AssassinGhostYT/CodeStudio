@@ -66,9 +66,9 @@ object TreeIcons {
         register("folder", TreeIcon.Folder(CaIcons.folder, CaIcons.folderOpen, IconTint.Secondary))
         register("manifest", TreeIcon.Glyph(CaIcons.file, IconTint.Fixed(androidGreen)))
         register("file", fallback)
-        register("java", TreeIcon.Badge("J", Color(0xFFD9A066)))
-        register("kotlin", TreeIcon.Badge("K", Color(0xFFCD7EE0)))
-        register("xml", TreeIcon.Badge("‹›", Color(0xFF61AFEF)))
+        register("java", TreeIcon.Glyph(BrandIcons.java, IconTint.Fixed(Color(0xFFE76F00))))
+        register("kotlin", TreeIcon.Glyph(BrandIcons.kotlin, IconTint.Fixed(Color(0xFF7F52FF))))
+        register("xml", TreeIcon.Glyph(BrandIcons.xml, IconTint.Fixed(Color(0xFF61AFEF))))
         // ProGuard/R8 keep-rule files (`proguard-rules.pro`, `consumer-rules.pro`) — the shrinker config.
         register("proguard", TreeIcon.Badge("R8", Color(0xFF56B6C2)))
         // Data / config formats — colored letter badges, JSON as the braces glyph (it fits perfectly).

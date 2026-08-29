@@ -91,7 +91,9 @@ import dev.ide.agent.ui.generated.resources.chat_send
 import dev.ide.agent.ui.generated.resources.chat_stop
 import dev.ide.agent.ui.generated.resources.chat_thinking
 import dev.ide.agent.ui.generated.resources.chat_title
+import dev.ide.ui.icons.BrandIcons
 import dev.ide.ui.icons.CaIcons
+import dev.ide.ui.icons.TreeIcons
 import dev.ide.ui.markdown.Markdown
 import dev.ide.ui.screens.CodeSample
 import dev.ide.ui.theme.Ca
@@ -614,7 +616,7 @@ private fun SparkleBadge(size: Int, animated: Boolean = false) {
             ),
         contentAlignment = Alignment.Center,
     ) {
-        Icon(CaIcons.sparkle, null, Modifier.size((size * 0.6f).dp).scale(scale), tint = Ca.colors.textOnAccent)
+        Icon(BrandIcons.assistant, null, Modifier.size((size * 0.6f).dp).scale(scale), tint = Ca.colors.textOnAccent)
     }
 }
 
