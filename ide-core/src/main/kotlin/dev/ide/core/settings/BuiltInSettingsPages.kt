@@ -140,8 +140,13 @@ object BuiltInSettingsPages {
                 ),
             ),
             SettingControl.Color(
-                "accentColor", "Custom color", "Pick any color; the full Material You theme regenerates from it",
+                "accentColor", "Color superior", "Pick the top color; the full Material You theme regenerates from it",
                 default = d.accentColor,
+            ),
+            SettingControl.Color(
+                "accentColorBottom", "Color inferior (degradado)",
+                "Pick a second bottom color; the app background fades from the top color into this one",
+                default = d.accentColorBottom,
             ),
         )
     }

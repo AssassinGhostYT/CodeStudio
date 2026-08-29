@@ -1588,6 +1588,12 @@ data class UiSettings(
     val accent: UiAccent = UiAccent.Violet,
     /** The seed color for [UiAccent.Custom], as an `0xAARRGGBB` ARGB long. Ignored unless accent is Custom. */
     val customAccentColor: Long = 0xFF8B5CF6L,
+    /**
+     * The bottom color of the vertical background gradient for [UiAccent.Custom], as an `0xAARRGGBB` ARGB
+     * long. When it differs from [customAccentColor] the whole app background is painted as a vertical
+     * gradient (top color → bottom color); ignored unless accent is Custom.
+     */
+    val customAccentColorBottom: Long = 0xFF8B5CF6L,
     val editorFontScale: Float = 1f,
     /** "jetbrains" (bundled JetBrains Mono) | "monospace" (system monospace). */
     val codeFont: String = "jetbrains",

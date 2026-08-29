@@ -8,6 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import dev.ide.ui.ads.AdController
 import dev.ide.ui.backend.AdHost
@@ -560,6 +561,18 @@ internal fun accentOf(settings: UiSettings): CaAccent = when (settings.accent) {
 /** The color a Custom accent seeds the whole expressive theme from, or null for every other accent. */
 internal fun seedColorOf(settings: UiSettings): Color? =
     if (settings.accent == UiAccent.Custom) Color(settings.customAccentColor) else null
+
+/**
+ * The whole-app background as a vertical [Brush], or null. For the Custom accent with a distinct bottom
+ * color this is a top→bottom gradient (top = the custom seed, bottom = the picked lower color); otherwise
+ * null so the theme's solid background is used.
+ */
+internal fun backgroundBrushOf(settings: UiSettings): Brush? {
+    if (settings.accent != UiAccent.Custom) return null
+    val top = Color(settings.customAccentColor)
+    val bottom = Color(settings.customAccentColorBottom)
+    return if (top != bottom) Brush.verticalGradient(listOf(top, bottom)) else null
+}
 
 /** Whether a settings profile resolves to the dark theme, given the platform's current dark-mode signal. */
 internal fun isDarkTheme(settings: UiSettings, systemDark: Boolean): Boolean = when (settings.themeMode) {

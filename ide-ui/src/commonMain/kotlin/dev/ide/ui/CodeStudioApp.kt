@@ -109,6 +109,10 @@ fun CodeStudioApp(
         is ImportError.GradleFailed -> error.message.ifBlank { importGradleFailedMsg }
     }
 
+    // The optional Custom-accent vertical background gradient (top → bottom). Null → the theme's solid
+    // background is used instead.
+    val backgroundBrush = backgroundBrushOf(app.settings)
+
     CodeStudioTheme(
         dark = dark,
         accent = accentOf(app.settings),
@@ -128,7 +132,11 @@ fun CodeStudioApp(
         CompositionLocalProvider(LocalAds provides app.adController) {
             // Single thin banner pinned to the bottom of the app — the only ad slot that renders now. It is
             // gated by the same "Show ads" toggle (adsActive), so users can turn it off.
-            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Surface(
+                Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background,
+                brush = backgroundBrush,
+            ) {
                 Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                     AppNavGraph(
                         app = app,
