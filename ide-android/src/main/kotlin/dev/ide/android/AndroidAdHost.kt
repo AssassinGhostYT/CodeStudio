@@ -164,7 +164,7 @@ class AndroidAdHost(
                     // Anchored adaptive banner, per the AdMob guide: width = the container's real width, flexible
                     // height, pinned to the bottom (this is the FOOTER placement). Uses the user's own real
                     // banner unit (BuildConfig.AD_BANNER_UNIT_ID is never a test id).
-                    val adSize = AdSize.getAnchoredAdaptiveBannerAdSize(ctx, widthPx)
+                    val adSize = AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(ctx, widthPx)
                     AdView(ctx).apply {
                         setAdSize(adSize)
                         adUnitId = BuildConfig.AD_BANNER_UNIT_ID

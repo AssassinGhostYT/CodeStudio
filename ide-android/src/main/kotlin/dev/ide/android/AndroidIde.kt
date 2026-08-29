@@ -8,6 +8,7 @@ import dev.ide.analytics.AnalyticsEvent
 import dev.ide.analytics.DeviceInfo
 import dev.ide.analytics.EventCategory
 import dev.ide.analytics.Events
+import dev.ide.android.Terminal.TerminalPlugin
 import dev.ide.android.preview.SwingAwareProgramInterpreter
 import dev.ide.build.jvm.run.VmProgramInterpreter
 import dev.ide.analytics.impl.AnalyticsLogSink

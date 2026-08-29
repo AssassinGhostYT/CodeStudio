@@ -4,11 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import dev.ide.ui.icons.CaIcons
-import dev.ide.ui.theme.Ide
 
 /**
  * The terminal body shown inside the BOTTOM console tab. Shows setup/download progress until the
@@ -93,7 +92,7 @@ private fun StatusLine(text: String, error: Boolean = false) {
 }
 
 @Composable
-private fun Output(readout: String, running: Boolean) {
+private fun ColumnScope.Output(readout: String, running: Boolean) {
     val scroll = rememberScrollState()
     Box(Modifier.weight(1f).fillMaxWidth()) {
         SelectionContainer {
