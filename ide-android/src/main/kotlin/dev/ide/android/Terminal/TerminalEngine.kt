@@ -118,7 +118,7 @@ object TerminalEngine {
     }
 
     /** Also re-applies the exec bit on every start, since data dirs can lose modes across sessions. */
-    private fun startSession() {
+    fun startSession() {
         if (process?.isAlive == true) return
         val rootfs = rootfsDir()
         val support = supportDir()
