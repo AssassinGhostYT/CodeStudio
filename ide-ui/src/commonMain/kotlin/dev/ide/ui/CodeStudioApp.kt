@@ -1,6 +1,8 @@
 package dev.ide.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -132,10 +134,10 @@ fun CodeStudioApp(
         CompositionLocalProvider(LocalAds provides app.adController) {
             // Single thin banner pinned to the bottom of the app — the only ad slot that renders now. It is
             // gated by the same "Show ads" toggle (adsActive), so users can turn it off.
-            Surface(
-                Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background,
-                brush = backgroundBrush,
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(backgroundBrush ?: MaterialTheme.colorScheme.background),
             ) {
                 Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                     AppNavGraph(
