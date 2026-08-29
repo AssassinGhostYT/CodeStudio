@@ -120,6 +120,7 @@ We never collect your code, file or project names, which features you use, or an
     <string name="export_retry">Try again</string>
     <string name="join_the_community">Join the community</string>
     <string name="join_the_community_content">Chat, get help, and share what you build on Discord.</string>
+    <string name="discord_coming_soon">Coming soon — the Discord community is on its way</string>
     <string name="support_title">Support CodeStudio</string>
     <string name="support_content">Built in my free time and kept free for everyone. If it helps you, a sponsor or a star means a lot.</string>
     <string name="support_chip_free">100% free</string>

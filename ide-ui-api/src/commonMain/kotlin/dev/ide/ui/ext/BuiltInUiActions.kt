@@ -18,9 +18,9 @@ object BuiltInUiPlugin : UiPlugin {
         scope.action(
             SimpleUiAction(
                 "ui.hub",
-                "Settings & Tools",
+                "Ajustes y Herramientas",
                 moreAndPalette,
-                "Settings · code style · SDK manager · keystore manager",
+                "Ajustes · estilo de código · gestor de SDK · gestor de claves",
                 "gear",
                 10
             ) {
@@ -30,9 +30,9 @@ object BuiltInUiPlugin : UiPlugin {
         scope.action(
             SimpleUiAction(
                 "ui.modules",
-                "Modules",
+                "Módulos",
                 more,
-                "Add/remove modules · Java version · dependencies · repositories",
+                "Añadir/quitar módulos · versión de Java · dependencias · repositorios",
                 "layers",
                 20
             ) {
@@ -42,7 +42,7 @@ object BuiltInUiPlugin : UiPlugin {
         scope.action(
             SimpleUiAction(
                 "ui.dependencies",
-                "Manage dependencies",
+                "Gestionar dependencias",
                 setOf(palette),
                 iconId = "layers",
                 order = 25
@@ -53,9 +53,9 @@ object BuiltInUiPlugin : UiPlugin {
         scope.action(
             SimpleUiAction(
                 "ui.reindex",
-                "Re-index project",
+                "Reindexar proyecto",
                 more,
-                "Rebuild symbol & completion indexes",
+                "Reconstruir índices de símbolos y finalización",
                 "refresh",
                 40
             ) {
@@ -65,9 +65,9 @@ object BuiltInUiPlugin : UiPlugin {
         scope.action(
             SimpleUiAction(
                 "ui.logs",
-                "View logs",
+                "Ver registros",
                 more,
-                "Editor, analysis & build logs — share when something's off",
+                "Registros de editor, análisis y compilación — compártelos si algo falla",
                 "terminal",
                 50
             ) {
@@ -77,9 +77,9 @@ object BuiltInUiPlugin : UiPlugin {
         scope.action(
             SimpleUiAction(
                 "ui.toggleTheme",
-                "Toggle theme",
+                "Cambiar tema",
                 moreAndPalette,
-                "Switch between light and dark",
+                "Alternar entre claro y oscuro",
                 "eye",
                 60
             ) {
@@ -89,9 +89,9 @@ object BuiltInUiPlugin : UiPlugin {
         scope.action(
             SimpleUiAction(
                 "ui.closeProject",
-                "Close project",
+                "Cerrar proyecto",
                 more,
-                "Back to all projects",
+                "Volver a todos los proyectos",
                 "close",
                 70
             ) {

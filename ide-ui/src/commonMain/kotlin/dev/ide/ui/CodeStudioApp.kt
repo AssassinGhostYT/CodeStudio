@@ -1,8 +1,6 @@
 package dev.ide.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -110,10 +108,6 @@ fun CodeStudioApp(
         is ImportError.GradleFailed -> error.message.ifBlank { importGradleFailedMsg }
     }
 
-    // The optional Custom-accent vertical background gradient (top → bottom). Null → the theme's solid
-    // background is used instead.
-    val backgroundBrush = backgroundBrushOf(app.settings)
-
     CodeStudioTheme(
         dark = dark,
         accent = accentOf(app.settings),
@@ -133,12 +127,7 @@ fun CodeStudioApp(
         CompositionLocalProvider(LocalAds provides app.adController) {
             // Single thin banner pinned to the bottom of the app — the only ad slot that renders now. It is
             // gated by the same "Show ads" toggle (adsActive), so users can turn it off.
-            Box(
-                Modifier.fillMaxSize().then(
-                    if (backgroundBrush != null) Modifier.background(backgroundBrush)
-                    else Modifier.background(MaterialTheme.colorScheme.background),
-                ),
-            ) {
+            Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
                 Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                     AppNavGraph(
                         app = app,

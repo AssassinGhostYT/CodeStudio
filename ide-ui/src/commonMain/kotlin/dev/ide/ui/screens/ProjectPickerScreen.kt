@@ -28,6 +28,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -35,6 +37,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +70,7 @@ import dev.ide.ui.generated.resources.dismiss
 import dev.ide.ui.generated.resources.picker_delete_project
 import dev.ide.ui.generated.resources.settings_hub_title
 import dev.ide.ui.generated.resources.backup
+import dev.ide.ui.generated.resources.discord_coming_soon
 import dev.ide.ui.generated.resources.cancel
 import dev.ide.ui.generated.resources.compatibility
 import dev.ide.ui.generated.resources.delete
@@ -104,6 +108,7 @@ import dev.ide.ui.platform.isMobilePlatform
 import dev.ide.ui.platform.nowMillis
 import dev.ide.ui.theme.Ca
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
@@ -137,11 +142,15 @@ fun ProjectPickerScreen(
     loadIcon: (suspend (ProjectInfo) -> UiProjectIcon?)? = null,
 ) {
     var pendingDelete by remember { mutableStateOf<ProjectInfo?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val discordComingSoon = stringResource(Res.string.discord_coming_soon)
     val compatibilityCount = projects.count { it.compatibility }
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
         modifier = Modifier.fillMaxSize().nestedScroll(scroll.nestedScrollConnection),
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(Res.string.projects)) },
@@ -183,7 +192,9 @@ fun ProjectPickerScreen(
                 if (showLegacyRecovery && compatibilityCount > 0) {
                     LegacyRecoveryBanner(count = compatibilityCount, onDismiss = onDismissLegacyRecovery)
                 }
-                if (onJoinDiscord != null) DiscordCard(onJoinDiscord)
+                if (onJoinDiscord != null) DiscordCard {
+                    scope.launch { snackbarHostState.showSnackbar(discordComingSoon) }
+                }
 
                 if (projects.isEmpty()) {
                     Text(stringResource(Res.string.no_project_yet), color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.bodyMedium)

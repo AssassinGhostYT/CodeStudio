@@ -120,6 +120,7 @@ Nunca recopilamos su código, nombres de archivos o proyectos, qué funciones us
     <string name="export_retry">Reintentar</string>
     <string name="join_the_community">Únete a la comunidad</string>
     <string name="join_the_community_content">Chatea, obtén ayuda y comparte lo que construyes en Discord.</string>
+    <string name="discord_coming_soon">Próximamente — la comunidad de Discord llega pronto</string>
     <string name="support_title">Apoya a CodeStudio</string>
     <string name="support_content">Construido en mi tiempo libre y mantenido gratuito para todos. Si te ayuda, un patrocinio o una estrella significan mucho.</string>
     <string name="support_chip_free">100% gratis</string>

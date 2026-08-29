@@ -285,9 +285,7 @@ private fun ProjectPickerRoute(
         } else null,
         onBackup = app::backupProjects,
         onOpenHub = { app.openHub(Screen.Projects) },
-        onJoinDiscord = if (fileActions.canOpenUrl) {
-            { fileActions.openUrl(BetaInfo.DISCORD_URL) }
-        } else null,
+        onJoinDiscord = { }, // The Discord community is coming soon — the Projects card shows a snackbar.
         onSponsor = if (fileActions.canOpenUrl) {
             { fileActions.openUrl(BetaInfo.SPONSOR_URL) }
         } else null,
@@ -323,8 +321,6 @@ private fun LearnRoute(app: CodeStudioAppState, fileActions: FileActions) {
         onOpenDocs = if (fileActions.canOpenUrl) {
             { fileActions.openUrl(BetaInfo.REPO_URL) }
         } else null,
-        onJoinDiscord = if (fileActions.canOpenUrl) {
-            { fileActions.openUrl(BetaInfo.DISCORD_URL) }
-        } else null,
+        onJoinDiscord = { }, // The Discord community is coming soon — no external invite is opened.
     )
 }

@@ -117,123 +117,118 @@ object BuiltInSettingsPages {
     )
 
 
-    private val appearance = page(APPEARANCE, "Appearance", "eye", 0) {
+    private val appearance = page(APPEARANCE, "Apariencia", "eye", 0) {
         listOf(
             SettingControl.Choice(
-                "themeMode", "Theme", "Use a fixed theme or follow the operating system",
+                "themeMode", "Tema", "Usar un tema fijo o seguir el sistema operativo",
                 default = d.themeMode,
                 options = listOf(
-                    SettingControl.Choice.Option(IdeSettings.THEME_LIGHT, "Light"),
-                    SettingControl.Choice.Option(IdeSettings.THEME_DARK, "Dark"),
-                    SettingControl.Choice.Option(IdeSettings.THEME_SYSTEM, "System"),
+                    SettingControl.Choice.Option(IdeSettings.THEME_LIGHT, "Claro"),
+                    SettingControl.Choice.Option(IdeSettings.THEME_DARK, "Oscuro"),
+                    SettingControl.Choice.Option(IdeSettings.THEME_SYSTEM, "Sistema"),
                 ),
             ),
             SettingControl.Choice(
-                "accent", "Accent", "The interface highlight color the whole expressive theme is generated from",
+                "accent", "Color de acento", "El color de resaltado del que se genera todo el tema",
                 default = d.accent,
                 options = listOf(
-                    SettingControl.Choice.Option(IdeSettings.ACCENT_DYNAMIC, "Dynamic"),
-                    SettingControl.Choice.Option(IdeSettings.ACCENT_VIOLET, "Violet"),
-                    SettingControl.Choice.Option(IdeSettings.ACCENT_TEAL, "Teal"),
-                    SettingControl.Choice.Option(IdeSettings.ACCENT_ORANGE, "Orange (Legacy)"),
-                    SettingControl.Choice.Option(IdeSettings.ACCENT_CUSTOM, "Custom"),
+                    SettingControl.Choice.Option(IdeSettings.ACCENT_DYNAMIC, "Dinámico"),
+                    SettingControl.Choice.Option(IdeSettings.ACCENT_VIOLET, "Violeta"),
+                    SettingControl.Choice.Option(IdeSettings.ACCENT_TEAL, "Verde azulado"),
+                    SettingControl.Choice.Option(IdeSettings.ACCENT_ORANGE, "Naranja (antiguo)"),
+                    SettingControl.Choice.Option(IdeSettings.ACCENT_CUSTOM, "Personalizado"),
                 ),
             ),
             SettingControl.Color(
-                "accentColor", "Color superior", "Pick the top color; the full Material You theme regenerates from it",
+                "accentColor", "Color personalizado", "Elige cualquier color; el tema se regenera a partir de él",
                 default = d.accentColor,
-            ),
-            SettingControl.Color(
-                "accentColorBottom", "Color inferior (degradado)",
-                "Pick a second bottom color; the app background fades from the top color into this one",
-                default = d.accentColorBottom,
             ),
         )
     }
 
     private val editor = page(EDITOR, "Editor", "code", 10) {
         listOf(
-            SettingControl.IntSlider("fontScale", "Font size", default = (d.editorFontScale * 100).toInt(), min = 70, max = 200, step = 5, unit = "%"),
+            SettingControl.IntSlider("fontScale", "Tamaño de letra", default = (d.editorFontScale * 100).toInt(), min = 70, max = 200, step = 5, unit = "%"),
             SettingControl.Choice(
-                "codeFont", "Code font",
+                "codeFont", "Fuente de código",
                 default = d.codeFont,
                 options = listOf(
                     SettingControl.Choice.Option(IdeSettings.CODE_FONT_JETBRAINS, "JetBrains Mono"),
-                    SettingControl.Choice.Option(IdeSettings.CODE_FONT_MONOSPACE, "System monospace"),
+                    SettingControl.Choice.Option(IdeSettings.CODE_FONT_MONOSPACE, "Monoespaciada del sistema"),
                 ),
             ),
-            SettingControl.Toggle("fontLigatures", "Font ligatures", "Render programming ligatures (-> != >= …) when the code font has them", default = d.fontLigatures),
-            SettingControl.Toggle("inlayHints", "Inlay hints", "Inferred types and parameter-name hints, shown inline", default = d.inlayHints),
-            SettingControl.Toggle("semanticHighlighting", "Semantic highlighting", "Type-aware coloring layered over the lexer", default = d.semanticHighlighting),
-            SettingControl.Toggle("codeFolding", "Code folding", "Fold imports, bodies, and block comments", default = d.codeFolding),
-            SettingControl.Toggle("wordWrap", "Word wrap", "Soft-wrap long lines at the viewport edge instead of scrolling horizontally", default = d.wordWrap),
-            SettingControl.Toggle("wrapIndent", "Indent wrapped lines", "Align a wrapped line's continuation rows to its indentation (when word wrap is on)", default = d.wrapIndent),
-            SettingControl.Toggle("horizontalScrollbar", "Horizontal scrollbar", "Show a draggable bar along the bottom edge while a line runs past the view (word wrap leaves nothing to scroll)", default = d.horizontalScrollbar),
-            SettingControl.Toggle("twoAxisScroll", "Two-axis scrolling", "Drag in any direction to scroll both axes at once (touch)", default = d.twoAxisScroll, group = "Gestures"),
-            SettingControl.Toggle("pinchZoom", "Pinch to zoom", "Pinch with two fingers to change the code font size", default = d.pinchZoom, group = "Gestures"),
-            SettingControl.Toggle("softKeyboardSuggestions", "Keyboard suggestions", "Let the soft keyboard autocorrect, suggest, and auto-space (a normal keyboard). Turn off for raw code input, so a typed '.' doesn't get an auto-inserted space, at the cost of the suggestion strip.", default = d.softKeyboardSuggestions, group = "Keyboard"),
+            SettingControl.Toggle("fontLigatures", "Ligaduras de fuente", "Dibujar ligaduras de programación (-> != >= …) cuando la fuente las tiene", default = d.fontLigatures),
+            SettingControl.Toggle("inlayHints", "Sugerencias incrustadas", "Tipos inferidos y nombres de parámetros, mostrados en línea", default = d.inlayHints),
+            SettingControl.Toggle("semanticHighlighting", "Resaltado semántico", "Coloreado por tipo superpuesto al analizador", default = d.semanticHighlighting),
+            SettingControl.Toggle("codeFolding", "Plegado de código", "Plegar imports, cuerpos y comentarios de bloque", default = d.codeFolding),
+            SettingControl.Toggle("wordWrap", "Ajuste de línea", "Ajustar las líneas largas al borde de la vista en vez de desplazarse en horizontal", default = d.wordWrap),
+            SettingControl.Toggle("wrapIndent", "Indentar líneas ajustadas", "Alinear las continuaciones de una línea ajustada con su sangría (cuando el ajuste está activo)", default = d.wrapIndent),
+            SettingControl.Toggle("horizontalScrollbar", "Barra de desplazamiento horizontal", "Mostrar una barra en el borde inferior cuando una línea supera la vista (el ajuste no deja nada que desplazar)", default = d.horizontalScrollbar),
+            SettingControl.Toggle("twoAxisScroll", "Desplazamiento en dos ejes", "Arrastrar en cualquier dirección para desplazar ambos ejes a la vez (táctil)", default = d.twoAxisScroll, group = "Gestos"),
+            SettingControl.Toggle("pinchZoom", "Pellizcar para hacer zoom", "Pellizca con dos dedos para cambiar el tamaño de la fuente", default = d.pinchZoom, group = "Gestos"),
+            SettingControl.Toggle("softKeyboardSuggestions", "Sugerencias del teclado", "Deja que el teclado autocorrija, sugiera y añada espacios (un teclado normal). Desactívalo para escribir código tal cual, para que un '.' escrito no reciba un espacio añadido automáticamente, a costa de la franja de sugerencias.", default = d.softKeyboardSuggestions, group = "Teclado"),
         )
     }
 
-    private val completion = page(COMPLETION, "Code Completion", "sparkle", 20) {
+    private val completion = page(COMPLETION, "Finalización de código", "sparkle", 20) {
         listOf(
-            SettingControl.Toggle("autoPopup", "Auto-show suggestions", "Pop the list up while typing (off = Ctrl-Space only)", default = d.completionAutoPopup),
-            SettingControl.Toggle("postfixTemplates", "Postfix templates", "Offer .val / .if / .notnull / … completions", default = d.postfixTemplates),
-            SettingControl.Toggle("wordCompletion", "Word completion", "Offer words already in the file as a fallback", default = d.wordCompletion),
-            SettingControl.IntSlider("delayMs", "Auto-popup delay", "How long after a keystroke the list appears", default = d.completionDelayMs, min = IdeSettings.MIN_COMPLETION_DELAY_MS, max = IdeSettings.MAX_COMPLETION_DELAY_MS, step = 10, unit = "ms", advanced = true),
-            SettingControl.IntSlider("maxItems", "Maximum suggestions", default = d.completionMaxItems, min = IdeSettings.MIN_COMPLETION_MAX_ITEMS, max = IdeSettings.MAX_COMPLETION_MAX_ITEMS, step = 10, advanced = true),
+            SettingControl.Toggle("autoPopup", "Mostrar sugerencias automáticamente", "Mostrar la lista mientras escribes (off = solo Ctrl-Espacio)", default = d.completionAutoPopup),
+            SettingControl.Toggle("postfixTemplates", "Plantillas postfijas", "Ofrecer finalizaciones .val / .if / .notnull / …", default = d.postfixTemplates),
+            SettingControl.Toggle("wordCompletion", "Finalización de palabras", "Ofrecer las palabras ya presentes en el archivo como alternativa", default = d.wordCompletion),
+            SettingControl.IntSlider("delayMs", "Retardo de aparición", "Cuánto tiempo tras una pulsación aparece la lista", default = d.completionDelayMs, min = IdeSettings.MIN_COMPLETION_DELAY_MS, max = IdeSettings.MAX_COMPLETION_DELAY_MS, step = 10, unit = "ms", advanced = true),
+            SettingControl.IntSlider("maxItems", "Máximo de sugerencias", default = d.completionMaxItems, min = IdeSettings.MIN_COMPLETION_MAX_ITEMS, max = IdeSettings.MAX_COMPLETION_MAX_ITEMS, step = 10, advanced = true),
         )
     }
 
-    private val analysis = page(ANALYSIS, "Analysis & Inspections", "lightbulb", 30) {
+    private val analysis = page(ANALYSIS, "Análisis e inspecciones", "lightbulb", 30) {
         listOf(
-            SettingControl.Toggle("onTheFly", "Analyze on the fly", "Show diagnostics as you type (off = on build only)", default = d.analyzeOnTheFly),
-            SettingControl.IntSlider("reparseDelayMs", "Reparse delay", "Quiet period after a keystroke before re-analysis", default = d.reparseDelayMs, min = IdeSettings.MIN_REPARSE_DELAY_MS, max = IdeSettings.MAX_REPARSE_DELAY_MS, step = 50, unit = "ms", advanced = true),
-            SettingControl.Toggle(PERF_LOGGING, "Log analysis timings", "Diagnostic: write per-pass (semantic / diagnostics / folds / inlay / previews) and per-stage timings to the log so you can find what makes a file slow. Read them in Privacy → View logs. Off by default.", default = d.analysisPerfLogging, advanced = true),
+            SettingControl.Toggle("onTheFly", "Analizar al instante", "Mostrar diagnósticos mientras escribes (off = solo al compilar)", default = d.analyzeOnTheFly),
+            SettingControl.IntSlider("reparseDelayMs", "Retardo de reanálisis", "Periodo de espera tras una pulsación antes de reanalizar", default = d.reparseDelayMs, min = IdeSettings.MIN_REPARSE_DELAY_MS, max = IdeSettings.MAX_REPARSE_DELAY_MS, step = 50, unit = "ms", advanced = true),
+            SettingControl.Toggle(PERF_LOGGING, "Registrar tiempos de análisis", "Diagnóstico: escribe al registro los tiempos por pasada (semántica / diagnóstico / pliegues / incrustados / vistas previas) y por etapa para localizar qué hace lento un archivo. Léelos en Privacidad → Ver registros. Desactivado por defecto.", default = d.analysisPerfLogging, advanced = true),
         )
     }
 
     // Per-project: whether preview code may escape the sandbox is a property of the project you're editing
     // (your own app vs. an untrusted sample), not of the device. Applies to previews opened after a change.
-    private val preview = page(PREVIEW, "Preview", "image", 35, scope = SettingsScope.PROJECT) {
+    private val preview = page(PREVIEW, "Vista previa", "image", 35, scope = SettingsScope.PROJECT) {
         listOf(
             SettingControl.Toggle(
-                SANDBOX_FILE_IO, "Block file access",
-                "Stop previewed code from reading or writing files (java.io / java.nio / kotlin.io). Blocked calls return null and are listed on the preview's problem chip. Applies to newly opened previews.",
-                default = true, group = "Preview sandbox",
+                SANDBOX_FILE_IO, "Bloquear acceso a archivos",
+                "Evitar que el código en vista previa lea o escriba archivos (java.io / java.nio / kotlin.io). Las llamadas bloqueadas devuelven null y aparecen en el indicador de la vista previa. Se aplica a las vistas previas abiertas después del cambio.",
+                default = true, group = "Aislar en vista previa",
             ),
             SettingControl.Toggle(
-                SANDBOX_NETWORK, "Block network access",
-                "Stop previewed code from opening sockets or HTTP connections (java.net, OkHttp, Ktor).",
-                default = true, group = "Preview sandbox",
+                SANDBOX_NETWORK, "Bloquear acceso a la red",
+                "Evitar que el código en vista previa abra sockets o conexiones HTTP (java.net, OkHttp, Ktor).",
+                default = true, group = "Aislar en vista previa",
             ),
             SettingControl.Toggle(
-                SANDBOX_ANDROID, "Block Android system calls",
-                "Stop previewed code from launching activities/services, sending broadcasts, using system services, ContentResolver, or SharedPreferences. Resource and density reads stay available.",
-                default = true, group = "Preview sandbox",
+                SANDBOX_ANDROID, "Bloquear llamadas de sistema de Android",
+                "Evitar que el código en vista previa lance actividades/servicios, envíe broadcasts, use servicios del sistema, ContentResolver o SharedPreferences. Las lecturas de recursos y densidad siguen disponibles.",
+                default = true, group = "Aislar en vista previa",
             ),
             SettingControl.Toggle(
-                SANDBOX_PROCESS, "Block process & reflection",
-                "Stop previewed code from exec'ing processes, calling System.exit, loading native libraries, or invoking members reflectively.",
-                default = true, group = "Preview sandbox",
+                SANDBOX_PROCESS, "Bloquear procesos y reflexión",
+                "Evitar que el código en vista previa ejecute procesos, llame a System.exit, cargue librerías nativas o invoque miembros por reflexión.",
+                default = true, group = "Aislar en vista previa",
             ),
             SettingControl.Toggle(
-                PREVIEW_ISOLATE, "Render in a separate process",
-                "Render the @Preview in the :preview OS process instead of the IDE, so a runaway recomposition or crash can't take down the IDE. Falls back to the in-process renderer for @PreviewParameter / locale previews and on any remote failure. Turn off to always render in-process (more interactive, but a preview crash can affect the IDE).",
-                default = true, group = "Preview process",
+                PREVIEW_ISOLATE, "Renderizar en un proceso separado",
+                "Renderizar el @Preview en el proceso :preview del SO en lugar del IDE, para que una recomposición descontrolada o un fallo no pueda tumbar el IDE. Vuelve al renderizador en proceso para vistas previas con @PreviewParameter / locales y ante cualquier fallo remoto. Desactívalo para renderizar siempre en proceso (más interactivo, pero un fallo de la vista previa puede afectar al IDE).",
+                default = true, group = "Proceso de la vista previa",
             ),
         )
     }
 
-    private val build = page(BUILD, "Build & Dependencies", "hammer", 40, scope = SettingsScope.PROJECT) {
+    private val build = page(BUILD, "Compilación y dependencias", "hammer", 40, scope = SettingsScope.PROJECT) {
         listOf(
             SettingControl.Choice(
-                CONFLICT_POLICY, "Dependency conflicts", "Which version wins when two are requested in the graph",
+                CONFLICT_POLICY, "Conflictos de dependencias", "Qué versión gana cuando se piden dos en el grafo",
                 default = CONFLICT_NEWEST,
                 options = listOf(
-                    SettingControl.Choice.Option(CONFLICT_NEWEST, "Newest"),
-                    SettingControl.Choice.Option(CONFLICT_PINNED, "Direct wins"),
-                    SettingControl.Choice.Option(CONFLICT_FAIL, "Fail on conflict"),
+                    SettingControl.Choice.Option(CONFLICT_NEWEST, "La más reciente"),
+                    SettingControl.Choice.Option(CONFLICT_PINNED, "Gana la directa"),
+                    SettingControl.Choice.Option(CONFLICT_FAIL, "Fallo ante conflicto"),
                 ),
             ),
         )
@@ -242,67 +237,67 @@ object BuiltInSettingsPages {
     // App-global (not per-project): running the build in its own process is about this device's memory
     // headroom + your robustness preference, the same for every project. Default ON. The effect is applied
     // by the backend (it reads `settings.buildRuntime.separateProcess`); see docs/build-process-isolation.md.
-    private val buildRuntime = page(BUILD_RUNTIME, "Build Runtime", "hammer", 45) {
+    private val buildRuntime = page(BUILD_RUNTIME, "Entorno de compilación", "hammer", 45) {
         listOf(
             SettingControl.Toggle(
-                SEPARATE_PROCESS, "Build in a separate process",
-                "Run builds and your program in an isolated process so an out-of-memory crash can't take down the IDE. Off = build in-process (uses less memory, no isolation). Takes effect the next time you open a project.",
+                SEPARATE_PROCESS, "Compilar en un proceso separado",
+                "Ejecutar las compilaciones y tu programa en un proceso aislado para que un fallo de memoria no pueda tumbar el IDE. Off = compilar en el mismo proceso (menos memoria, sin aislamiento). Tiene efecto la próxima vez que abras un proyecto.",
                 default = true,
             ),
             SettingControl.Toggle(
-                INJECT_APP_LOG, "Forward app logs",
-                "On a debug build, inject a small log bridge into your app so its logs (logcat, println, crashes) stream to the Logcat tab. Debug builds only — release builds are never modified. Applies on the next build.",
+                INJECT_APP_LOG, "Reenviar registros de la app",
+                "En una compilación de depuración, inyectar un pequeño puente de registros en tu app para que sus registros (logcat, println, fallos) lleguen a la pestaña Logcat. Solo compilaciones de depuración — las de publicación nunca se modifican. Se aplica en la próxima compilación.",
                 default = true,
             ),
             // The Build Runtime page's R8 controls are rendered dynamically by SettingsBackend (the slider's
             // max is this device's measured forked-VM limit, and it's hidden in In-process mode), so these
             // static descriptors only supply keys / scope / defaults — their descriptions aren't shown.
             SettingControl.Choice(
-                R8_MODE, "R8 execution", null,
+                R8_MODE, "Ejecución de R8", null,
                 default = R8_MODE_DEFAULT,
                 options = listOf(
-                    SettingControl.Choice.Option(R8_MODE_FORKED, "Forked VM"),
-                    SettingControl.Choice.Option(R8_MODE_INPROCESS, "In-process"),
+                    SettingControl.Choice.Option(R8_MODE_FORKED, "Máquina separada"),
+                    SettingControl.Choice.Option(R8_MODE_INPROCESS, "En proceso"),
                 ),
             ),
             SettingControl.IntSlider(
-                R8_MAX_HEAP, "R8 forked-VM heap", null,
+                R8_MAX_HEAP, "Memoria de la máquina R8", null,
                 default = R8_MAX_HEAP_DEFAULT, min = 768, max = 4096, step = 128, unit = "MB",
             ),
             // Rendered dynamically by SettingsBackend (rich descriptions); these descriptors only carry the
             // key / default / scope for the write path. Debug-build dexing memory knobs (R8 above = release).
             SettingControl.IntSlider(
-                DEX_OFFHEAP_MB, "Off-heap dexing threshold", null,
+                DEX_OFFHEAP_MB, "Umbral de dexing fuera de memoria", null,
                 default = DEX_OFFHEAP_MB_DEFAULT, min = 2, max = 64, step = 2, unit = "MB", advanced = true,
             ),
             SettingControl.IntSlider(
-                DEX_MERGE_BATCH, "Dex merge batch size", null,
+                DEX_MERGE_BATCH, "Tamaño de lote de fusión de dex", null,
                 default = DEX_MERGE_BATCH_DEFAULT, min = 1000, max = 20000, step = 1000, advanced = true,
             ),
             SettingControl.IntSlider(
-                DEX_FORK_CONCURRENCY, "Max concurrent dex forks", null,
+                DEX_FORK_CONCURRENCY, "Máx. de procesos dex concurrentes", null,
                 default = DEX_FORK_CONCURRENCY_DEFAULT, min = 0, max = 4, step = 1, advanced = true,
             ),
         )
     }
 
-    private fun privacy(analyticsAvailable: Boolean) = page(PRIVACY, "Privacy & Data", "info", 50) {
+    private fun privacy(analyticsAvailable: Boolean) = page(PRIVACY, "Privacidad y datos", "info", 50) {
         buildList {
             if (analyticsAvailable) {
-                add(SettingControl.Toggle(ANALYTICS, "Share performance analytics", "Anonymous performance metrics only — never your code or file names", default = false, group = "Privacy"))
+                add(SettingControl.Toggle(ANALYTICS, "Compartir análisis de rendimiento", "Solo métricas de rendimiento anónimas, nunca tu código ni nombres de archivo", default = false, group = "Privacidad"))
             }
-            add(SettingControl.Action(CLEAR_CACHES, "Clear caches", "Free regenerable dependency / language / preview caches (never source)", buttonLabel = "Clear", group = "Storage"))
-            add(SettingControl.Action(VIEW_LOGS, "View logs", "Recent editor, analysis, and build activity", buttonLabel = "Open", group = "Storage"))
-            add(SettingControl.Action(BACKUP, "Back up projects", "Export every project to a single zip", buttonLabel = "Back up", group = "Storage"))
+            add(SettingControl.Action(CLEAR_CACHES, "Limpiar cachés", "Liberar cachés regenerables de dependencias / lenguaje / vistas previas (nunca el código fuente)", buttonLabel = "Limpiar", group = "Almacenamiento"))
+            add(SettingControl.Action(VIEW_LOGS, "Ver registros", "Actividad reciente del editor, análisis y compilación", buttonLabel = "Abrir", group = "Almacenamiento"))
+            add(SettingControl.Action(BACKUP, "Respaldar proyectos", "Exportar cada proyecto a un único zip", buttonLabel = "Respaldar", group = "Almacenamiento"))
         }
     }
 
-    private val about = page(ABOUT, "About CodeStudio", "info", 60) {
+    private val about = page(ABOUT, "Acerca de CodeStudio", "info", 60) {
         listOf(
-            SettingControl.Action("appVersion", "CodeStudio IDE", "v1.0.0 (Build 2026.08)", buttonLabel = "v1.0.0", group = "Application"),
-            SettingControl.Action("author", "Developer", "Created by AssassinGhostYT", buttonLabel = "@AssassinGhostYT", group = "Application"),
-            SettingControl.Action("repository", "Source Code", "https://github.com/AssassinGhostYT/CodeStudio", buttonLabel = "GitHub", group = "Links"),
-            SettingControl.Action("sponsor", "Sponsor this project", "Support AssassinGhostYT on GitHub Sponsors", buttonLabel = "Sponsor", group = "Links"),
+            SettingControl.Action("appVersion", "IDE CodeStudio", "v1.0.0 (Compilación 2026.08)", buttonLabel = "v1.0.0", group = "Aplicación"),
+            SettingControl.Action("author", "Desarrollador", "Creado por AssassinGhostYT", buttonLabel = "@AssassinGhostYT", group = "Aplicación"),
+            SettingControl.Action("repository", "Código fuente", "https://github.com/AssassinGhostYT/CodeStudio", buttonLabel = "GitHub", group = "Enlaces"),
+            SettingControl.Action("sponsor", "Patrocinar este proyecto", "Apoya a AssassinGhostYT en GitHub Sponsors", buttonLabel = "Patrocinar", group = "Enlaces"),
         )
     }
 

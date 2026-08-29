@@ -21,11 +21,6 @@ data class IdeSettings(
     val accent: String = ACCENT_VIOLET,
     /** Seed for [ACCENT_CUSTOM] — an `0xAARRGGBB` ARGB long. Ignored unless [accent] is custom. */
     val accentColor: Long = 0xFF8B5CF6L,
-    /**
-     * Bottom of the [ACCENT_CUSTOM] vertical background gradient — an `0xAARRGGBB` ARGB long. When it
-     * differs from [accentColor] the whole app background is a top→bottom gradient; ignored unless custom.
-     */
-    val accentColorBottom: Long = 0xFF8B5CF6L,
 
     // ---- editor ----
     /** Code-font zoom, 1.0 = the theme's default size (also driven live by pinch / Ctrl-+ / Ctrl--). */
