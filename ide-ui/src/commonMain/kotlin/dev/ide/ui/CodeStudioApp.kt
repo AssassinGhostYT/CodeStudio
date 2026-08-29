@@ -135,9 +135,10 @@ fun CodeStudioApp(
             // Single thin banner pinned to the bottom of the app — the only ad slot that renders now. It is
             // gated by the same "Show ads" toggle (adsActive), so users can turn it off.
             Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(backgroundBrush ?: MaterialTheme.colorScheme.background),
+                Modifier.fillMaxSize().then(
+                    if (backgroundBrush != null) Modifier.background(backgroundBrush)
+                    else Modifier.background(MaterialTheme.colorScheme.background),
+                ),
             ) {
                 Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                     AppNavGraph(
