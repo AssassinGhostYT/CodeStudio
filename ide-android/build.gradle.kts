@@ -344,6 +344,12 @@ val realAdmobAppId = (findProperty("ADMOB_APP_ID") as String?) ?: System.getenv(
     ?: "ca-app-pub-5858301436237272~6064071770"
 val realAdmobNativeUnitId = (findProperty("ADMOB_NATIVE_UNIT_ID") as String?) ?: System.getenv("ADMOB_NATIVE_UNIT_ID")
     ?: "ca-app-pub-5858301436237272/5840710498"
+// The bottom banner uses its OWN real unit (AdMob banners must use a banner-format unit). Always the real id —
+// the user wants their own banner served in every build, so debug/profile render it too (test ids are only ever
+// a fallback if the release default is missing). Overridable via -PADMOB_BANNER_UNIT_ID / env for a fork.
+val realAdmobBannerUnitId = (findProperty("ADMOB_BANNER_UNIT_ID") as String?)
+    ?: System.getenv("ADMOB_BANNER_UNIT_ID")
+    ?: "ca-app-pub-5858301436237272/5840710498"
 // The real interstitial unit (full-screen "long build" ad). Baked in as the release default like the other
 // ids (AdMob ids aren't secret — they ship in every APK), overridable via -PADMOB_INTERSTITIAL_UNIT_ID or the
 // ADMOB_INTERSTITIAL_UNIT_ID env var so a fork can point at its own AdMob account.
@@ -389,6 +395,8 @@ android {
         manifestPlaceholders["admobAppId"] = testAdmobAppId
         buildConfigField("String", "AD_NATIVE_UNIT_ID", "\"$testAdmobNativeUnitId\"")
         buildConfigField("String", "AD_INTERSTITIAL_UNIT_ID", "\"$testAdmobInterstitialUnitId\"")
+        // The bottom banner always uses the user's real banner unit (never a test id) — see realAdmobBannerUnitId.
+        buildConfigField("String", "AD_BANNER_UNIT_ID", "\"$realAdmobBannerUnitId\"")
     }
 
     buildFeatures {

@@ -161,10 +161,28 @@ class AndroidAdHost(
                 modifier = modifier,
                 factory = { ctx ->
                     val widthPx = ctx.resources.displayMetrics.widthPixels
-                    val adSize = AdSize.getCurrentOrientationInlineAdaptiveBannerAdSize(ctx, widthPx)
+                    // Anchored adaptive banner, per the AdMob guide: width = the container's real width, flexible
+                    // height, pinned to the bottom (this is the FOOTER placement). Uses the user's own real
+                    // banner unit (BuildConfig.AD_BANNER_UNIT_ID is never a test id).
+                    val adSize = AdSize.getAnchoredAdaptiveBannerAdSize(ctx, widthPx)
                     AdView(ctx).apply {
                         setAdSize(adSize)
-                        adUnitId = BuildConfig.AD_NATIVE_UNIT_ID
+                        adUnitId = BuildConfig.AD_BANNER_UNIT_ID
+                        adListener = object : AdListener() {
+                            override fun onAdLoaded() {
+                                adLog.info("banner loaded (unit ${BuildConfig.AD_BANNER_UNIT_ID})")
+                            }
+
+                            override fun onAdFailedToLoad(error: LoadAdError) {
+                                // Code 3 is NO_FILL (expected for a while on a fresh real unit); other codes
+                                // point at a config/network problem. Never crash — the banner just stays empty.
+                                adLog.warn(
+                                    "banner failed (unit ${BuildConfig.AD_BANNER_UNIT_ID}): " +
+                                        "code=${error.code} domain=${error.domain} message=${error.message} " +
+                                        "response=${error.responseInfo}"
+                                )
+                            }
+                        }
                         // Guard against the missing-WebView / SDK-not-initialised case — the banner just
                         // stays empty instead of the slot crashing the app.
                         runCatching { loadAd(AdRequest.Builder().build()) }
