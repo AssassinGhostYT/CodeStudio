@@ -35,7 +35,7 @@ object BrandIcons {
         val b = ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f)
         for (sub in subs) {
             val nodes = PathParser().parsePathString(sub.d).toNodes()
-            b.addPath(nodes, fill = SolidColor(Color.Black), fillType = sub.fillType)
+            b.addPath(nodes, pathFillType = sub.fillType, fill = SolidColor(Color.Black))
         }
         return b.build()
     }
