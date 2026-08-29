@@ -19,5 +19,6 @@ fun resolveTint(tint: IconTint): Color = when (tint) {
     IconTint.Warning -> Ca.colors.warning
     IconTint.Error -> Ca.colors.error
     IconTint.Info -> Ca.colors.info
+    IconTint.Original -> Color.Unspecified
     is IconTint.Fixed -> tint.color
 }

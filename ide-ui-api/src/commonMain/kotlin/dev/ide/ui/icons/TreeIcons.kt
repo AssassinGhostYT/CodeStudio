@@ -27,6 +27,7 @@ sealed interface IconTint {
     object Warning : IconTint
     object Error : IconTint
     object Info : IconTint
+    object Original : IconTint
     data class Fixed(val color: Color) : IconTint
 }
 
@@ -66,7 +67,7 @@ object TreeIcons {
         register("folder", TreeIcon.Folder(CaIcons.folder, CaIcons.folderOpen, IconTint.Secondary))
         register("manifest", TreeIcon.Glyph(CaIcons.file, IconTint.Fixed(androidGreen)))
         register("file", fallback)
-        register("java", TreeIcon.Glyph(BrandIcons.java, IconTint.Fixed(Color(0xFFE76F00))))
+        register("java", TreeIcon.Glyph(BrandIcons.java, IconTint.Original))
         register("kotlin", TreeIcon.Glyph(BrandIcons.kotlin, IconTint.Fixed(Color(0xFF7F52FF))))
         register("xml", TreeIcon.Glyph(BrandIcons.xml, IconTint.Fixed(Color(0xFF61AFEF))))
         // ProGuard/R8 keep-rule files (`proguard-rules.pro`, `consumer-rules.pro`) — the shrinker config.
