@@ -220,7 +220,7 @@ private fun Context.dp(value: Int): Int =
  * creatives and the "MediaView not used" policy check both need it — only its height varies.
  */
 private fun mediaHeightDp(placement: AdPlacement): Int = when (placement) {
-    AdPlacement.BUILD_CONSOLE, AdPlacement.SIDEBAR -> 72
+    AdPlacement.FOOTER, AdPlacement.BUILD_CONSOLE, AdPlacement.SIDEBAR -> 72
     else -> 140
 }
 

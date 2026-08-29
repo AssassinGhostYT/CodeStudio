@@ -1,10 +1,12 @@
 package dev.ide.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -15,12 +17,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
-import dev.ide.ui.ads.BuildAdInterstitial
 import dev.ide.ui.ads.LocalAds
+import dev.ide.ui.ads.adsActive
 import dev.ide.ui.backend.AdHost
+import dev.ide.ui.backend.AdPlacement
 import dev.ide.ui.backend.FileActions
 import dev.ide.ui.backend.IdeBackend
 import dev.ide.ui.backend.UiAccent
+import dev.ide.ui.components.AdSlot
 import dev.ide.ui.components.OnboardingSheet
 import dev.ide.ui.ext.UiPluginHost
 import dev.ide.ui.generated.resources.Res
@@ -122,19 +126,21 @@ fun CodeStudioApp(
         // The M3 background fills the whole window edge-to-edge (behind the system bars); content is
         // then inset by `safeDrawing`. On desktop these insets are empty, so this is a no-op there.
         CompositionLocalProvider(LocalAds provides app.adController) {
-            // Occasional full-screen ad over a LONG build (Android only; inert on desktop / when ads are off).
-            // Renders nothing — it just observes the build state and asks the host to present an interstitial.
-            BuildAdInterstitial(backend, app.adController)
+            // Single thin banner pinned to the bottom of the app — the only ad slot that renders now. It is
+            // gated by the same "Show ads" toggle (adsActive), so users can turn it off.
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+                Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                     AppNavGraph(
                         app = app,
                         state = state,
                         fileActions = fileActions,
                         codeFont = codeFont,
                         dark = dark,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier.fillMaxSize().weight(1f),
                     )
+                    if (adsActive()) {
+                        AdSlot(AdPlacement.FOOTER, Modifier.fillMaxWidth())
+                    }
                 }
                 AppOverlays(
                     backend = backend,

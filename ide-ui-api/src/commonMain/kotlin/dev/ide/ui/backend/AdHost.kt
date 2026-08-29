@@ -27,6 +27,9 @@ enum class AdPlacement {
 
     /** The footer of the editor's docked LEFT sidebar pane (below the tool-window content). */
     SIDEBAR,
+
+    /** The single thin banner pinned to the bottom of the app (the only ad slot shown). */
+    FOOTER,
 }
 
 /**

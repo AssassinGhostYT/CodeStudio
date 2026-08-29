@@ -14,9 +14,6 @@ const val ADS_ENABLED_PREF = "ads.enabled"
 /** The [AdHost.installStamp] the stored [ADS_ENABLED_PREF] value belongs to — see [AdController]. */
 const val ADS_ENABLED_STAMP_PREF = "ads.enabled.stamp"
 
-/** Show a tutorials interstitial on every Nth finished lesson (see [AdController.shouldShowLessonInterstitial]). */
-private const val LESSON_INTERSTITIAL_EVERY = 2
-
 /**
  * Common-side ad gating + state. Holds the user's "show ads" preference (persisted through
  * [IdeBackend.settings]) and combines it with the host's [AdHost.available] into [adsActive]. There is no paid
@@ -55,19 +52,11 @@ class AdController(
         backend.settings.setPreference(ADS_ENABLED_PREF, enabled.toString())
     }
 
-    /** Count of eligible (ads-active) lesson finishes so far this session — drives the every-Nth gate below. */
-    private var lessonFinishes = 0
-
     /**
-     * Whether a just-finished tutorial lesson should show the full-screen interstitial. Ads must be active, and
-     * only every [LESSON_INTERSTITIAL_EVERY]th eligible finish qualifies, so a run of short lessons doesn't pop
-     * an ad each time. Call exactly once per lesson completion — it advances the counter as a side effect.
+     * Whether a just-finished tutorial lesson should show the full-screen interstitial. Disabled: the standalone
+     * bottom banner is now the only ad placement, so lesson-complete interstitials never fire.
      */
-    fun shouldShowLessonInterstitial(): Boolean {
-        if (!adsActive) return false
-        lessonFinishes++
-        return lessonFinishes % LESSON_INTERSTITIAL_EVERY == 0
-    }
+    fun shouldShowLessonInterstitial(): Boolean = false
 }
 
 /**

@@ -36,14 +36,17 @@ import org.jetbrains.compose.resources.stringResource
  * or ads aren't active (so call sites can drop it unconditionally). When active it wraps the host's native ad
  * in the app's own card chrome ([NativeAdCard]) so it reads as part of the UI. There is no per-ad opt-out — ads
  * are turned off from the quieter "Show ads" toggle on the picker's support card.
+ *
+ * The only slot that actually renders anything is the single bottom [AdPlacement.FOOTER] banner; every other
+ * placement is a no-op, so the in-screen cards shown before are gone and a lone thin footer banner remains.
+ * It is still gated by the same "Show ads" toggle.
  */
 @Composable
 fun AdSlot(placement: AdPlacement, modifier: Modifier = Modifier) {
+    if (placement != AdPlacement.FOOTER) return
     val ads = LocalAds.current ?: return
     if (!ads.adsActive) return
-    NativeAdCard(modifier) {
-        ads.host.NativeAd(placement, Modifier.fillMaxWidth())
-    }
+    ads.host.NativeAd(placement, modifier)
 }
 
 /**
