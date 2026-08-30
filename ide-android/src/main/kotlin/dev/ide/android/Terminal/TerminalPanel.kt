@@ -28,6 +28,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,7 +39,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.launch
 import dev.ide.ui.icons.CaIcons
 
 /**
@@ -52,12 +52,14 @@ internal fun TerminalPanel() {
     val setup by engine.setup.collectAsState()
     val output by engine.output.collectAsState()
     val running by engine.running.collectAsState()
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
         scope.launch {
             engine.ensureReady()
-            if (engine.setup.value is TerminalEngine.SetupState.Ready) engine.startSession()
+            if (engine.setup.value is TerminalEngine.SetupState.Ready) {
+                engine.startSession()
+            }
         }
     }
 
@@ -70,12 +72,22 @@ internal fun TerminalPanel() {
                 TerminalEngine.SetupState.Idle -> StatusLine("Initializing…")
                 is TerminalEngine.SetupState.Downloading -> StatusLine(s.label)
                 TerminalEngine.SetupState.Extracting -> StatusLine("Extracting rootfs…")
-                is TerminalEngine.SetupState.Failed -> StatusLine(s.message, error = true)
+                is TerminalEngine.SetupState.Failed -> {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        StatusLine(s.message, error = true)
+                        IconButton(onClick = { 
+                            scope.launch { engine.ensureReady() }
+                        }) {
+                            Icon(CaIcons.refresh, "Retry", tint = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
                 TerminalEngine.SetupState.Ready -> Unit
             }
             if (setup is TerminalEngine.SetupState.Ready) {
                 Output(readout = output, running = running)
                 InputLine(onSubmit = { line -> engine.writeCommand(line) }, enabled = running)
+                SpecialKeysBar(onKeyPress = { key -> engine.writeCommand(key) }, enabled = running)
             }
         }
     }
@@ -105,7 +117,6 @@ private fun ColumnScope.Output(readout: String, running: Boolean) {
                 modifier = Modifier.fillMaxSize().verticalScroll(scroll),
             )
         }
-        // Keep the readout pinned to the tail as output streams in.
         LaunchedEffect(readout.length) { scroll.scrollTo(scroll.maxValue) }
     }
 }
@@ -140,6 +151,82 @@ private fun InputLine(onSubmit: (String) -> Unit, enabled: Boolean) {
             if (line.isNotEmpty()) { onSubmit(line); text = ""; keyboard?.hide() }
         }, enabled = enabled) {
             Icon(CaIcons.arrowRight, "run", Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
+@Composable
+private fun SpecialKeysBar(onKeyPress: (String) -> Unit, enabled: Boolean) {
+    val scope = rememberCoroutineScope()
+    var ctrlPressed by remember { mutableStateOf(false) }
+    var altPressed by remember { mutableStateOf(false) }
+    
+    // Fila 1: ESC / / - HOME END PGUP PGDN
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+    ) {
+        SpecialKeyButton("ESC", { onKeyPress("\u001B") }, enabled)
+        SpecialKeyButton("/", { onKeyPress("/") }, enabled)
+        SpecialKeyButton("-", { onKeyPress("-") }, enabled)
+        SpecialKeyButton("HOME", { onKeyPress("\u001B[H") }, enabled)
+        SpecialKeyButton("END", { onKeyPress("\u001B[F") }, enabled)
+        SpecialKeyButton("PGUP", { onKeyPress("\u001B[5~") }, enabled)
+        SpecialKeyButton("PGDN", { onKeyPress("\u001B[6~") }, enabled)
+    }
+    
+    // Fila 2: CTRL ALT TAB flechas
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+    ) {
+        SpecialKeyButton(
+            "CTRL", 
+            { 
+                ctrlPressed = !ctrlPressed
+                if (ctrlPressed) onKeyPress("\u001D") 
+            }, 
+            enabled,
+            active = ctrlPressed
+        )
+        SpecialKeyButton(
+            "ALT", 
+            { 
+                altPressed = !altPressed
+                if (altPressed) onKeyPress("\u001B") 
+            }, 
+            enabled,
+            active = altPressed
+        )
+        SpecialKeyButton("TAB", { onKeyPress("\t") }, enabled)
+        SpecialKeyButton("↑", { onKeyPress("\u001B[A") }, enabled)
+        SpecialKeyButton("↓", { onKeyPress("\u001B[B") }, enabled)
+        SpecialKeyButton("←", { onKeyPress("\u001B[D") }, enabled)
+        SpecialKeyButton("→", { onKeyPress("\u001B[C") }, enabled)
+    }
+}
+
+@Composable
+private fun SpecialKeyButton(
+    label: String, 
+    onClick: () -> Unit, 
+    enabled: Boolean,
+    active: Boolean = false
+) {
+    Surface(
+        color = if (active) Color(0xFF1F6FEB) else Color(0xFF21262D),
+        shape = CircleShape,
+        modifier = Modifier.size(40.dp),
+        onClick = onClick,
+        enabled = enabled
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text = label,
+                color = if (enabled) Color(0xFFE6EDF3) else Color(0xFF6E7681),
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+            )
         }
     }
 }
