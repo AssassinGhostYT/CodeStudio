@@ -81,7 +81,6 @@ object TerminalEngine {
             val rootfs = rootfsDir()
             ensureToolkit()
             val report: (String) -> Unit = { msg ->
-                // Surface percent progress through the observable state, not just the callback.
                 if (msg.startsWith("Downloading ") && msg.contains('%')) {
                     _setup.value = SetupState.Downloading(msg)
                 }
@@ -107,7 +106,7 @@ object TerminalEngine {
 
     /** Copies the APK-bundled proot + libs into `support/` if (any of them) is missing. */
     private fun ensureToolkit() {
-        val context = appContext ?: return // assets not reachable before init() — still fine
+        val context = appContext ?: return
         val support = supportDir()
         if (TOOLKIT_ASSETS.all { name -> File(support, name).exists() && File(support, name).length() > 0 }) return
         _setup.value = SetupState.Extracting
@@ -128,12 +127,10 @@ object TerminalEngine {
         val proot = prootExecutable()
         ensureExecutable(proot)
 
-        // Copiar toolkit a code_cache TAMBIÉN (para fallback)
         val context = appContext
         val altDir = context?.let { ctx ->
             val dir = File(ctx.codeCacheDir, "toolkit").apply { mkdirs() }
             
-            // Copiar archivos PRIMERO
             TOOLKIT_ASSETS.forEach { name ->
                 val target = File(dir, name)
                 if (!target.exists() || target.length() == 0L) {
@@ -145,7 +142,7 @@ object TerminalEngine {
                         }
                         target.setExecutable(true)
                     } catch (e: Exception) {
-                        // Ignorar - si falla, proot directo funcionará
+                        // Ignorar
                     }
                 }
             }
@@ -267,7 +264,6 @@ object TerminalEngine {
         if (!file.exists()) return "${file.name}: missing"
         chmodExecutable(file)
         if (file.canExecute()) return null
-        // Force a fresh copy from the APK assets, then apply the mode AFTER the bytes land.
         try {
             val context = appContext
             val name = file.name
@@ -286,9 +282,8 @@ object TerminalEngine {
     private fun chmodExecutable(file: File) {
         if (!file.exists()) return
         try {
-            Os.chmod(file.absolutePath, 0x1ED) // 0755: owner rwx, group/others r-x
+            Os.chmod(file.absolutePath, 0x1ED)
         } catch (_: Exception) {
-            // Fallback for non-Linux test hosts: just try the JVM API as well, best-effort.
             file.setExecutable(true, false)
         }
         try {
@@ -303,9 +298,6 @@ object TerminalEngine {
         "?"
     }
 
-    /** Compact `[d]` diagnostic pinned to the error line: exec-ability, mode, SELinux labels and the
-     *  mount flags of `filesDir` (pinpoints missing exec bit vs a `noexec` mount vs an SELinux exec
-     *  denial and which domain/label is involved). */
     private fun diagnostics(file: File): String {
         val sb = StringBuilder(file.name).append(" canExecute=").append(file.canExecute())
             .append(" mode=0").append(modeString(file))
@@ -337,8 +329,6 @@ object TerminalEngine {
         "?"
     }
 
-    /** Probes whether simple system executables can be launched at all from this app process — if the
-     *  whole domain can't exec, the EACCES isn't specific to proot (isolated/seccomp-restricted ctx). */
     private fun probeExec(): String {
         val attempts = listOf(
             listOf("/system/bin/toybox", "true"),
@@ -359,8 +349,6 @@ object TerminalEngine {
         val cacheDir = File(filesDir ?: error("TerminalEngine.init() not called"), "cache").apply { mkdirs() }
         val target = File(cacheDir, name)
         if (target.exists() && target.length() > 0) return target
-        // Write to a temp file and rename only on success, so an interrupted download is never
-        // mistaken for a complete archive on the next attempt.
         val part = File(cacheDir, "$name.part")
         try {
             streamTo(url, part, onProgress)
