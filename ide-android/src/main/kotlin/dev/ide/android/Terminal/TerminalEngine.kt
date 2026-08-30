@@ -145,8 +145,9 @@ object TerminalEngine {
             "-b", "/proc", "-b", "/sys", "-b", "/dev",
             // Guest exec of app_data_file ELFs is SELinux-denied on this device, same as proot's. Make
             // the guest shell run THROUGH a system binary: /system/bin/linker64 (allowed) mmaps bash
-            // like a library, exactly like the host-side linker64 vector for proot itself.
-            "-b", "/system/bin/linker64",
+            // like a library, exactly like the host-side linker64 vector for proot itself. Use a
+            // DIRECTORY bind of /system so proot can also resolve linker64's own interpreter.
+            "-b", "/system",
             "/system/bin/linker64", "/bin/bash", "-l",
         )
         // Bash is glibc: the bionic loader won't find rootfs libs on its own default search path.
