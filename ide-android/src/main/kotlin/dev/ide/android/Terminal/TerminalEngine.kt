@@ -133,7 +133,10 @@ object TerminalEngine {
         // carry a different label/behaviour — cheap to try, and it gives the linker vector a stable path.
         val context = appContext
         val altDir = context?.let { ctx ->
-            File(ctx.codeCacheDir, "toolkit").also { TOOLKIT_ASSETS.forEach { f -> ensureExecutable(File(it, f)) } }
+            File(ctx.codeCacheDir, "toolkit").apply {
+                mkdirs()
+                TOOLKIT_ASSETS.forEach { f -> ensureExecutable(File(this, f)) }
+            }
         }
         val altProot = altDir?.let { File(it, "proot") }
 
@@ -251,6 +254,7 @@ object TerminalEngine {
         try {
             val context = appContext
             val name = file.name
+            file.parentFile?.mkdirs()
             if (context != null) {
                 context.assets.open("terminal/$name").use { input ->
                     file.outputStream().use { input.copyTo(it) }
