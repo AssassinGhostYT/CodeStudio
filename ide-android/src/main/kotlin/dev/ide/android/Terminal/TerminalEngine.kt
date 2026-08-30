@@ -252,7 +252,6 @@ object TerminalEngine {
         val sb = StringBuilder(file.name).append(" canExecute=").append(file.canExecute())
             .append(" mode=0").append(modeString(file))
             .append(" ctx=").append(selinuxCtx())
-            .append(" label=").append(fileLabel(file))
             .append(" seccomp=").append(seccompMode())
         try {
             val path = file.absolutePath
@@ -269,12 +268,6 @@ object TerminalEngine {
 
     private fun selinuxCtx(): String = try {
         File("/proc/self/attr/current").readText().trim().ifEmpty { "?" }
-    } catch (_: Throwable) {
-        "?"
-    }
-
-    private fun fileLabel(file: File): String = try {
-        android.system.Os.getfilecon(file.absolutePath) ?: "?"
     } catch (_: Throwable) {
         "?"
     }
