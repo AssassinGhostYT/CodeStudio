@@ -176,7 +176,7 @@ object TerminalEngine {
                 _running.value = false
             }
         } catch (e: Exception) {
-            _output.value += "error: ${e.message} [d] ${diagnostics(proot)}"
+            _output.value += "error: ${e.message} [d] ${diagnostics(proot)} ${probeExec()}"
             _running.value = false
         }
     }
@@ -245,11 +245,15 @@ object TerminalEngine {
         "?"
     }
 
-    /** Compact `[d]` diagnostic pinned to the error line: exec-ability, mode, and the mount flags of
-     *  `filesDir` (pinpoints missing exec bit vs a `noexec` mount vs an SELinux exec denial). */
+    /** Compact `[d]` diagnostic pinned to the error line: exec-ability, mode, SELinux labels and the
+     *  mount flags of `filesDir` (pinpoints missing exec bit vs a `noexec` mount vs an SELinux exec
+     *  denial and which domain/label is involved). */
     private fun diagnostics(file: File): String {
         val sb = StringBuilder(file.name).append(" canExecute=").append(file.canExecute())
             .append(" mode=0").append(modeString(file))
+            .append(" ctx=").append(selinuxCtx())
+            .append(" label=").append(fileLabel(file))
+            .append(" seccomp=").append(seccompMode())
         try {
             val path = file.absolutePath
             BufferedReader(FileReader("/proc/self/mounts")).useLines { lines ->
@@ -258,9 +262,46 @@ object TerminalEngine {
                     .maxByOrNull { it[1].length }
                 if (best != null) sb.append(" mount[").append(best[1]).append("]=").append(best[3])
             }
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
         }
         return sb.toString()
+    }
+
+    private fun selinuxCtx(): String = try {
+        File("/proc/self/attr/current").readText().trim().ifEmpty { "?" }
+    } catch (_: Throwable) {
+        "?"
+    }
+
+    private fun fileLabel(file: File): String = try {
+        android.system.Os.getfilecon(file.absolutePath) ?: "?"
+    } catch (_: Throwable) {
+        "?"
+    }
+
+    private fun seccompMode(): String = try {
+        File("/proc/self/status").readLines().firstOrNull { it.startsWith("Seccomp:") }?.split(':')
+            ?.getOrNull(1)?.trim() ?: "?"
+    } catch (_: Throwable) {
+        "?"
+    }
+
+    /** Probes whether simple system executables can be launched at all from this app process — if the
+     *  whole domain can't exec, the EACCES isn't specific to proot (isolated/seccomp-restricted ctx). */
+    private fun probeExec(): String {
+        val attempts = listOf(
+            listOf("/system/bin/toybox", "true"),
+            listOf("/system/bin/sh", "-c", "true"),
+        )
+        for (cmd in attempts) {
+            try {
+                val p = ProcessBuilder(cmd).start()
+                p.waitFor()
+                return "sys-exec(${cmd.first()})=ok"
+            } catch (_: Throwable) {
+            }
+        }
+        return "sys-exec=all-fail"
     }
 
     private fun downloadToCache(url: String, name: String, onProgress: (String) -> Unit): File {
