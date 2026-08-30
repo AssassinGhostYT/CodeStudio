@@ -191,15 +191,10 @@ fun BuildConsole(
         }
     }
 
-    // The PRoot terminal (Android) shows as both an icon next to Run and a tab next to Pasos/Steps — only
-    // while its BOTTOM tool window is registered (never on hosts that don't ship it, e.g. desktop).
-    val terminalTw = pluginTabs.firstOrNull { it.id == TERMINAL_TOOL_WINDOW_ID }
-    val onOpenTerminal: (() -> Unit)? = terminalTw?.let { tw -> { activePluginTab = tw.id } }
-
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Header(
             buildState, errors, warnings, tab, activePluginTab != null,
-            onRun, onStop, onCollapse, onOpenTerminal,
+            onRun, onStop, onCollapse,
         )
         if (indexStatus.building) IndexingSection(indexStatus)
         buildState.banner?.let { FirstBuildBanner(it) }
@@ -254,7 +249,6 @@ private fun Header(
     onRun: () -> Unit,
     onStop: () -> Unit,
     onCollapse: () -> Unit,
-    onOpenTerminal: (() -> Unit)? = null,
 ) {
     val running = state.status == RunStatus.Running
     Row(
@@ -290,17 +284,6 @@ private fun Header(
             )
         }
         StatusPill(state.status)
-        if (onOpenTerminal != null) {
-            // The Linux terminal, one tap away from Run (matches the icon-only ask; no text label).
-            IconButtonCa(
-                CaIcons.terminal,
-                stringResource(Res.string.buildc_tab_terminal),
-                onOpenTerminal,
-                boxSize = 28,
-                iconSize = 16,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
         val (copyTab, copyProvide) = copyForTab(state, tab, pluginActive)
         if (copyProvide != null) CopyButton(copyTab, copyProvide)
         if (running) IconButtonCa(
