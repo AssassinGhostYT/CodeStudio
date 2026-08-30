@@ -177,15 +177,13 @@ object TerminalEngine {
 
         _output.value = ""
         if (p == null) {
-            _output.value = "error: ${lastErr?.message} via=none probe=${probeExec()} [d] ${diagnostics(proot)}
-"
+            _output.value = "error: ${lastErr?.message} via=none probe=${probeExec()} [d] ${diagnostics(proot)}\n"
             _running.value = false
             return
         }
         process = p
         _running.value = true
-        if (usedVia != "direct") _output.value = "[launch: $usedVia]
-"
+        if (usedVia != "direct") _output.value = "[launch: $usedVia]\n"
         
         val input = p.inputStream
         val err = p.errorStream
@@ -220,13 +218,11 @@ object TerminalEngine {
     fun writeCommand(line: String) {
         val p = process
         if (p == null || !p.isAlive) {
-            _output.value += "$ $line
-"
+            _output.value += "\$ $line\n"
             return
         }
         try {
-            p.outputStream.write((line + "
-").toByteArray(Charsets.UTF_8))
+            p.outputStream.write((line + "\n").toByteArray(Charsets.UTF_8))
             p.outputStream.flush()
         } catch (_: Exception) {
         }
