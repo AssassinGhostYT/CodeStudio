@@ -15,20 +15,8 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
 
-/**
- * The PRoot-backed Linux terminal engine.
- *
- * The proot toolkit (proot + libtalloc/liblzma/libandroid-shmem, ~450 KB in total) ships INSIDE the
- * APK under `assets/terminal/` — nothing to fetch, no dead URLs. Only the Ubuntu rootfs is
- * downloaded, on FIRST use (a ~76 MB tarball that would blow up the APK). The toolkit lives under
- * `<filesDir>/support/` and the rootfs under `<filesDir>/rootfs/`. Once present, tapping the
- * terminal icon launches the session with the canonical PRoot invocation — `--kill-on-exit
- * --link2symlink --sysvipc -L -p -r rootfs --change-id=0:0 --cwd=/root` with `/sdcard`, `/proc`,
- * `/sys` and `/dev` bound in.
- */
 object TerminalEngine {
 
-    /** Files shipped inside the APK under `assets/terminal/`, copied to `support/` on first use. */
     private val TOOLKIT_ASSETS = listOf(
         "proot",
         "libtalloc.so.2",
@@ -73,7 +61,6 @@ object TerminalEngine {
     private fun supportDir(): File = File(filesDir ?: error("TerminalEngine.init() not called"), "support").apply { mkdirs() }
     private fun rootfsDir(): File = File(filesDir ?: error("TerminalEngine.init() not called"), "rootfs")
 
-    /** Idempotent asset bootstrap: downloads anything missing, then prepares the rootfs. */
     suspend fun ensureReady(onProgress: (String) -> Unit = {}) = withContext(Dispatchers.IO) {
         if (_setup.value is SetupState.Ready) return@withContext
         if (_setup.value is SetupState.Downloading || _setup.value is SetupState.Extracting) return@withContext
@@ -104,7 +91,6 @@ object TerminalEngine {
         }
     }
 
-    /** Copies the APK-bundled proot + libs into `support/` if (any of them) is missing. */
     private fun ensureToolkit() {
         val context = appContext ?: return
         val support = supportDir()
@@ -119,7 +105,6 @@ object TerminalEngine {
         }
     }
 
-    /** Also re-applies the exec bit on every start, since data dirs can lose modes across sessions. */
     fun startSession() {
         if (process?.isAlive == true) return
         val rootfs = rootfsDir()
@@ -142,7 +127,6 @@ object TerminalEngine {
                         }
                         target.setExecutable(true)
                     } catch (e: Exception) {
-                        // Ignorar
                     }
                 }
             }
@@ -233,7 +217,6 @@ object TerminalEngine {
         }
     }
 
-    /** Sends a command line (with newline) to the session's stdin. */
     fun writeCommand(line: String) {
         val p = process
         if (p == null || !p.isAlive) {
@@ -256,10 +239,6 @@ object TerminalEngine {
 
     private fun prootExecutable(): File = File(supportDir(), "proot")
 
-    /** Applies rwx for the owner and r-x for group/others via the real syscall — `File.setExecutable`
-     *  only toggles the owner bit on webview-ish/Android storage and can silently no-op. If the file
-     *  still isn't executable afterwards, rewrites it straight from the APK assets and re-chmods —
-     *  stale copies shipped by older builds never had the exec bit at all. */
     private fun ensureExecutable(file: File): String? {
         if (!file.exists()) return "${file.name}: missing"
         chmodExecutable(file)
@@ -382,4 +361,4 @@ object TerminalEngine {
             }
         }
     }
-                                  }
+}
