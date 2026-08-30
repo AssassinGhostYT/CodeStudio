@@ -128,15 +128,29 @@ object TerminalEngine {
         val proot = prootExecutable()
         ensureExecutable(proot)
 
-        // ALSO install the toolkit into code_cache: it's equally `app_data_file` on vanilla devices, but
-        // on ROMs/vendor policies that deny execve on filesDir copies, files written here occasionally
-        // carry a different label/behaviour — cheap to try, and it gives the linker vector a stable path.
+        // Copiar toolkit a code_cache TAMBIÉN (para fallback)
         val context = appContext
         val altDir = context?.let { ctx ->
-            File(ctx.codeCacheDir, "toolkit").apply {
-                mkdirs()
-                TOOLKIT_ASSETS.forEach { f -> ensureExecutable(File(this, f)) }
+            val dir = File(ctx.codeCacheDir, "toolkit").apply { mkdirs() }
+            
+            // Copiar archivos PRIMERO
+            TOOLKIT_ASSETS.forEach { name ->
+                val target = File(dir, name)
+                if (!target.exists() || target.length() == 0L) {
+                    try {
+                        ctx.assets.open("terminal/$name").use { input ->
+                            target.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                        target.setExecutable(true)
+                    } catch (e: Exception) {
+                        // Ignorar - si falla, proot directo funcionará
+                    }
+                }
             }
+            
+            dir
         }
         val altProot = altDir?.let { File(it, "proot") }
 
@@ -175,22 +189,23 @@ object TerminalEngine {
         if (p == null && altProot != null && altProot.exists()) {
             p = tryLaunch(listOf(altProot.absolutePath) + args, "codecache")
         }
-        if (p == null && altProot != null) {
-            // Run proot THROUGH Android's own dynamic linker: the kernel execs a SYSTEM binary (allowed
-            // under any app policy) and the linker mmaps proot like a library — this dodges a vendor
-            // SELinux `execute_no_trans` denial on app_data_file (the observed error=13 despite 0755).
+        if (p == null && altProot != null && altProot.exists()) {
             val linker = if (File("/system/bin/linker64").exists()) "/system/bin/linker64" else "/system/bin/linker"
             p = tryLaunch(listOf(linker, altProot.absolutePath) + args, "linker64")
         }
 
         _output.value = ""
         if (p == null) {
-            _output.value = "error: ${lastErr?.message} via=none probe=${probeExec()} [d] ${diagnostics(proot)}\n"
+            _output.value = "error: ${lastErr?.message} via=none probe=${probeExec()} [d] ${diagnostics(proot)}
+"
             _running.value = false
             return
         }
+        process = p
         _running.value = true
-        if (usedVia != "direct") _output.value = "[launch: $usedVia]\n"
+        if (usedVia != "direct") _output.value = "[launch: $usedVia]
+"
+        
         val input = p.inputStream
         val err = p.errorStream
         pool.execute {
@@ -225,11 +240,13 @@ object TerminalEngine {
     fun writeCommand(line: String) {
         val p = process
         if (p == null || !p.isAlive) {
-            _output.value += "\$ $line\n"
+            _output.value += "$ $line
+"
             return
         }
         try {
-            p.outputStream.write((line + "\n").toByteArray(Charsets.UTF_8))
+            p.outputStream.write((line + "
+").toByteArray(Charsets.UTF_8))
             p.outputStream.flush()
         } catch (_: Exception) {
         }
@@ -377,4 +394,4 @@ object TerminalEngine {
             }
         }
     }
-}
+                                  }
