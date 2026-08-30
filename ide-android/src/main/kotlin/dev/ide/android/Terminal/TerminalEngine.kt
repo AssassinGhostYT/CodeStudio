@@ -157,9 +157,11 @@ object TerminalEngine {
             pb.environment()["TERM"] = "xterm-256color"
             pb.environment()["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
             // This proot is a Termux build: its compiled-in temp dir is
-            // /data/data/com.termux/files/usr/tmp, which doesn't exist here. Point it at the guest
-            // /tmp (= <rootfs>/tmp, created by TarGz.extract) or proot dies before launching bash.
-            pb.environment()["PROOT_TMP_DIR"] = "/tmp"
+            // /data/data/com.termux/files/usr/tmp, which doesn't exist here. PROOT_TMP_DIR is a HOST
+            // path (proot builds the glue rootfs & f2fs probe there), so it must live inside the app
+            // sandbox — Android's /tmp isn't writable by apps. TMPDIR stays as the guest /tmp.
+            val hostTmp = File(filesDir ?: return null, "tmp").apply { mkdirs() }
+            pb.environment()["PROOT_TMP_DIR"] = hostTmp.absolutePath
             pb.environment()["TMPDIR"] = "/tmp"
             return try {
                 val p = pb.start()
