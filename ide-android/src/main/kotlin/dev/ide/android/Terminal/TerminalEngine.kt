@@ -6,9 +6,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import java.io.BufferedReader
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.io.FileReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.Executors
@@ -95,8 +97,9 @@ object TerminalEngine {
                 TarGz.extract(archive, rootfs)
                 archive.delete()
             }
-            TOOLKIT_ASSETS.forEach { chmodExecutable(File(supportDir(), it)) }
-            _setup.value = SetupState.Ready
+            val bad = TOOLKIT_ASSETS.mapNotNull { ensureExecutable(File(supportDir(), it)) }
+            _setup.value = if (bad.isEmpty()) SetupState.Ready
+                           else SetupState.Failed(bad.joinToString("; ") + " " + diagnostics(prootExecutable()))
         } catch (e: Exception) {
             _setup.value = SetupState.Failed(e.message ?: e::class.simpleName ?: "Setup failed")
         }
@@ -122,11 +125,12 @@ object TerminalEngine {
         if (process?.isAlive == true) return
         val rootfs = rootfsDir()
         val support = supportDir()
-        TOOLKIT_ASSETS.forEach { chmodExecutable(File(support, it)) }
+        val proot = prootExecutable()
+        ensureExecutable(proot)
         _output.value = ""
         _running.value = true
         val pb = ProcessBuilder(
-            prootExecutable().absolutePath,
+            proot.absolutePath,
             "--kill-on-exit", "--link2symlink", "--sysvipc",
             "-L", "-p",
             "-r", rootfs.absolutePath,
@@ -172,7 +176,7 @@ object TerminalEngine {
                 _running.value = false
             }
         } catch (e: Exception) {
-            _output.value += "error: ${e.message}\n"
+            _output.value += "error: ${e.message} [d] ${diagnostics(proot)}"
             _running.value = false
         }
     }
@@ -199,17 +203,64 @@ object TerminalEngine {
     private fun prootExecutable(): File = File(supportDir(), "proot")
 
     /** Applies rwx for the owner and r-x for group/others via the real syscall — `File.setExecutable`
-     *  only toggles the owner bit on webview-ish/Android storage and can silently no-op. */
-    private fun chmodExecutable(file: File): File {
-        if (!file.exists()) return file
-        return try {
+     *  only toggles the owner bit on webview-ish/Android storage and can silently no-op. If the file
+     *  still isn't executable afterwards, rewrites it straight from the APK assets and re-chmods —
+     *  stale copies shipped by older builds never had the exec bit at all. */
+    private fun ensureExecutable(file: File): String? {
+        if (!file.exists()) return "${file.name}: missing"
+        chmodExecutable(file)
+        if (file.canExecute()) return null
+        // Force a fresh copy from the APK assets, then apply the mode AFTER the bytes land.
+        try {
+            val context = appContext
+            val name = file.name
+            if (context != null) {
+                context.assets.open("terminal/$name").use { input ->
+                    file.outputStream().use { input.copyTo(it) }
+                }
+            }
+            chmodExecutable(file)
+        } catch (_: Exception) {
+        }
+        return if (file.canExecute()) null else "${file.name}: not executable (mode=0${modeString(file)})"
+    }
+
+    private fun chmodExecutable(file: File) {
+        if (!file.exists()) return
+        try {
             Os.chmod(file.absolutePath, 0x1ED) // 0755: owner rwx, group/others r-x
-            file
         } catch (_: Exception) {
             // Fallback for non-Linux test hosts: just try the JVM API as well, best-effort.
             file.setExecutable(true, false)
-            file
         }
+        try {
+            file.setExecutable(true, false)
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun modeString(file: File): String = try {
+        Integer.toOctalString(Os.stat(file.absolutePath).st_mode and 0xFFF)
+    } catch (_: Exception) {
+        "?"
+    }
+
+    /** Compact `[d]` diagnostic pinned to the error line: exec-ability, mode, and the mount flags of
+     *  `filesDir` (pinpoints missing exec bit vs a `noexec` mount vs an SELinux exec denial). */
+    private fun diagnostics(file: File): String {
+        val sb = StringBuilder(file.name).append(" canExecute=").append(file.canExecute())
+            .append(" mode=0").append(modeString(file))
+        try {
+            val path = file.absolutePath
+            BufferedReader(FileReader("/proc/self/mounts")).useLines { lines ->
+                val best = lines.map { it.split(" ") }
+                    .filter { path.startsWith(it[1]) }
+                    .maxByOrNull { it[1].length }
+                if (best != null) sb.append(" mount[").append(best[1]).append("]=").append(best[3])
+            }
+        } catch (_: Exception) {
+        }
+        return sb.toString()
     }
 
     private fun downloadToCache(url: String, name: String, onProgress: (String) -> Unit): File {
