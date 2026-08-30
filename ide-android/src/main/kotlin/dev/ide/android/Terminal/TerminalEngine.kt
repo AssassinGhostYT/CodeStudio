@@ -127,10 +127,17 @@ object TerminalEngine {
         val support = supportDir()
         val proot = prootExecutable()
         ensureExecutable(proot)
-        _output.value = ""
-        _running.value = true
-        val pb = ProcessBuilder(
-            proot.absolutePath,
+
+        // ALSO install the toolkit into code_cache: it's equally `app_data_file` on vanilla devices, but
+        // on ROMs/vendor policies that deny execve on filesDir copies, files written here occasionally
+        // carry a different label/behaviour — cheap to try, and it gives the linker vector a stable path.
+        val context = appContext
+        val altDir = context?.let { ctx ->
+            File(ctx.codeCacheDir, "toolkit").also { TOOLKIT_ASSETS.forEach { f -> ensureExecutable(File(it, f)) } }
+        }
+        val altProot = altDir?.let { File(it, "proot") }
+
+        val args = listOf(
             "--kill-on-exit", "--link2symlink", "--sysvipc",
             "-L", "-p",
             "-r", rootfs.absolutePath,
@@ -139,44 +146,74 @@ object TerminalEngine {
             "-b", "/storage/emulated/0:/sdcard",
             "-b", "/proc", "-b", "/sys", "-b", "/dev",
             "/bin/bash", "-l",
-        ).directory(rootfs)
-        pb.environment()["LD_LIBRARY_PATH"] = support.absolutePath
-        pb.environment()["HOME"] = File(rootfs, "root").absolutePath
-        pb.environment()["TERM"] = "xterm-256color"
-        pb.environment()["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-        try {
-            val p = pb.start()
-            process = p
-            val input = p.inputStream
-            val err = p.errorStream
-            pool.execute {
-                val buf = ByteArray(4096)
-                val out = StringBuilder()
-                while (true) {
-                    val n = input.read(buf)
-                    if (n < 0) break
-                    out.append(String(buf, 0, n, Charsets.UTF_8))
-                    if (out.length > 8192) { _output.value += out; out.setLength(0) }
-                }
-                _output.value += out
+        )
+        val libPath = listOfNotNull(support.absolutePath, altDir?.absolutePath).distinct().joinToString(":")
+        var usedVia = "none"
+        var lastErr: Exception? = null
+
+        fun tryLaunch(cmd: List<String>, via: String): Process? {
+            val pb = ProcessBuilder(cmd)
+            pb.directory(rootfs)
+            pb.environment()["LD_LIBRARY_PATH"] = libPath
+            pb.environment()["HOME"] = File(rootfs, "root").absolutePath
+            pb.environment()["TERM"] = "xterm-256color"
+            pb.environment()["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+            return try {
+                val p = pb.start()
+                usedVia = via
+                p
+            } catch (e: Exception) {
+                lastErr = e
+                null
             }
-            pool.execute {
-                val buf = ByteArray(4096)
-                val out = StringBuilder()
-                while (true) {
-                    val n = err.read(buf)
-                    if (n < 0) break
-                    out.append(String(buf, 0, n, Charsets.UTF_8))
-                    if (out.length > 8192) { _output.value += out; out.setLength(0) }
-                }
-                _output.value += out
+        }
+
+        var p = tryLaunch(listOf(proot.absolutePath) + args, "direct")
+        if (p == null && altProot != null && altProot.exists()) {
+            p = tryLaunch(listOf(altProot.absolutePath) + args, "codecache")
+        }
+        if (p == null && altProot != null) {
+            // Run proot THROUGH Android's own dynamic linker: the kernel execs a SYSTEM binary (allowed
+            // under any app policy) and the linker mmaps proot like a library — this dodges a vendor
+            // SELinux `execute_no_trans` denial on app_data_file (the observed error=13 despite 0755).
+            val linker = if (File("/system/bin/linker64").exists()) "/system/bin/linker64" else "/system/bin/linker"
+            p = tryLaunch(listOf(linker, altProot.absolutePath) + args, "linker64")
+        }
+
+        _output.value = ""
+        if (p == null) {
+            _output.value = "error: ${lastErr?.message} via=none probe=${probeExec()} [d] ${diagnostics(proot)}\n"
+            _running.value = false
+            return
+        }
+        _running.value = true
+        if (usedVia != "direct") _output.value = "[launch: $usedVia]\n"
+        val input = p.inputStream
+        val err = p.errorStream
+        pool.execute {
+            val buf = ByteArray(4096)
+            val out = StringBuilder()
+            while (true) {
+                val n = input.read(buf)
+                if (n < 0) break
+                out.append(String(buf, 0, n, Charsets.UTF_8))
+                if (out.length > 8192) { _output.value += out; out.setLength(0) }
             }
-            pool.execute {
-                p.waitFor()
-                _running.value = false
+            _output.value += out
+        }
+        pool.execute {
+            val buf = ByteArray(4096)
+            val out = StringBuilder()
+            while (true) {
+                val n = err.read(buf)
+                if (n < 0) break
+                out.append(String(buf, 0, n, Charsets.UTF_8))
+                if (out.length > 8192) { _output.value += out; out.setLength(0) }
             }
-        } catch (e: Exception) {
-            _output.value += "error: ${e.message} [d] ${diagnostics(proot)} ${probeExec()}"
+            _output.value += out
+        }
+        pool.execute {
+            p.waitFor()
             _running.value = false
         }
     }
