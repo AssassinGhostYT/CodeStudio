@@ -1,5 +1,6 @@
 package dev.ide.android.Terminal
 
+import android.system.Os
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.file.Files
@@ -45,6 +46,7 @@ internal object TarGz {
                     throw IllegalStateException("Not a tar archive (magic '$magic')")
                 }
                 val size = octal(header, SIZE).toLong()
+                val mode = octal(header, MODE)
                 val type = header[TYPE].toInt().toChar()
                 val link = String(header, LINK_NAME, 100, Charsets.UTF_8).trimEnd('\u0000', ' ')
                 // Data field is `size` bytes followed by padding up to the next 512-byte block.
@@ -64,6 +66,7 @@ internal object TarGz {
                         FileOutputStream(target).use { out ->
                             copyExactly(input, out, size)
                         }
+                        applyMode(target, mode)
                         // copyExactly already consumed `size` bytes — skip only the trailing padding.
                         skipData(input, padded - size)
                     }
@@ -72,6 +75,7 @@ internal object TarGz {
                         pendingName = null
                         dir.parentFile?.mkdirs()
                         if (!dir.exists()) dir.mkdirs()
+                        applyMode(dir, mode)
                         skipData(input, padded)
                     }
                     '1' -> { // Hard link: same inode as the referent.
@@ -115,6 +119,24 @@ try {
                     }
                     else -> skipData(input, padded)
                 }
+            }
+        }
+    }
+
+    /** Applies the raw tar mode bits (07777) to a real file/dir. The exec bits matter: every binary in
+     *  the rootfs (bash, ls, apt…) must come out executable or proot refuses to run them. Symlinks are
+     *  skipped — `chmod` on a symlink would follow the link on most platforms. */
+    private fun applyMode(target: File, mode: Int) {
+        if (mode == 0) return
+        try {
+            if (target.isFile || target.isDirectory) Os.chmod(target.absolutePath, mode and 0xFFF)
+        } catch (_: Exception) {
+            // Fallback for non-Linux test hosts.
+            try {
+                target.setExecutable((mode and 0x49) != 0, true)
+                target.setReadable(true, false)
+                target.setWritable((mode and 0x92) != 0, false)
+            } catch (_: Exception) {
             }
         }
     }
