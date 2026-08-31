@@ -112,8 +112,13 @@ object TerminalEngine {
         val support = supportDir()
         val proot = prootExecutable()
         ensureExecutable(proot)
+        // ptywrapper allocates a real pseudo-terminal (pty) and runs proot on its slave side, bridging
+        // the app's stdio to the pty master. Without a tty bash shows no prompt and the UI is stuck on
+        // "Waiting for shell…"; the wrapper lives in nativeLibraryDir so ART lets the app exec it.
+        val ptywrap = nativeDir("libptywrap.so")
+        ensureExecutable(ptywrap)
 
-        val args = listOf(
+        val prootArgs = listOf(
             "--kill-on-exit", "--link2symlink", "--sysvipc",
             "-L", "-p",
             "-r", rootfs.absolutePath,
@@ -164,12 +169,16 @@ object TerminalEngine {
             }
         }
 
-        var p = tryLaunch(listOf(proot.absolutePath) + args, "direct")
-        // Safety net: if direct exec of proot from nativeLibraryDir ever fails to start on some device,
-        // fall back to the explicit linker64 vector (running proot through Android's system linker).
+        val base = listOf(proot.absolutePath) + prootArgs
+        var p = if (ptywrap.canExecute()) tryLaunch(listOf(ptywrap.absolutePath) + base, "pty")
+                else null
+        if (p == null && proot.canExecute()) {
+            // Fall back to launching proot without a pty (bash may not show a prompt, but still runs).
+            p = tryLaunch(base, "direct")
+        }
         if (p == null) {
             val linker = if (File("/system/bin/linker64").exists()) "/system/bin/linker64" else "/system/bin/linker"
-            p = tryLaunch(listOf(linker, proot.absolutePath) + args, "linker64")
+            p = tryLaunch(listOf(linker) + base, "linker64")
         }
 
         _output.value = ""

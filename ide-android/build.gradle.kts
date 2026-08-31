@@ -549,10 +549,11 @@ android {
             useLegacyPackaging = true
             keepDebugSymbols += setOf(
                 "**/libaapt2.so",
-                // proot (dynamic Android ELF) + its static host loader: both exec'd by the app, so they
-                // must reach nativeLibraryDir un-stripped and with their exec bits intact.
+                // proot (dynamic Android ELF) + its static host loader + ptywrapper static bridge: all
+                // exec'd by the app, so they must reach nativeLibraryDir un-stripped and with exec bits.
                 "**/libproot.so",
                 "**/libproot_loader.so",
+                "**/libptywrap.so",
             )
         }
     }
