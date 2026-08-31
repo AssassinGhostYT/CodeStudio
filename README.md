@@ -37,6 +37,7 @@
 - [📱 Requisitos de Instalación](#-requisitos-de-instalación)
 - [🚀 Compilación y Configuración Local](#-compilación-y-configuración-local)
 - [🗺️ Hoja de Ruta (Roadmap)](#️-hoja-de-ruta-roadmap)
+- [💯 Progreso detallado](#-progreso-detallado)
 - [🤝 Cómo Contribuir](#-cómo-contribuir)
 - [📄 Licencia](#-licencia)
 
@@ -176,14 +177,50 @@ El archivo `.apk` compilado estará disponible en la ruta:
 
 ## 🗺️ Hoja de Ruta (Roadmap)
 
+> **Estado global frente al objetivo de "Android Studio de PC en el móvil": ~40%.** El núcleo
+> (editar, analizar, compilar y Git) está encaminado, pero las capacidades que hacen a Android
+> Studio un producto completo —debugger, refactorings, profilers, emulador— aún no existen. Los
+> porcentajes son estimaciones honestas de madurez relativa.
+
+### ✅ Completado
+
 - [x] Arquitectura multimodular extensible en Kotlin.
 - [x] Motor VFS de alta velocidad para manejo de archivos locales.
+- [x] Motor de análisis de código (DOM/PSI backend-neutral, diagnostico unificado, indexado SDK/librerías y por proyecto).
+- [x] Compilación on-device y generación de APKs (`build-engine`, `jvm-build`).
 - [x] Integración inicial con Git VCS.
-- [ ] 🔄 **Autocompletado semántico completo** basado en análisis de proyecto global.
-- [ ] 🐞 **Depurador interactivo (DAP)** con puntos de interrupción e inspección de variables.
-- [ ] 🎨 **Live Preview de Jetpack Compose** rendered en tiempo real.
-- [ ] 💻 **Terminal de comandos integrada** con soporte para herramientas CLI.
-- [ ] 🧩 **Sistema de plugins de terceros** extensible mediante WebAssembly/Kotlin.
+
+### 🚧 En progreso
+
+- [ ] 🔄 **Autocompletado semántico** — ~45%: índice real, JDT y completado Kotlin con metadata; falta resolución a nivel de Android Studio.
+- [ ] 🎨 **Live Preview de Jetpack Compose** — ~50%: interpretador propio en `compose-interpreter`; previews simples funcionan.
+- [ ] 💻 **Terminal integrada con CLI** — ~55%: proot + bash funcional (rootfs re-extraíble, exec bits correctos); falta pulir experiencia y herramientas CLI.
+- [ ] 🧩 **Sistema de plugins** — ~30%: API de extension points definida; sin runtime real de plugins WASM/Kotlin.
+
+### 🔮 Pendiente / siguiente hito (40 → 60)
+
+- [ ] 🐞 **Depurador interactivo (DAP)** — ~10%: lo más lejano de Android Studio y lo que más peso real aporta (breakpoints, inspección de variables, watch, stack).
+- [ ] ♻️ **Refactoring seguro** (rename a nivel proyecto con resolución, extract) — ~20%.
+- [ ] ⭐ **Profilers** (CPU, memoria, red) — ~5%.
+- [ ] 📦 **Deploy/emulador** para ejecutar APKs dentro del IDE.
+
+---
+
+## 💯 Progreso detallado (estimación honesta 0–100)
+
+| Área | % | Notas |
+| :--- | :---: | :--- |
+| Editor + resaltado + DOM/PSI | 75 | Backend-neutral, tolerante a errores, lexer incremental |
+| Completado semántico | 45 | Índice + JDT + Kotlin metadata; sin resolución tipo AS |
+| Build / APK on-device | 65 | Motor de tareas incremental real; sin compat Gradle-KTS completa |
+| Git VCS | 60 | Clone/checkout/merge/log/push; faltan merge 3-way y stash UI |
+| Compose Live Preview | 50 | Interpretador propio; previews básicos OK |
+| Terminal (proot) | 55 | bash por proot funcional; puliendo usabilidad |
+| Debugger (DAP) | 10 | No existe aún — prioridad del próximo hito |
+| Refactoring | 20 | Solo go-to-def / find-usages / quick-fixes |
+| Plugins (WASM/Kotlin) | 30 | SPIs definidos; sin runtime |
+| Profilers | 5 | Sin equivalente |
+| Robustez en proyectos grandes | 25 | OOM y tiempos pendientes de escalar |
 
 ---
 
