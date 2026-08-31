@@ -177,50 +177,183 @@ El archivo `.apk` compilado estará disponible en la ruta:
 
 ## 🗺️ Hoja de Ruta (Roadmap)
 
-> **Estado global frente al objetivo de "Android Studio de PC en el móvil": ~40%.** El núcleo
-> (editar, analizar, compilar y Git) está encaminado, pero las capacidades que hacen a Android
-> Studio un producto completo —debugger, refactorings, profilers, emulador— aún no existen. Los
-> porcentajes son estimaciones honestas de madurez relativa.
+> **Estado global frente al objetivo de "IDE de escritorio completo en el móvil": ~40%.** El núcleo
+> (editar, analizar, compilar y Git) está encaminado, pero la mayoría de capacidades que hacen a un
+> IDE de escritorio un producto completo —depurador, refactorings, profilers, emulador, cobertura de
+> código, etc.— aún no existen. Esta hoja de ruta compara **todas** las capacidades del IDE de
+> escritorio estándar contra el estado real de CodeStudio. Los porcentajes son estimaciones honestas
+> de madurez relativa.
 
 ### ✅ Completado
 
 - [x] Arquitectura multimodular extensible en Kotlin.
 - [x] Motor VFS de alta velocidad para manejo de archivos locales.
-- [x] Motor de análisis de código (DOM/PSI backend-neutral, diagnostico unificado, indexado SDK/librerías y por proyecto).
+- [x] Motor de análisis de código (DOM/PSI backend-neutral, diagnóstico unificado, indexado SDK/librerías y por proyecto).
 - [x] Compilación on-device y generación de APKs (`build-engine`, `jvm-build`).
-- [x] Integración inicial con Git VCS.
+- [x] Integración inicial con Git VCS (clone, checkout, ramas, merge, log, push/pull).
 
 ### 🚧 En progreso
 
-- [ ] 🔄 **Autocompletado semántico** — ~45%: índice real, JDT y completado Kotlin con metadata; falta resolución a nivel de Android Studio.
+- [ ] 🔄 **Autocompletado semántico** — ~45%: índice real, JDT y completado Kotlin con metadata; falta resolución completa.
 - [ ] 🎨 **Live Preview de Jetpack Compose** — ~50%: interpretador propio en `compose-interpreter`; previews simples funcionan.
 - [ ] 💻 **Terminal integrada con CLI** — ~55%: proot + bash funcional (rootfs re-extraíble, exec bits correctos); falta pulir experiencia y herramientas CLI.
 - [ ] 🧩 **Sistema de plugins** — ~30%: API de extension points definida; sin runtime real de plugins WASM/Kotlin.
 
-### 🔮 Pendiente / siguiente hito (40 → 60)
+---
 
-- [ ] 🐞 **Depurador interactivo (DAP)** — ~10%: lo más lejano de Android Studio y lo que más peso real aporta (breakpoints, inspección de variables, watch, stack).
-- [ ] ♻️ **Refactoring seguro** (rename a nivel proyecto con resolución, extract) — ~20%.
-- [ ] ⭐ **Profilers** (CPU, memoria, red) — ~5%.
-- [ ] 📦 **Deploy/emulador** para ejecutar APKs dentro del IDE.
+### 🔐 TODO lo que tiene un IDE de escritorio (y dónde estamos)
+
+#### 1. Editor de código — ~75%
+
+| Capacidad | Estado |
+| :--- | :---: |
+| Resaltado sintáctico incremental (Kotlin, Java, XML, Gradle DS, Dart) | ✅ |
+| Tolerancia a errores (buffer a medio escribir nunca rompe) | ✅ |
+| Autocompletado contextual (símbolos, miembros, auto-import) | 🟡 ~45% |
+| Navegación: Go to Definition, Find Usages, Go to Symbol | 🟡 ~60% |
+| Buscar en todo el proyecto (Path finder, Ctrl+Shift+F) | 🟡 ~50% |
+| Reformat / auto-indent / organización de imports | 🟡 ~30% |
+| Multi-cursor, edición columnar, selección en cascada | ❌ |
+| Intenciones y quick-fixes de un clic | 🟡 ~40% |
+| Live templates / snippets configurables | ❌ |
+| Plegado de código, breadcrumbs, minimapa | ❌ |
+| Inspección de errores/sugerencias al vuelo con severidad | 🟡 ~55% |
+
+#### 2. Autocompletado y análisis — ~45%
+
+| Capacidad | Estado |
+| :--- | :---: |
+| Completado con resolución semántica real (tipos inferidos) | 🟡 ~40% |
+| Auto-import de clases no importadas | 🟡 |
+| Completado de recursos Android (`@drawable/`, `@string/`) | 🟡 |
+| Indexado global de proyecto + SDK + librerías (compartido entre proyectos) | ✅ |
+| Análisis incremental por fichero con supresión `@Suppress` | ✅ |
+| Inspecciones tipo Android Lint (resources huérfanos, hardcoded strings…) | ❌ |
+
+#### 3. Compilación y build — ~65%
+
+| Capacidad | Estado |
+| :--- | :---: |
+| Motor de tareas incremental con up-to-date y caché | ✅ |
+| Compilación Kotlin→bytecode por fichero ABI-aware | ✅ |
+| Generación de APK on-device (dex, recursos, empaquetado) | ✅ |
+| Build variants / flavors / signing configs | ❌ |
+| Soporte Gradle-KTS / version catalogs completos | 🟡 |
+| Resolución transitiva de dependencias con repositorios | 🟡 |
+| Build cache persistente + análisis de tiempos de build | ❌ |
+| Gradle daemon independiente / sync por cambios externos | ❌ |
+
+#### 4. Depuración (debugger) — ~10% (lo más lejano)
+
+| Capacidad | Estado |
+| :--- | :---: |
+| Protocolo DAP (breakpoints de línea/condicionales/logpoints) | ❌ |
+| Step over / into / out, frames del stack de llamadas | ❌ |
+| Inspección de variables, watch, eval de expresiones | ❌ |
+| Depuración de código nativo (C/C++ NDK via LLDB) | ❌ |
+| Hot Load / actualización en vivo de recursos y Compose | ❌ |
+| Consola de depuración con filtros | ❌ |
+
+#### 5. Emulador y dispositivos — ~5%
+
+| Capacidad | Estado |
+| :--- | :---: |
+| Emulador integrado con perfiles de dispositivo y snapshots | ❌ |
+| ADB: dispositivos, wireless debug, screenshot/screenrecord | ❌ |
+| Device File Explorer (copiar archivos entre dispositivo y proyecto) | ❌ |
+| Instalación/desinstalación de APKs y gestión de procesos | ❌ |
+| Logcat con filtros, niveles y color | ❌ |
+
+#### 6. Diseño de UI — ~40%
+
+| Capacidad | Estado |
+| :--- | :---: |
+| Live Preview de Jetpack Compose (interpretador propio) | 🟡 ~50% |
+| Editor visual XML de layouts (design/block) | 🟡 |
+| Layout Inspector (árbol de vistas en vivo) | ❌ |
+| Preview de recursos, temas y traducciones | 🟡 |
+| Resource Manager (values, drawables, menús, estilos) | ❌ |
+| Visor de manifest con merge visual | ❌ |
+
+#### 7. Perfilado de rendimiento — ~5%
+
+| Capacidad | Estado |
+| :--- | :---: |
+| CPU profiler (flame / call tree) | ❌ |
+| Memory profiler (heap dump, objetos, fugas) | ❌ |
+| Network profiler (tráfico y llamadas HTTP) | ❌ |
+| Energy / battery profiler | ❌ |
+| App Inspector (vistas, bindings en vivo) | ❌ |
+
+#### 8. Testing — ~10%
+
+| Capacidad | Estado |
+| :--- | :---: |
+| Runner de tests unitarios (JUnit) con resultados | ❌ |
+| Tests instrumentados / conectados en dispositivo | ❌ |
+| Cobertura de código y reportes | ❌ |
+| Tests parametrizados y consolas de resultados | ❌ |
+
+#### 9. Refactoring — ~20%
+
+| Capacidad | Estado |
+| :--- | :---: |
+| Rename a nivel proyecto con resolución completa | ❌ |
+| Extract method / variable / constante / campo | ❌ |
+| Inline, Change Signature, Move | ❌ |
+| Generación de código (constructores, getters/setters, override, implement) | 🟡 ~40% |
+
+#### 10. Gestión de repositorios (Git) — ~60%
+
+| Capacidad | Estado |
+| :--- | :---: |
+| Clone / checkout / creación de ramas / merge | ✅ |
+| Historia de commits, diff visual, blame, log | 🟡 |
+| Push / pull / fetch con autenticación | ✅ |
+| Merge 3-way con resolución visual de conflictos | ❌ |
+| Stash, cherry-pick, rebase interactivo | ❌ |
+| Integración con GitHub (PRs, issues, revisión) | ❌ |
+
+#### 11. Otros servicios del IDE — ~25%
+
+| Capacidad | Estado |
+| :--- | :---: |
+| Plantillas de proyecto/actividad/módulos nuevos | 🟡 |
+| SDK Manager (instalar API levels y herramientas) | ❌ |
+| Base de datos: inspector de Room/SQLite, ejecutar queries | ❌ |
+| APK Analyzer (tamaño por dex/recurso/archivo) | ❌ |
+| Terminal integrada (proot + bash) | 🟡 ~55% |
+| Sistema de plugins de terceros (WASM/Kotlin) | 🟡 ~30% |
+| Sincronización de configuración del IDE | ❌ |
+| Soporte NDK (C/C++ con completado y debug) | ❌ |
+| Soporte Flutter/Dart | ❌ |
 
 ---
 
-## 💯 Progreso detallado (estimación honesta 0–100)
+## 💯 Resumen de progreso (estimación honesta 0–100)
 
 | Área | % | Notas |
 | :--- | :---: | :--- |
 | Editor + resaltado + DOM/PSI | 75 | Backend-neutral, tolerante a errores, lexer incremental |
-| Completado semántico | 45 | Índice + JDT + Kotlin metadata; sin resolución tipo AS |
-| Build / APK on-device | 65 | Motor de tareas incremental real; sin compat Gradle-KTS completa |
+| Completado semántico | 45 | Índice + JDT + Kotlin metadata; sin resolución completa |
+| Navegación / indexado | 60 | go-to-def, find-usages, path finder parcial |
+| Build / APK on-device | 65 | Motor de tareas incremental real; sin variants ni KTS completo |
 | Git VCS | 60 | Clone/checkout/merge/log/push; faltan merge 3-way y stash UI |
 | Compose Live Preview | 50 | Interpretador propio; previews básicos OK |
 | Terminal (proot) | 55 | bash por proot funcional; puliendo usabilidad |
-| Debugger (DAP) | 10 | No existe aún — prioridad del próximo hito |
-| Refactoring | 20 | Solo go-to-def / find-usages / quick-fixes |
+| Refactoring | 20 | Solo go-to-def / find-usages / quick-fixes parciales |
 | Plugins (WASM/Kotlin) | 30 | SPIs definidos; sin runtime |
+| **Debugger (DAP)** | **10** | Prioridad del próximo hito — no existe aún |
+| Emulador / ADB | 5 | Sin equivalente |
 | Profilers | 5 | Sin equivalente |
+| Testing / cobertura | 10 | Sin runner de tests |
 | Robustez en proyectos grandes | 25 | OOM y tiempos pendientes de escalar |
+
+### 🔮 Siguientes hitos
+
+- **Hito 40 → 60:** Debugger DAP mínimo (breakpoints + variables + stack), completado semántico a nivel proyecto, merge 3-way visual.
+- **Hito 60 → 80:** Refactoring completo, tests runner + cobertura, hot load de Compose, SDK manager y ADB (screenshot/logcat).
+- **Hito 80 → 100:** Profilers, emulador, NDK, APK analyzer, inspector de base de datos, plugins de terceros maduros.
 
 ---
 
