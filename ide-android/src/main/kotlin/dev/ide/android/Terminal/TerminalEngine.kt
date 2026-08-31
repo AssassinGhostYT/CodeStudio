@@ -19,6 +19,7 @@ object TerminalEngine {
 
     private val TOOLKIT_ASSETS = listOf(
         "proot",
+        "loader",
         "libtalloc.so.2",
         "liblzma.so.5",
         "libandroid-shmem.so",
@@ -169,6 +170,13 @@ object TerminalEngine {
             val hostTmp = File(filesDir ?: return null, "tmp").apply { mkdirs() }
             pb.environment()["PROOT_TMP_DIR"] = hostTmp.absolutePath
             pb.environment()["TMPDIR"] = "/tmp"
+            // This proot is a Termux build that boots guest ELFs through a separate statically-linked
+            // host loader. Without it proot reports `execve("/usr/bin/bash"): No such file or directory`
+            // because the guest's /lib/ld-linux-aarch64.so.1 doesn't exist on Android. Point PROOT_LOADER
+            // at the bundled loader (a host-side static executable, no guest interpreter needed).
+            val loader = File(support, "loader")
+            chmodExecutable(loader)
+            if (loader.canExecute()) pb.environment()["PROOT_LOADER"] = loader.absolutePath
             return try {
                 val p = pb.start()
                 usedVia = via
