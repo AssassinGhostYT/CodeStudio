@@ -61,12 +61,27 @@ object TerminalEngine {
     private fun supportDir(): File = File(filesDir ?: error("TerminalEngine.init() not called"), "support").apply { mkdirs() }
     private fun rootfsDir(): File = File(filesDir ?: error("TerminalEngine.init() not called"), "rootfs")
 
+    /** Proot resolves the guest /system/bin/linker64 inside the rootfs (-r), NOT through `-b` binds —
+     *  that's why `-b /system` failed to find it. So materialize an actual symlink inside the rootfs
+     *  that points back to the real system linker outside. */
+    private fun ensureGuestLinkers(rootfs: File) {
+        try {
+            val sysbin = File(rootfs, "system/bin").apply { mkdirs() }
+            val link = File(sysbin, "linker64")
+            if (!link.exists()) Os.symlink("/system/bin/linker64", link.absolutePath)
+            val link32 = File(sysbin, "linker")
+            if (!link32.exists()) Os.symlink("/system/bin/linker", link32.absolutePath)
+        } catch (_: Exception) {
+        }
+    }
+
     suspend fun ensureReady(onProgress: (String) -> Unit = {}) = withContext(Dispatchers.IO) {
         if (_setup.value is SetupState.Ready) return@withContext
         if (_setup.value is SetupState.Downloading || _setup.value is SetupState.Extracting) return@withContext
         try {
             val rootfs = rootfsDir()
             ensureToolkit()
+            ensureGuestLinkers(rootfs)
             val report: (String) -> Unit = { msg ->
                 if (msg.startsWith("Downloading ") && msg.contains('%')) {
                     _setup.value = SetupState.Downloading(msg)
@@ -108,6 +123,7 @@ object TerminalEngine {
     fun startSession() {
         if (process?.isAlive == true) return
         val rootfs = rootfsDir()
+        ensureGuestLinkers(rootfs)
         val support = supportDir()
         val proot = prootExecutable()
         ensureExecutable(proot)
@@ -145,9 +161,8 @@ object TerminalEngine {
             "-b", "/proc", "-b", "/sys", "-b", "/dev",
             // Guest exec of app_data_file ELFs is SELinux-denied on this device, same as proot's. Make
             // the guest shell run THROUGH a system binary: /system/bin/linker64 (allowed) mmaps bash
-            // like a library, exactly like the host-side linker64 vector for proot itself. Use a
-            // DIRECTORY bind of /system so proot can also resolve linker64's own interpreter.
-            "-b", "/system",
+            // like a library, exactly like the host-side linker64 vector for proot itself. The guest
+            // path resolves via a symlink planted inside the rootfs (see ensureGuestLinkers).
             "/system/bin/linker64", "/bin/bash", "-l",
         )
         // Bash is glibc: the bionic loader won't find rootfs libs on its own default search path.
