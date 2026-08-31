@@ -205,128 +205,106 @@ El archivo `.apk` compilado estará disponible en la ruta:
 
 #### 1. Editor de código — ~75%
 
-| Capacidad | Estado |
-| :--- | :---: |
-| Resaltado sintáctico incremental (Kotlin, Java, XML, Gradle DS, Dart) | ✅ |
-| Tolerancia a errores (buffer a medio escribir nunca rompe) | ✅ |
-| Autocompletado contextual (símbolos, miembros, auto-import) | 🟡 ~45% |
-| Navegación: Go to Definition, Find Usages, Go to Symbol | 🟡 ~60% |
-| Buscar en todo el proyecto (Path finder, Ctrl+Shift+F) | 🟡 ~50% |
-| Reformat / auto-indent / organización de imports | 🟡 ~30% |
-| Multi-cursor, edición columnar, selección en cascada | ❌ |
-| Intenciones y quick-fixes de un clic | 🟡 ~40% |
-| Live templates / snippets configurables | ❌ |
-| Plegado de código, breadcrumbs, minimapa | ❌ |
-| Inspección de errores/sugerencias al vuelo con severidad | 🟡 ~55% |
+- [x] Resaltado sintáctico incremental (Kotlin, Java, XML, Gradle DS, Dart).
+- [x] Tolerancia a errores (buffer a medio escribir nunca rompe).
+- [ ] 🔄 **Autocompletado contextual** (símbolos, miembros, auto-import) — ~45%.
+- [ ] 🔄 **Navegación**: Go to Definition, Find Usages, Go to Symbol — ~60%.
+- [ ] 🔄 **Buscar en todo el proyecto** (Path finder, Ctrl+Shift+F) — ~50%.
+- [ ] 🔄 **Reformat / auto-indent / organización de imports** — ~30%.
+- [ ] 🟡 **Intenciones y quick-fixes de un clic** — ~40%.
+- [ ] 🟡 **Inspección de errores/sugerencias al vuelo con severidad** — ~55%.
+- [ ] Multi-cursor, edición columnar, selección en cascada.
+- [ ] Live templates / snippets configurables.
+- [ ] Plegado de código, breadcrumbs, minimapa.
 
 #### 2. Autocompletado y análisis — ~45%
 
-| Capacidad | Estado |
-| :--- | :---: |
-| Completado con resolución semántica real (tipos inferidos) | 🟡 ~40% |
-| Auto-import de clases no importadas | 🟡 |
-| Completado de recursos Android (`@drawable/`, `@string/`) | 🟡 |
-| Indexado global de proyecto + SDK + librerías (compartido entre proyectos) | ✅ |
-| Análisis incremental por fichero con supresión `@Suppress` | ✅ |
-| Inspecciones tipo Android Lint (resources huérfanos, hardcoded strings…) | ❌ |
+- [ ] 🔄 **Completado con resolución semántica real** (tipos inferidos) — ~40%.
+- [ ] 🔄 Auto-import de clases no importadas.
+- [ ] 🔄 Completado de recursos Android (`@drawable/`, `@string/`).
+- [x] Indexado global de proyecto + SDK + librerías (compartido entre proyectos).
+- [x] Análisis incremental por fichero con supresión `@Suppress`.
+- [ ] Inspecciones tipo Android Lint (resources huérfanos, hardcoded strings…).
 
 #### 3. Compilación y build — ~65%
 
-| Capacidad | Estado |
-| :--- | :---: |
-| Motor de tareas incremental con up-to-date y caché | ✅ |
-| Compilación Kotlin→bytecode por fichero ABI-aware | ✅ |
-| Generación de APK on-device (dex, recursos, empaquetado) | ✅ |
-| Build variants / flavors / signing configs | ❌ |
-| Soporte Gradle-KTS / version catalogs completos | 🟡 |
-| Resolución transitiva de dependencias con repositorios | 🟡 |
-| Build cache persistente + análisis de tiempos de build | ❌ |
-| Gradle daemon independiente / sync por cambios externos | ❌ |
+- [x] Motor de tareas incremental con up-to-date y caché.
+- [x] Compilación Kotlin→bytecode por fichero ABI-aware.
+- [x] Generación de APK on-device (dex, recursos, empaquetado).
+- [ ] 🔄 Soporte Gradle-KTS / version catalogs completos.
+- [ ] 🔄 Resolución transitiva de dependencias con repositorios.
+- [ ] Build variants / flavors / signing configs.
+- [ ] Build cache persistente + análisis de tiempos de build.
+- [ ] Gradle daemon independiente / sync por cambios externos.
 
 #### 4. Depuración (debugger) — ~10% (lo más lejano)
 
-| Capacidad | Estado |
-| :--- | :---: |
-| Protocolo DAP (breakpoints de línea/condicionales/logpoints) | ❌ |
-| Step over / into / out, frames del stack de llamadas | ❌ |
-| Inspección de variables, watch, eval de expresiones | ❌ |
-| Depuración de código nativo (C/C++ NDK via LLDB) | ❌ |
-| Hot Load / actualización en vivo de recursos y Compose | ❌ |
-| Consola de depuración con filtros | ❌ |
+- [ ] Protocolo DAP (breakpoints de línea/condicionales/logpoints).
+- [ ] Step over / into / out, frames del stack de llamadas.
+- [ ] Inspección de variables, watch, eval de expresiones.
+- [ ] Depuración de código nativo (C/C++ NDK via LLDB).
+- [ ] Hot Load / actualización en vivo de recursos y Compose.
+- [ ] Consola de depuración con filtros.
 
 #### 5. Emulador y dispositivos — ~5%
 
-| Capacidad | Estado |
-| :--- | :---: |
-| Emulador integrado con perfiles de dispositivo y snapshots | ❌ |
-| ADB: dispositivos, wireless debug, screenshot/screenrecord | ❌ |
-| Device File Explorer (copiar archivos entre dispositivo y proyecto) | ❌ |
-| Instalación/desinstalación de APKs y gestión de procesos | ❌ |
-| Logcat con filtros, niveles y color | ❌ |
+- [ ] Emulador integrado con perfiles de dispositivo y snapshots.
+- [ ] ADB: dispositivos, wireless debug, screenshot/screenrecord.
+- [ ] Device File Explorer (copiar archivos entre dispositivo y proyecto).
+- [ ] Instalación/desinstalación de APKs y gestión de procesos.
+- [ ] Logcat con filtros, niveles y color.
 
 #### 6. Diseño de UI — ~40%
 
-| Capacidad | Estado |
-| :--- | :---: |
-| Live Preview de Jetpack Compose (interpretador propio) | 🟡 ~50% |
-| Editor visual XML de layouts (design/block) | 🟡 |
-| Layout Inspector (árbol de vistas en vivo) | ❌ |
-| Preview de recursos, temas y traducciones | 🟡 |
-| Resource Manager (values, drawables, menús, estilos) | ❌ |
-| Visor de manifest con merge visual | ❌ |
+- [ ] 🔄 **Live Preview de Jetpack Compose** (interpretador propio) — ~50%.
+- [ ] 🔄 Editor visual XML de layouts (design/block).
+- [ ] 🔄 Preview de recursos, temas y traducciones.
+- [ ] Layout Inspector (árbol de vistas en vivo).
+- [ ] Resource Manager (values, drawables, menús, estilos).
+- [ ] Visor de manifest con merge visual.
 
 #### 7. Perfilado de rendimiento — ~5%
 
-| Capacidad | Estado |
-| :--- | :---: |
-| CPU profiler (flame / call tree) | ❌ |
-| Memory profiler (heap dump, objetos, fugas) | ❌ |
-| Network profiler (tráfico y llamadas HTTP) | ❌ |
-| Energy / battery profiler | ❌ |
-| App Inspector (vistas, bindings en vivo) | ❌ |
+- [ ] CPU profiler (flame / call tree).
+- [ ] Memory profiler (heap dump, objetos, fugas).
+- [ ] Network profiler (tráfico y llamadas HTTP).
+- [ ] Energy / battery profiler.
+- [ ] App Inspector (vistas, bindings en vivo).
 
 #### 8. Testing — ~10%
 
-| Capacidad | Estado |
-| :--- | :---: |
-| Runner de tests unitarios (JUnit) con resultados | ❌ |
-| Tests instrumentados / conectados en dispositivo | ❌ |
-| Cobertura de código y reportes | ❌ |
-| Tests parametrizados y consolas de resultados | ❌ |
+- [ ] Runner de tests unitarios (JUnit) con resultados.
+- [ ] Tests instrumentados / conectados en dispositivo.
+- [ ] Cobertura de código y reportes.
+- [ ] Tests parametrizados y consolas de resultados.
 
 #### 9. Refactoring — ~20%
 
-| Capacidad | Estado |
-| :--- | :---: |
-| Rename a nivel proyecto con resolución completa | ❌ |
-| Extract method / variable / constante / campo | ❌ |
-| Inline, Change Signature, Move | ❌ |
-| Generación de código (constructores, getters/setters, override, implement) | 🟡 ~40% |
+- [ ] Rename a nivel proyecto con resolución completa.
+- [ ] Extract method / variable / constante / campo.
+- [ ] Inline, Change Signature, Move.
+- [ ] 🔄 **Generación de código** (constructores, getters/setters, override, implement) — ~40%.
 
 #### 10. Gestión de repositorios (Git) — ~60%
 
-| Capacidad | Estado |
-| :--- | :---: |
-| Clone / checkout / creación de ramas / merge | ✅ |
-| Historia de commits, diff visual, blame, log | 🟡 |
-| Push / pull / fetch con autenticación | ✅ |
-| Merge 3-way con resolución visual de conflictos | ❌ |
-| Stash, cherry-pick, rebase interactivo | ❌ |
-| Integración con GitHub (PRs, issues, revisión) | ❌ |
+- [x] Clone / checkout / creación de ramas / merge.
+- [x] Push / pull / fetch con autenticación.
+- [ ] 🔄 Historia de commits, diff visual, blame, log.
+- [ ] Merge 3-way con resolución visual de conflictos.
+- [ ] Stash, cherry-pick, rebase interactivo.
+- [ ] Integración con GitHub (PRs, issues, revisión).
 
 #### 11. Otros servicios del IDE — ~25%
 
-| Capacidad | Estado |
-| :--- | :---: |
-| Plantillas de proyecto/actividad/módulos nuevos | 🟡 |
-| SDK Manager (instalar API levels y herramientas) | ❌ |
-| Base de datos: inspector de Room/SQLite, ejecutar queries | ❌ |
-| APK Analyzer (tamaño por dex/recurso/archivo) | ❌ |
-| Terminal integrada (proot + bash) | 🟡 ~55% |
-| Sistema de plugins de terceros (WASM/Kotlin) | 🟡 ~30% |
-| Sincronización de configuración del IDE | ❌ |
-| Soporte NDK (C/C++ con completado y debug) | ❌ |
-| Soporte Flutter/Dart | ❌ |
+- [ ] 🔄 Plantillas de proyecto/actividad/módulos nuevos.
+- [ ] 🔄 **Terminal integrada** (proot + bash) — ~55%.
+- [ ] 🔄 **Sistema de plugins de terceros** (WASM/Kotlin) — ~30%.
+- [ ] SDK Manager (instalar API levels y herramientas).
+- [ ] Base de datos: inspector de Room/SQLite, ejecutar queries.
+- [ ] APK Analyzer (tamaño por dex/recurso/archivo).
+- [ ] Sincronización de configuración del IDE.
+- [ ] Soporte NDK (C/C++ con completado y debug).
+- [ ] Soporte Flutter/Dart.
 
 ---
 
