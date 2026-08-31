@@ -18,8 +18,6 @@ import java.util.concurrent.Executors
 object TerminalEngine {
 
     private val TOOLKIT_ASSETS = listOf(
-        "proot",
-        "loader",
         "libtalloc.so.2",
         "liblzma.so.5",
         "libandroid-shmem.so",
@@ -115,29 +113,6 @@ object TerminalEngine {
         val proot = prootExecutable()
         ensureExecutable(proot)
 
-        val context = appContext
-        val altDir = context?.let { ctx ->
-            val dir = File(ctx.codeCacheDir, "toolkit").apply { mkdirs() }
-            
-            TOOLKIT_ASSETS.forEach { name ->
-                val target = File(dir, name)
-                if (!target.exists() || target.length() == 0L) {
-                    try {
-                        ctx.assets.open("terminal/$name").use { input ->
-                            target.outputStream().use { output ->
-                                input.copyTo(output)
-                            }
-                        }
-                        target.setExecutable(true)
-                    } catch (e: Exception) {
-                    }
-                }
-            }
-            
-            dir
-        }
-        val altProot = altDir?.let { File(it, "proot") }
-
         val args = listOf(
             "--kill-on-exit", "--link2symlink", "--sysvipc",
             "-L", "-p",
@@ -149,10 +124,9 @@ object TerminalEngine {
             "/bin/bash", "-l",
         )
         // Bash and everything else come from the rootfs: TarGz now preserves the tar exec bits, so
-        // proot finds them executable. Only proot itself needs the host-side linker64 vector.
-        val libPath = listOfNotNull(
-            support.absolutePath, altDir?.absolutePath,
-        ).distinct().joinToString(":")
+        // proot finds them executable. proot itself is exec'd directly from nativeLibraryDir (ART lets
+        // apps exec ELFs there), so no linker64 indirection is needed anymore.
+        val libPath = support.absolutePath
         var usedVia = "none"
         var lastErr: Exception? = null
 
@@ -173,8 +147,11 @@ object TerminalEngine {
             // This proot is a Termux build that boots guest ELFs through a separate statically-linked
             // host loader. Without it proot reports `execve("/usr/bin/bash"): No such file or directory`
             // because the guest's /lib/ld-linux-aarch64.so.1 doesn't exist on Android. Point PROOT_LOADER
-            // at the bundled loader (a host-side static executable, no guest interpreter needed).
-            val loader = File(support, "loader")
+            // at the bundled loader. It must be an ELF the app is allowed to exec: ART only lets apps exec
+            // binaries from nativeLibraryDir, so we ship it there (jniLibs arm64-v8a/libproot_loader.so)
+            // rather than in filesDir — exec'ing it from filesDir makes proot fail with `Permission denied`
+            // under SELinux (same reason proot itself needs the linker64 vector).
+            val loader = nativeDir("libproot_loader.so")
             chmodExecutable(loader)
             if (loader.canExecute()) pb.environment()["PROOT_LOADER"] = loader.absolutePath
             return try {
@@ -188,12 +165,11 @@ object TerminalEngine {
         }
 
         var p = tryLaunch(listOf(proot.absolutePath) + args, "direct")
-        if (p == null && altProot != null && altProot.exists()) {
-            p = tryLaunch(listOf(altProot.absolutePath) + args, "codecache")
-        }
-        if (p == null && altProot != null && altProot.exists()) {
+        // Safety net: if direct exec of proot from nativeLibraryDir ever fails to start on some device,
+        // fall back to the explicit linker64 vector (running proot through Android's system linker).
+        if (p == null) {
             val linker = if (File("/system/bin/linker64").exists()) "/system/bin/linker64" else "/system/bin/linker"
-            p = tryLaunch(listOf(linker, altProot.absolutePath) + args, "linker64")
+            p = tryLaunch(listOf(linker, proot.absolutePath) + args, "linker64")
         }
 
         _output.value = ""
@@ -254,7 +230,18 @@ object TerminalEngine {
         _running.value = false
     }
 
-    private fun prootExecutable(): File = File(supportDir(), "proot")
+    // proot is a dynamically-linked Android ELF; ART only lets an app exec binaries (incl. their
+    // interpreter /system/bin/linker64) from nativeLibraryDir. Exec'ing it from filesDir is denied by
+    // SELinux, which is why past builds had to fall back to an explicit linker64 launch. Bundle it as a
+    // jniLib (libproot.so) so it's extracted to nativeLibraryDir and "direct" exec just works.
+    private fun prootExecutable(): File =
+        appContext?.let { File(it.applicationInfo.nativeLibraryDir, "libproot.so") } ?: File(supportDir(), "proot")
+
+    // The loader (and proot) must live where ART lets an app actually exec ELFs: nativeLibraryDir
+    // (extracted from jniLibs at install), not filesDir, where exec is denied under SELinux.
+    private fun nativeDir(name: String): File = appContext?.let {
+        File(it.applicationInfo.nativeLibraryDir, name)
+    } ?: File("")
 
     private fun ensureExecutable(file: File): String? {
         if (!file.exists()) return "${file.name}: missing"

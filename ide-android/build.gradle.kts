@@ -547,7 +547,13 @@ android {
         // (when an NDK is present) would corrupt it.
         jniLibs {
             useLegacyPackaging = true
-            keepDebugSymbols += setOf("**/libaapt2.so")
+            keepDebugSymbols += setOf(
+                "**/libaapt2.so",
+                // proot (dynamic Android ELF) + its static host loader: both exec'd by the app, so they
+                // must reach nativeLibraryDir un-stripped and with their exec bits intact.
+                "**/libproot.so",
+                "**/libproot_loader.so",
+            )
         }
     }
 }
