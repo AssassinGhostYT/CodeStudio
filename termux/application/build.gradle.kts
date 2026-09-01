@@ -42,6 +42,12 @@ android {
         manifestPlaceholders["TERMUX_APP_NAME"] = "AndroidIDE"
     }
 
+    buildFeatures {
+        // AGP 9.x requires explicit opt-in for BuildConfig generation; the vendored TermuxApplication
+        // reads BuildConfig.TERMUX_PACKAGE_VARIANT.
+        buildConfig = true
+    }
+
     lint.disable += "ProtectedPermissions"
     packaging.jniLibs.useLegacyPackaging = true
 }
