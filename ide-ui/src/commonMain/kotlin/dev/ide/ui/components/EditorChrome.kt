@@ -255,6 +255,10 @@ fun EditorTopBar(
                     onToggleInlayHints = onToggleInlayHints,
                     consoleOpen = consoleOpen,
                     onToggleConsole = onToggleConsole,
+                    // The overflow menu is the discoverable spot for "Terminal" on compact layouts (the
+                    // inline toolbar icon is easy to miss on a phone). The toolbar's own Terminal button
+                    // also uses this same onOpenTerminal launcher, so both surfaces open the same Activity.
+                    onOpenTerminal = onOpenTerminal ?: {},
                     showPreview = showPreview,
                     onPreview = onPreview,
                     rightToolIconId = rightToolIconId,
@@ -280,8 +284,11 @@ fun EditorTopBar(
                     onToggleInlayHints,
                     active = inlayHintsOn
                 )
+                // Build console toggle uses a hammer icon so the Terminal button (CaIcons.terminal, opens
+                // real Termux) doesn't have a duplicate-icon sibling right next to it. Confusing before
+                // the in-IDE PRoot terminal was deleted; obvious now.
                 IconButtonCa(
-                    CaIcons.terminal,
+                    CaIcons.hammer,
                     stringResource(Res.string.edchrome_build_console),
                     onToggleConsole,
                     active = consoleOpen
@@ -408,6 +415,11 @@ private fun EditorOverflowMenu(
     onToggleInlayHints: () -> Unit,
     consoleOpen: Boolean,
     onToggleConsole: () -> Unit,
+    /** Launcher for the system terminal — Termux Activity on Android, no-op on desktop. The overflow menu's
+     *  "Terminal" entry uses this so the user has a clear, hard-to-miss way to open the terminal regardless
+     *  of compact-mode toolbar layout. The build console is still toggleable via the rail action and via
+     *  its own entry below; renaming would create noise. */
+    onOpenTerminal: () -> Unit,
     showPreview: Boolean,
     onPreview: () -> Unit,
     /** The AI panel (a RIGHT-anchored tool window). Null icon = no such plugin, so the item is omitted. */
@@ -445,7 +457,19 @@ private fun EditorOverflowMenu(
                 if (inlayHintsOn) stringResource(Res.string.edchrome_hide_inlay_hints) else stringResource(Res.string.edchrome_show_inlay_hints),
                 active = inlayHintsOn,
             ) { open = false; onToggleInlayHints() }
-            OverflowItem(CaIcons.terminal, stringResource(Res.string.edchrome_build_console), active = consoleOpen) {
+            // "Terminal" in the overflow opens the real system terminal (real Termux on Android,
+            // no-op on desktop). Previously this entry toggled the build console — that was confusing
+            // because the build console used to host an in-process PRoot terminal tab; tapping
+            // "Terminal" → opening console → tapping the embedded Terminal tab → Ubuntu PRoot was three
+            // steps to reach a thing labelled "Terminal" that wasn't Termux. Now there's exactly one
+            // entry, and it does what the label says. The build console stays reachable via the rail
+            // action and its own overflow entry below.
+            OverflowItem(CaIcons.terminal, stringResource(Res.string.buildc_tab_terminal)) {
+                open = false; onOpenTerminal()
+            }
+            // The build console is a separate toggle — own line, no icon ambiguity.
+            // The build console is a separate toggle — different icon so it doesn't compete with Terminal.
+            OverflowItem(CaIcons.hammer, stringResource(Res.string.edchrome_build_console), active = consoleOpen) {
                 open = false; onToggleConsole()
             }
             if (showPreview) OverflowItem(CaIcons.image, stringResource(Res.string.edchrome_compose_preview)) {
