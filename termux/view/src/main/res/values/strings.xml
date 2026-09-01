@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Strings used by the text-selection action mode in TextSelectionCursorController.
+  The upstream Termux ships these in a vendored resources/values/strings.xml; this fork
+  keeps them inline since :termux:view doesn't ship any other resources.
+-->
+<resources>
+    <string name="copy">Copy</string>
+    <string name="terminal_more">More</string>
+</resources>
