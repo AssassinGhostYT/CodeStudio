@@ -28,9 +28,8 @@ object TerminalPlugin {
         id = TERMINAL_TOOL_WINDOW_ID,
         title = "Terminal",
         iconId = iconId,
-        anchor = ToolWindowAnchor.BOTTOM,
-        // Place it right after the built-in Steps/Pasos tab, before Logcat.
-        order = 1,
+        anchor = ToolWindowAnchor.RIGHT,
+        order = 100,
         content = { _: ToolWindowContext -> TerminalPanel() },
     )
 }
