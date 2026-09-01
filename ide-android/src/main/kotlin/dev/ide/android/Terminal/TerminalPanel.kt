@@ -126,23 +126,25 @@ private fun SpecialKeysBar(onKeyPress: (String) -> Unit, enabled: Boolean) {
             .padding(6.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            SpecialKeyButton("ESC", { onKeyPress("\u001B") }, enabled)
-            SpecialKeyButton("/", { onKeyPress("/") }, enabled)
-            SpecialKeyButton("-", { onKeyPress("-") }, enabled)
-            SpecialKeyButton("HOME", { onKeyPress("\u001B[H") }, enabled)
-            SpecialKeyButton("↑", { onKeyPress("\u001B[A") }, enabled)
-            SpecialKeyButton("END", { onKeyPress("\u001B[F") }, enabled)
-            SpecialKeyButton("PGUP", { onKeyPress("\u001B[5~") }, enabled)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Box(Modifier.weight(1f)) { SpecialKeyButton("ESC", { onKeyPress("\u001B") }, enabled) }
+            Box(Modifier.weight(1f)) { SpecialKeyButton("|", { onKeyPress("|") }, enabled) }
+            Box(Modifier.weight(1f)) { SpecialKeyButton("/", { onKeyPress("/") }, enabled) }
+            Box(Modifier.weight(1f)) { SpecialKeyButton("HOME", { onKeyPress("\u001B[H") }, enabled) }
+            Box(Modifier.weight(1f)) { SpecialKeyButton("UP", { onKeyPress("\u001B[A") }, enabled) }
+            Box(Modifier.weight(1f)) { SpecialKeyButton("END", { onKeyPress("\u001B[F") }, enabled) }
+            Box(Modifier.weight(1f)) { SpecialKeyButton("PGUP", { onKeyPress("\u001B[5~") }, enabled) }
+            Box(Modifier.weight(1f)) { SpecialKeyButton("DEL", { onKeyPress("\u001B[3~") }, enabled) }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            SpecialKeyButton("TAB", { onKeyPress("\t") }, enabled)
-            SpecialKeyButton("CTRL", { ctrlPressed = !ctrlPressed; if (ctrlPressed) onKeyPress("\u001D") }, enabled, active = ctrlPressed)
-            SpecialKeyButton("ALT", { altPressed = !altPressed; if (altPressed) onKeyPress("\u001B") }, enabled, active = altPressed)
-            SpecialKeyButton("←", { onKeyPress("\u001B[D") }, enabled)
-            SpecialKeyButton("↓", { onKeyPress("\u001B[B") }, enabled)
-            SpecialKeyButton("→", { onKeyPress("\u001B[C") }, enabled)
-            SpecialKeyButton("PGDN", { onKeyPress("\u001B[6~") }, enabled)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            Box(Modifier.weight(1f)) { SpecialKeyButton("TAB", { onKeyPress("\t") }, enabled) }
+            Box(Modifier.weight(1f)) { SpecialKeyButton("CTRL", { ctrlPressed = !ctrlPressed; if (ctrlPressed) onKeyPress("\u001D") }, enabled, active = ctrlPressed) }
+            Box(Modifier.weight(1f)) { SpecialKeyButton("ALT", { altPressed = !altPressed; if (altPressed) onKeyPress("\u001B") }, enabled, active = altPressed) }
+            Box(Modifier.weight(1f)) { SpecialKeyButton("LEFT", { onKeyPress("\u001B[D") }, enabled) }
+            Box(Modifier.weight(1f)) { SpecialKeyButton("DOWN", { onKeyPress("\u001B[B") }, enabled) }
+            Box(Modifier.weight(1f)) { SpecialKeyButton("RIGHT", { onKeyPress("\u001B[C") }, enabled) }
+            Box(Modifier.weight(1f)) { SpecialKeyButton("PGDN", { onKeyPress("\u001B[6~") }, enabled) }
+            Box(Modifier.weight(1f)) { SpecialKeyButton("BKSP", { onKeyPress("\u007F") }, enabled) }
         }
     }
 }
@@ -152,7 +154,7 @@ private fun SpecialKeyButton(label: String, onClick: () -> Unit, enabled: Boolea
     Surface(
         color = if (active) Color(0xFF1F6FEB) else Color(0xFF21262D),
         shape = RoundedCornerShape(4.dp),
-        modifier = Modifier.weight(1f).padding(horizontal = 2.dp),
+        modifier = Modifier.fillMaxWidth(),
         onClick = onClick,
         enabled = enabled
     ) {
