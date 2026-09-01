@@ -849,11 +849,14 @@ dependencies {
     implementation(project(":layout-preview-api"))
     implementation(project(":layout-preview-impl"))
     implementation(project(":android-support"))
-    // Termux real terminal: emulator engine + view + shared utilities + app module (Activity/Service/Installer)
-    implementation(projects.termux.view)
-    implementation(projects.termux.emulator)
-    implementation(projects.termux.shared)
-    implementation(projects.termux.application)
+    // Termux real terminal: emulator engine + view + shared utilities + app module (Activity/Service/Installer).
+    // Use project(":...") (string) not projects.<name> — type-safe accessors in this build don't generate the
+    // nested `:termux:<sub>` chain in :ide-android's script context (the TaskContainer.projects property
+    // shadows the Settings.projects accessor inside build scripts and the IDE shows only that candidate).
+    implementation(project(":termux:view"))
+    implementation(project(":termux:emulator"))
+    implementation(project(":termux:shared"))
+    implementation(project(":termux:application"))
     // Opt-in usage analytics engine: DefaultAnalyticsService + the Supabase sink + the crash reporter. The
     // analytics-api types reach here transitively via :ide-core (which exposes them as `api`).
     implementation(project(":analytics-impl"))

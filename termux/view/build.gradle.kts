@@ -26,9 +26,9 @@ android {
 }
 
 dependencies {
-    api(projects.termux.emulator)
+    api(project(":termux:emulator"))
 
     implementation(libs.androidx.annotation)
 
-    implementation(projects.core.resources)
+    implementation(project(":core:resources"))
 }
