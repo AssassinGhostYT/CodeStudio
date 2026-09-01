@@ -121,6 +121,7 @@ if (System.getenv("CI_CORE_ONLY") != "true") {
         ":ide-core",
         ":ide-desktop",
         ":ide-android",
+        ":core:common", // IDE helper classes (BaseIDEActivity, Environment, …) — vendored Termux sources reference them
         ":termux:view",
         ":termux:emulator",
         ":termux:shared",

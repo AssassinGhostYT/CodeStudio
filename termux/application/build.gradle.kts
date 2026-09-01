@@ -58,12 +58,9 @@ dependencies {
     implementation(libs.common.markwon.linkify)
     implementation(libs.common.markwon.recycler)
     
-    implementation(project(":core:projects"))
     implementation(project(":core:common"))
-    implementation(project(":core:resources"))
     implementation(project(":termux:view"))
     implementation(project(":termux:shared"))
-    implementation(project(":utilities:preferences"))
 }
 
 tasks.register("versionName") {

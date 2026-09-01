@@ -59,8 +59,5 @@ dependencies {
     implementation(libs.common.termuxAmLib)
 
     implementation(project(":core:common"))
-    implementation(project(":core:resources"))
     implementation(project(":termux:view"))
-    implementation(project(":utilities:buildInfo"))
-    implementation(project(":utilities:preferences"))
 }

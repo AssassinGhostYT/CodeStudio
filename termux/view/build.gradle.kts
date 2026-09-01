@@ -30,5 +30,5 @@ dependencies {
 
     implementation(libs.androidx.annotation)
 
-    implementation(project(":core:resources"))
+    implementation(project(":core:common"))
 }

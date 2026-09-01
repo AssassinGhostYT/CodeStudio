@@ -229,10 +229,11 @@ class MainActivity : ComponentActivity() {
                     composePreviewHost = (b as? IdeServicesBackend)?.let { AndroidComposePreviewHost(it) },
                     importPackagePath = importPackagePath,
                     // Real Termux terminal as an Activity — replaces the legacy in-IDE PRoot dock for the
-                    // toolbar button. The activity is in :termux:application (com.tom.rv2ide.activities.TerminalActivity)
-                    // and declared in this app's manifest with exported=false.
+                    // toolbar button. The activity is com.termux.app.TermuxActivity, declared in :termux:application's
+                    // manifest (launchMode=singleTask, exported=true so it can be launched via Intent; it is
+                    // NOT a launcher entry, only the toolbar button starts it).
                     onOpenTerminal = {
-                        startActivity(Intent(this, com.tom.rv2ide.activities.TerminalActivity::class.java))
+                        startActivity(Intent(this, com.termux.app.TermuxActivity::class.java))
                     },
                 )
 
