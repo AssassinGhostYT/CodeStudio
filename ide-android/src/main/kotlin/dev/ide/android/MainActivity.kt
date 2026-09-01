@@ -236,20 +236,33 @@ class MainActivity : ComponentActivity() {
                     onOpenTerminal = {
                         // Wrap in try-catch so a missing-class / not-found-activity failure surfaces as a Toast
                         // instead of being silently swallowed by Compose's recomposition handler. Every branch
-                        // also logs to logcat under [TERMINAL_TAG] so `adb logcat -s CodeTermux:*` shows the trace
+                        // also logs to logcat under [terminalTag] so `adb logcat -s CodeTermux:*` shows the trace
                         // even when the Toast is missed (fades in ~3.5s, easy to overlook).
                         val terminalTag = "CodeTermux"
+                        Log.i(terminalTag, "tap fired; activity=${this@MainActivity.javaClass.simpleName}")
                         try {
-                            val intent = Intent(this, com.termux.app.TermuxActivity::class.java)
+                            // Resolve the class explicitly so a missing-class failure (e.g. Termux not bundled
+                            // in this APK) shows up in logcat instead of dying silently before resolveActivity.
+                            val activityClass = Class.forName("com.termux.app.TermuxActivity")
+                            Log.i(terminalTag, "loaded ${activityClass.name}")
+                            val intent = Intent(this, activityClass)
                             val resolved = packageManager.resolveActivity(intent, 0)
                             if (resolved != null) {
-                                Log.i(terminalTag, "tap → resolveActivity hit ${resolved.activityInfo.name}, launching")
+                                Log.i(terminalTag, "resolveActivity hit ${resolved.activityInfo.name}; launching")
                                 startActivity(intent)
+                                Log.i(terminalTag, "startActivity returned")
                             } else {
-                                val msg = "Termux activity not registered in this build (mergeManifest missing com.termux.app.TermuxActivity?)"
+                                val msg = "Termux activity not registered in this build (merged manifest missing com.termux.app.TermuxActivity)"
                                 Log.e(terminalTag, msg)
                                 Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
                             }
+                        } catch (e: ClassNotFoundException) {
+                            Log.e(terminalTag, "TermuxActivity class not in this APK", e)
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Termux no incluido en este build",
+                                Toast.LENGTH_LONG,
+                            ).show()
                         } catch (e: android.content.ActivityNotFoundException) {
                             Log.e(terminalTag, "ActivityNotFoundException", e)
                             Toast.makeText(
