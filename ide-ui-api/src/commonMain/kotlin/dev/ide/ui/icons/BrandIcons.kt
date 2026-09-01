@@ -8,20 +8,24 @@ import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
 
 /**
- * Real file-type brand glyphs, converted from the user-supplied SVGs, drawn in
- * opaque black so callers recolor with `Icon(tint = ...)`. Each is normalised to a
- * 24x24 grid via [ImageVector.Builder]. The Java mark uses two fills (blue + orange)
- * matching the official logo; Kotlin fills with EvenOdd so the K reads as cutouts.
+ * Real file-type brand glyphs, converted from the user-supplied SVGs. Each is normalised to a
+ * 24x24 grid via [ImageVector.Builder]. Brand colours are baked into the paths so the icons read
+ * correctly even when the caller registers them with [IconTint.Original] (the tree's default
+ * `Fixed(tint)` would otherwise override the colours). Java uses two fills (blue + orange)
+ * matching the official logo; Kotlin paints a white K on the JetBrains purple so the letterform
+ * stays visible on dark themes; XML is the user-supplied cream document with an orange chevron.
  */
 object BrandIcons {
     private val JAVA_BLUE = Color(0xFF5382A1)
     private val JAVA_ORANGE = Color(0xFFE76F00)
     /** Official JetBrains Kotlin brand purple. */
     private val KOTLIN_PURPLE = Color(0xFF7F52FF)
-    /** W3C XML logo orange (the document body). */
+    /** W3C XML logo orange (chevron + bottom band of the user-supplied XML file mark). */
     private val XML_ORANGE = Color(0xFFE37933)
     /** W3C XML logo cream (the document face / page). */
     private val XML_CREAM = Color(0xFFFAF6E3)
+    /** Lighter cream for the folded top-right corner of the document. */
+    private val XML_FOLD = Color(0xFFF5EFD9)
 
     private class Sub(val d: String, val fillType: PathFillType, val color: Color = Color.Black)
     private fun f(d: String, evenOdd: Boolean = false, color: Color = Color.Black) =
@@ -53,20 +57,44 @@ object BrandIcons {
     private val javaBlue5 = f("M9.73 23.907c4.314 0.276 10.94-0.153 11.096-2.195c0 0-0.302 0.774-3.566 1.389c-3.682 0.693-8.224 0.612-10.918 0.168c0 0 0.551 0.456 3.387 0.638", evenOdd = true, color = JAVA_BLUE)
 
     /**
-     * XML file mark (matches the W3C XML logo): orange document with folded top-right corner and a
-     * white `<` `>` chevron pair with a `/` between them. Colours baked in — caller uses
-     * [IconTint.Original]. Three layers so the chevron + slash sit on top of the document body and
-     * the fold triangle sits on top of the body but under the chevron.
+     * XML file mark (user-supplied reference): a cream document with a folded top-right corner, an
+     * orange `< / >` chevron pair centred on the page, and an orange band at the bottom holding the
+     * white "XML" wordmark. Colours baked in — caller uses [IconTint.Original]. Layers are stacked
+     * so the chevron sits on top of the document body and the fold triangle sits on top of the body
+     * but under the band.
      */
-    private val xmlDoc = f("M4 0 H17 L24 7 V20 A4 4 0 0 1 20 24 H4 A4 4 0 0 1 0 20 V4 A4 4 0 0 1 4 0 Z", color = XML_ORANGE)
-    /** The folded corner triangle — the inside of the page shows in the cream tone used by the W3C mark. */
-    private val xmlFold = f("M17 0 V7 H24 Z", color = XML_CREAM)
-    /** `<` chevron pointing right, drawn as a filled polygon (thickness 2.5, height 8). */
-    private val xmlLt = f("M4 8 L9 12 L4 16 L7 16 L12 12 L7 8 Z", color = Color.White)
+    private val xmlDoc = f("M4 0 H17 L24 7 V20 A4 4 0 0 1 20 24 H4 A4 4 0 0 1 0 20 V4 A4 4 0 0 1 4 0 Z", color = XML_CREAM)
+    /** Folded corner triangle — slightly lighter cream so the fold line reads. */
+    private val xmlFold = f("M17 0 V7 H24 Z", color = XML_FOLD)
+    /** Orange band across the bottom of the page where the "XML" wordmark sits. */
+    private val xmlBand = f("M0 18 H24 V20 A4 4 0 0 1 20 24 H4 A4 4 0 0 1 0 20 Z", color = XML_ORANGE)
+    /** `<` chevron pointing right — filled polygon, thickness ~2.5, height ~10. */
+    private val xmlLt = f("M6 5 L11 10.5 L6 16 L8 16 L13 10.5 L8 5 Z", color = XML_ORANGE)
     /** `>` chevron pointing left, mirror of the left one. */
-    private val xmlGt = f("M20 8 L15 12 L20 16 L17 16 L12 12 L17 8 Z", color = Color.White)
+    private val xmlGt = f("M18 5 L13 10.5 L18 16 L16 16 L11 10.5 L16 5 Z", color = XML_ORANGE)
     /** Diagonal slash through the chevrons, bottom-left to top-right. */
-    private val xmlSlash = f("M14 6 L10 18 L13 18 L17 6 Z", color = Color.White)
+    private val xmlSlash = f("M14 4 L10 17 L12 17 L16 4 Z", color = XML_ORANGE)
+    /**
+     * "XML" wordmark painted in white on the orange bottom band — three letterforms built from
+     * filled rectangles and short stems so it stays legible at icon size (~16dp) without a font.
+     * Approximate widths match the visual weight of the reference rather than exact glyph metrics.
+     */
+    private val xmlTextX = f(
+        // X — two crossing diagonals
+        "M3 19 L4.5 19 L7 22.5 L5.5 22.5 Z" +
+            "M7 19 L8.5 19 L6 22.5 L4.5 22.5 Z",
+        color = Color.White,
+    )
+    private val xmlTextM = f(
+        // M — two verticals + centre V
+        "M9 22.5 L10.5 22.5 L10.5 20 L11 21.2 L12 20 L12 22.5 L13.5 22.5 L13.5 19 L12.4 19 L11.5 20.6 L10.6 19 L9 19 Z",
+        color = Color.White,
+    )
+    private val xmlTextL = f(
+        // L — vertical + bottom horizontal
+        "M14.5 19 L16 19 L16 22 L19.5 22 L19.5 22.5 L14.5 22.5 Z",
+        color = Color.White,
+    )
 
     private fun build(name: String, vararg subs: Sub): ImageVector {
         val b = ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f)
@@ -93,8 +121,8 @@ object BrandIcons {
         javaBlue2,
     )
 
-    /** XML file mark — orange document with folded corner and white `<`/`/`/`>` chevrons. Caller uses [IconTint.Original]. */
-    val xml = build("brand-xml", xmlDoc, xmlFold, xmlSlash, xmlLt, xmlGt)
+    /** XML file mark — cream document with orange `<`/`/`/`>` chevrons and orange bottom band carrying the white "XML" wordmark. Caller uses [IconTint.Original]. */
+    val xml = build("brand-xml", xmlDoc, xmlFold, xmlBand, xmlSlash, xmlLt, xmlGt, xmlTextX, xmlTextM, xmlTextL)
 
     /** Dart logo — the D outline with the diagonal slash, from the user's `Dart-logo` SVG. */
     private val dartP0 = f("M0 12 L0 24 L5.351 23.995 C8.292 23.993 10.662 23.988 10.615 23.984 C10.535 23.974 10.345 23.791 8.395 21.848 C6.073 19.533 6.152 19.62 5.812 19.008 C5.524 18.49 5.231 17.702 5.128 17.168 L5.077 16.91 L5.07 10.945 L5.06 4.98 L8.67 2.59 C10.655 1.275 12.333 0.164 12.401 0.124 C12.469 0.082 12.567 0.037 12.619 0.026 C12.677 0.014 10.287 0.005 6.359 0.002 L0 0 L0 12 Z", evenOdd = true)
