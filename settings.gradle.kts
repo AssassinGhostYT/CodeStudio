@@ -121,5 +121,6 @@ if (System.getenv("CI_CORE_ONLY") != "true") {
         ":ide-core",
         ":ide-desktop",
         ":ide-android",
+        ":termux",
     )
 }
