@@ -66,8 +66,14 @@ dependencies {
     implementation(libs.common.markwon.recycler)
     
     implementation(project(":core:common"))
-    implementation(project(":termux:view"))
-    implementation(project(":termux:shared"))
+    // Expose the lower-level termux modules to consumers' compile classpath so IDE-side code can import
+    // com.termux.view.TerminalView etc. without needing to declare each module as a direct dependency.
+    // Using api() here is safe because :ide-android does not list :termux:view / :termux:shared directly —
+    // it depends on :termux:application only, so there is no double-inclusion that would trigger AAPT
+    // duplicate-resource errors (the prior error came from :ide-android declaring both :termux:shared
+    // and :termux:application as direct deps).
+    api(project(":termux:view"))
+    api(project(":termux:shared"))
 }
 
 tasks.register("versionName") {
