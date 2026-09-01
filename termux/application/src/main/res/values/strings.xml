@@ -14,7 +14,6 @@
     <string name="action_no">No</string>
     <string name="yes">Yes</string>
     <string name="no">No</string>
-    <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
 
     <!-- Context menu / toolbar actions -->
@@ -45,7 +44,6 @@
     <string name="bootstrap_installer_body">Installing Termux bootstrap, please wait…</string>
 
     <!-- Error / status messages -->
-    <string name="error_execution_cancelled">Execution cancelled</string>
     <string name="error_termux_service_start_failed_general">Failed to start Termux service</string>
     <string name="error_termux_service_start_failed_bg">Failed to start Termux service in background</string>
     <string name="error_termux_service_invalid_execution_command_runner">Invalid runner: %1$s</string>
@@ -69,8 +67,6 @@
     <string name="msg_terminal_reset">Terminal reset</string>
     <string name="msg_max_terminals_reached">Maximum number of terminals reached</string>
     <string name="msg_select_url_copied_to_clipboard">URL copied to clipboard</string>
-    <string name="msg_storage_permission_granted_on_request">Storage permission granted</string>
-    <string name="msg_storage_permission_not_granted_on_request">Storage permission denied</string>
 
     <!-- Dialog titles -->
     <string name="title_confirm_kill_process">Kill process?</string>

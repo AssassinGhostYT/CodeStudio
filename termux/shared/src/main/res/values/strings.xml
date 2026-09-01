@@ -19,11 +19,14 @@
     <string name="msg_report_truncated">Report truncated due to size limits.</string>
     <string name="msg_report_issue">Report issue</string>
     <string name="msg_storage_permission_not_granted">Storage permission not granted</string>
+    <string name="msg_storage_permission_granted_on_request">Storage permission granted</string>
+    <string name="msg_storage_permission_not_granted_on_request">Storage permission denied</string>
     <string name="msg_termux_app_required_by_app">Termux app is required</string>
     <string name="msg_directory_absolute_path">Directory: %1$s</string>
     <string name="msg_requires_dump_and_package_usage_stats_permissions">This action requires DUMP and PACKAGE_USAGE_STATS permissions.</string>
 
     <!-- Error strings -->
+    <string name="error_execution_cancelled">Execution cancelled</string>
     <string name="error_failed_to_request_permissions">Failed to request permissions %1$d: %2$s</string>
     <string name="error_allow_external_apps_ungranted">External apps permission not granted</string>
     <string name="error_app_not_installed_or_disabled_warning">App not installed or disabled</string>
