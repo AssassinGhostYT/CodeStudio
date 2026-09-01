@@ -88,14 +88,15 @@ internal fun TerminalPanel() {
 
 @Composable
 private fun TermView(session: TerminalSession) {
-    val ctx = LocalContext.current
     AndroidView(
         modifier = Modifier.fillMaxSize(),
         factory = { c ->
             TerminalView(c, null).apply {
+                isFocusable = true
+                isFocusableInTouchMode = true
                 setTerminalViewClient(object : TerminalViewClient {
                     override fun onScale(s: Float) = s
-                    override fun onSingleTapUp(e: MotionEvent) {}
+                    override fun onSingleTapUp(e: MotionEvent) { requestFocus(); (context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)?.showSoftInput(this, 0) }
                     override fun shouldBackButtonBeMappedToEscape() = true
                     override fun shouldEnforceCharBasedInput() = false
                     override fun shouldUseCtrlSpaceWorkaround() = false
@@ -110,18 +111,22 @@ private fun TermView(session: TerminalSession) {
                     override fun readFnKey() = false
                     override fun onCodePoint(cp: Int, ctrl: Boolean, s: TerminalSession): Boolean { s.writeCodePoint(false, cp); return true }
                     override fun onEmulatorSet() {}
-                    override fun logError(t: String, m: String) {}
-                    override fun logWarn(t: String, m: String) {}
-                    override fun logInfo(t: String, m: String) {}
-                    override fun logDebug(t: String, m: String) {}
-                    override fun logVerbose(t: String, m: String) {}
-                    override fun logStackTraceWithMessage(t: String, m: String, e: Exception) {}
-                    override fun logStackTrace(t: String, e: Exception) {}
+                    override fun logError(t: String, m: String) { android.util.Log.e("TermView", m) }
+                    override fun logWarn(t: String, m: String) { android.util.Log.w("TermView", m) }
+                    override fun logInfo(t: String, m: String) { android.util.Log.i("TermView", m) }
+                    override fun logDebug(t: String, m: String) { android.util.Log.d("TermView", m) }
+                    override fun logVerbose(t: String, m: String) { android.util.Log.v("TermView", m) }
+                    override fun logStackTraceWithMessage(t: String, m: String, e: Exception) { android.util.Log.e(t, m, e) }
+                    override fun logStackTrace(t: String, e: Exception) { android.util.Log.e(t, "", e) }
                 })
                 attachSession(session)
+                post { requestFocus(); isFocusableInTouchMode = true }
             }
         },
-        update = { v -> if (v.mTermSession !== session) v.attachSession(session) }
+        update = { v ->
+            if (v.mTermSession !== session) v.attachSession(session)
+            v.requestFocus()
+        }
     )
 }
 
