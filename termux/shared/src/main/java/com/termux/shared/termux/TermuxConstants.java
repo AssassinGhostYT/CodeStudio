@@ -341,7 +341,14 @@ public final class TermuxConstants {
     /** Termux app name */
     public static final String TERMUX_APP_NAME = "AndroidIDE"; // Default: "Termux"
     /** Termux package name */
-    public static final String TERMUX_PACKAGE_NAME = "com.tom.rv2ide"; // Default: "com.termux"
+    // Must match the IDE's applicationId defined in :ide-android/build.gradle.kts.
+    // This single source of truth is consumed by every TERMUX_*_DIR_PATH constant below
+    // (TERMUX_INTERNAL_PRIVATE_APP_DATA_DIR_PATH, TERMUX_PREFIX_DIR_PATH, …) and by the shell
+    // launcher. If this drifts from applicationId, the bootstrap extracts to /data/data/<wrong>/,
+    // the shell fails to find $PREFIX/bin and /etc/group, and `pkg` / `groups` break with
+    // `command not found` / `Cannot find name for group id`. Keep in sync with the manifest
+    // placeholder TERMUX_PACKAGE_NAME in :termux:application/build.gradle.kts.
+    public static final String TERMUX_PACKAGE_NAME = "com.codestudio.ide"; // Default: "com.termux"
     /** Termux GitHub repo name */
     public static final String TERMUX_GITHUB_REPO_NAME = "AndroidIDE"; // Default: "termux-app"
     /** Termux GitHub repo url */
