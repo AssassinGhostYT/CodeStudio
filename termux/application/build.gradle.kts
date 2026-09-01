@@ -16,7 +16,6 @@
  */
 
 @file:Suppress("UnstableApiUsage")
-import com.tom.rv2ide.build.config.BuildConfig
 
 plugins {
     id("com.android.library")
@@ -25,13 +24,19 @@ plugins {
 
 val packageVariant = System.getenv("TERMUX_PACKAGE_VARIANT") ?: "apt-android-7" // Default: "apt-android-7"
 
+// The IDE's actual applicationId (Play Store identity, defined in :ide-android/build.gradle.kts). TermuxConstants
+// uses this to compute `/data/data/<pkg>/files/usr/` and friends. Hardcoded rather than referencing a custom
+// `BuildConfig.packageName` (which the upstream AndroidIDE defined but this codebase does not); the IDE's
+// applicationId is a stable public identifier, so a literal here is fine. If it ever changes, update both spots.
+val termuxPackageName = "com.codestudio.ide"
+
 android {
     namespace = "com.termux"
-    
+
     defaultConfig {
         buildConfigField("String", "TERMUX_PACKAGE_VARIANT", "\"" + packageVariant + "\"") // Used by TermuxApplication class
 
-        manifestPlaceholders["TERMUX_PACKAGE_NAME"] = BuildConfig.packageName
+        manifestPlaceholders["TERMUX_PACKAGE_NAME"] = termuxPackageName
         manifestPlaceholders["TERMUX_APP_NAME"] = "AndroidIDE"
     }
 

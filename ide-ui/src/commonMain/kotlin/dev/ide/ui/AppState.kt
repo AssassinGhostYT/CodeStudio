@@ -27,6 +27,7 @@ import dev.ide.ui.editor.core.mapOffsetThroughEdits
 import dev.ide.ui.editor.languageFor
 import dev.ide.ui.editor.preview.PreviewKind
 import dev.ide.ui.editor.preview.previewKindOf
+import dev.ide.ui.ext.TERMINAL_TOOL_WINDOW_ID
 import dev.ide.ui.platform.ioDispatcher as platformIoDispatcher
 import dev.ide.ui.platform.isMobilePlatform
 import kotlinx.coroutines.CoroutineDispatcher
@@ -376,6 +377,14 @@ class IdeUiState(
     fun clearFocusConsoleTab() {
         consoleFocusTabId = null
     }
+
+    /**
+     * What the editor toolbar's "Terminal" button does when tapped. Default keeps the legacy behaviour
+     * (focus the BOTTOM terminal tool-window tab inside the build console) so the desktop host, which
+     * never provides an override, keeps working. The Android host replaces this in [CodeStudioApp] with
+     * a launcher that opens `com.tom.rv2ide.activities.TerminalActivity` (real Termux).
+     */
+    var openTerminal: () -> Unit = { focusConsoleTab(TERMINAL_TOOL_WINDOW_ID) }
 
     var paletteOpen by mutableStateOf(false)
     /** Whether the "More" actions sheet is showing (rail footer / bottom-nav More). */

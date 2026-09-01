@@ -161,7 +161,7 @@ internal fun EditorCenter(
                 onToggleConsole = { state.consoleOpen = !state.consoleOpen },
                 consoleOpen = state.consoleOpen,
                 onOpenTerminal = if (ToolWindowRegistry.forAnchor(ToolWindowAnchor.BOTTOM).any { it.id == TERMINAL_TOOL_WINDOW_ID }) {
-                    { state.focusConsoleTab(TERMINAL_TOOL_WINDOW_ID) }
+                    { state.openTerminal() }
                 } else null,
                 rightToolIconId = rightPrimary?.iconId,
                 rightToolTitle = rightPrimary?.title ?: "",

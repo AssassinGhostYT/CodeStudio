@@ -105,6 +105,18 @@
             </intent-filter>
         </activity>
 
+        <!-- Real Termux terminal emulator as a full-screen Activity (com.tom.rv2ide.activities.TerminalActivity
+             extends com.termux.app.TermuxActivity from :termux:application). Internally launched from the IDE
+             toolbar's "Terminal" button — not a launcher entry. The foreground service that keeps the shell
+             alive (TermuxService, specialUse subtype) is declared in :termux:application's manifest and gets
+             merged here. -->
+        <activity
+                android:name="com.tom.rv2ide.activities.TerminalActivity"
+                android:exported="false"
+                android:launchMode="singleTask"
+                android:resizeableActivity="true"
+                android:configChanges="orientation|screenSize|smallestScreenSize|density|screenLayout|keyboard|keyboardHidden|navigation" />
+
         <!-- Phase-2 build-process-isolation skeleton (docs/build-process-isolation.md): the build/run daemon
              runs in its own ":build" OS process so a build OOM or a user-program crash kills only it, not
              the IDE. A plain bound service for now; the foreground service + notification is Phase 5. -->

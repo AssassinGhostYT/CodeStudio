@@ -228,6 +228,12 @@ class MainActivity : ComponentActivity() {
                     // instance is stable across project switches (it swaps services internally), so one host suffices.
                     composePreviewHost = (b as? IdeServicesBackend)?.let { AndroidComposePreviewHost(it) },
                     importPackagePath = importPackagePath,
+                    // Real Termux terminal as an Activity — replaces the legacy in-IDE PRoot dock for the
+                    // toolbar button. The activity is in :termux:application (com.tom.rv2ide.activities.TerminalActivity)
+                    // and declared in this app's manifest with exported=false.
+                    onOpenTerminal = {
+                        startActivity(Intent(this, com.tom.rv2ide.activities.TerminalActivity::class.java))
+                    },
                 )
 
                 error != null -> Splash("Failed to start: $error")

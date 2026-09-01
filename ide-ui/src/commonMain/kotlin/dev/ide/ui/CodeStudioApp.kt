@@ -60,6 +60,11 @@ fun CodeStudioApp(
     /** A `.caproj` path handed in from outside the app (Android "Open with"). When it changes to a
      *  non-null value, the import preview opens for it. Null on desktop / normal launch. */
     importPackagePath: String? = null,
+    /** What the editor's "Terminal" toolbar button does when tapped. Android passes a launcher that opens
+     *  the real Termux Activity (see `com.tom.rv2ide.activities.TerminalActivity`); desktop leaves the
+     *  default no-op (the toolbar still falls back to the BOTTOM tool-window tab via [IdeUiState.openTerminal]'s
+     *  default of `focusConsoleTab(TERMINAL_TOOL_WINDOW_ID)`). */
+    onOpenTerminal: () -> Unit = {},
 ) {
     // Register the UI facets of the enabled plugins, then load once. The backend reports exactly the plugins
     // whose engine half is enabled (see BuiltInPlugins' unified engine+UI declaration), so this shell code names
@@ -88,6 +93,9 @@ fun CodeStudioApp(
     LaunchedEffect(state) { state.runSessionEffects() }
     // Apply settings to the active project's live editor state whenever they change (or the project swaps).
     LaunchedEffect(state, app.settings) { state.applySettings(app.settings) }
+    // Hand the host's terminal-opener over to the IDE state so the toolbar button can call it. Side-effecting
+    // this in composition is fine: openTerminal is just a () -> Unit, never read mid-render.
+    LaunchedEffect(onOpenTerminal) { state.openTerminal = onOpenTerminal }
     // A `.caproj` handed in from outside the app ("Open with"): read its preview and open the import screen.
     // Keyed on the path (the host makes each hand-off a distinct path) so it fires once per inbound package.
     LaunchedEffect(importPackagePath) { importPackagePath?.let { app.openImportPackage(it) } }

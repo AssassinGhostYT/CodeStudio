@@ -68,3 +68,5 @@
 sync.remote: "git+https://github.com/AssassinGhostYT/CodeStudio.git"
 dolt:
     shared-server: true
+export:
+    auto: true

@@ -121,6 +121,9 @@ if (System.getenv("CI_CORE_ONLY") != "true") {
         ":ide-core",
         ":ide-desktop",
         ":ide-android",
-        ":termux",
+        ":termux:view",
+        ":termux:emulator",
+        ":termux:shared",
+        ":termux:application",
     )
 }

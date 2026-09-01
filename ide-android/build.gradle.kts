@@ -849,8 +849,11 @@ dependencies {
     implementation(project(":layout-preview-api"))
     implementation(project(":layout-preview-impl"))
     implementation(project(":android-support"))
-    // Termux terminal emulator (Java): TerminalView, TerminalSession, ExtraKeysView, JNI
-    implementation(project(":termux"))
+    // Termux real terminal: emulator engine + view + shared utilities + app module (Activity/Service/Installer)
+    implementation(projects.termux.view)
+    implementation(projects.termux.emulator)
+    implementation(projects.termux.shared)
+    implementation(projects.termux.application)
     // Opt-in usage analytics engine: DefaultAnalyticsService + the Supabase sink + the crash reporter. The
     // analytics-api types reach here transitively via :ide-core (which exposes them as `api`).
     implementation(project(":analytics-impl"))
