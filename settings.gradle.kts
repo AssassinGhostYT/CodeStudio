@@ -48,6 +48,11 @@ dependencyResolutionManagement {
         maven("https://dl-maven-android.mintegral.com/repository/mbridge_android_sdk_oversea") {
             content { includeGroupByRegex("com\\.mbridge\\..*") }
         }
+        // JitPack (Termux-vendored libraries only). Termux publishes com.github.termux:termux-am-library via
+        // JitPack (not on Maven Central). Scoped to that group so normal resolution never consults it.
+        maven("https://jitpack.io") {
+            content { includeGroup("com.github.termux") }
+        }
     }
 }
 

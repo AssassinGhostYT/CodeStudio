@@ -150,7 +150,7 @@ common-markwon-recycler = { module = "io.noties.markwon:recycler", version.ref =
 # commons-io + the two vendored Termux libraries (termux-am-library, hidden-api-bypass) the Termux :shared
 # module pulls in. These are published under com.termux / org.termux groups on Maven Central.
 common-io = { module = "commons-io:commons-io", version.ref = "commonsIo" }
-common-termuxAmLib = { module = "com.termux:termux-am-library", version.ref = "termuxAmLib" }
+common-termuxAmLib = { module = "com.github.termux:termux-am-library", version.ref = "termuxAmLib" }
 common-hiddenApiBypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", version.ref = "hiddenApiBypass" }
 desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 desugar-jdk-libs-configuration = { module = "com.android.tools:desugar_jdk_libs_configuration", version.ref = "desugarJdkLibs" }
