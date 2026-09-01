@@ -116,7 +116,7 @@ object TerminalEngine : TerminalSessionClient {
     }
 
     fun stopSession() { session?.finishIfRunning(); session = null; _running.value = false }
-    fun writeCommand(line: String) { session?.write((line + "\n").toByteArray()) }
+    fun writeCommand(line: String) { session?.write(line + "\n") }
 
     override fun onTextChanged(c: TerminalSession) {}
     override fun onTitleChanged(c: TerminalSession) {}
