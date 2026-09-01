@@ -853,9 +853,9 @@ dependencies {
     // Use project(":...") (string) not projects.<name> — type-safe accessors in this build don't generate the
     // nested `:termux:<sub>` chain in :ide-android's script context (the TaskContainer.projects property
     // shadows the Settings.projects accessor inside build scripts and the IDE shows only that candidate).
-    implementation(project(":termux:view"))
-    implementation(project(":termux:emulator"))
-    implementation(project(":termux:shared"))
+    // `:termux:application` already depends on `:termux:shared` + `:termux:view` + `:termux:emulator` so we only
+    // list it here directly. Adding the transitive modules alongside causes AAPT to merge resources twice and
+    // fail with "Duplicate key Theme_AppCompat_Light_Dialog" (defined in :termux:shared/styles.xml).
     implementation(project(":termux:application"))
     // Opt-in usage analytics engine: DefaultAnalyticsService + the Supabase sink + the crash reporter. The
     // analytics-api types reach here transitively via :ide-core (which exposes them as `api`).
