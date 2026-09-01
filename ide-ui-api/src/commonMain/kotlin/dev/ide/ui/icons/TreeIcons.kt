@@ -68,8 +68,8 @@ object TreeIcons {
         register("manifest", TreeIcon.Glyph(CaIcons.file, IconTint.Fixed(androidGreen)))
         register("file", fallback)
         register("java", TreeIcon.Glyph(BrandIcons.java, IconTint.Original))
-        register("kotlin", TreeIcon.Glyph(BrandIcons.kotlin, IconTint.Fixed(Color(0xFF7F52FF))))
-        register("xml", TreeIcon.Glyph(BrandIcons.xml, IconTint.Fixed(Color(0xFF61AFEF))))
+        register("kotlin", TreeIcon.Glyph(BrandIcons.kotlin, IconTint.Original))
+        register("xml", TreeIcon.Glyph(BrandIcons.xml, IconTint.Original))
         register("dart", TreeIcon.Glyph(BrandIcons.dart, IconTint.Fixed(Color(0xFF0175C2))))
         register("flutter", TreeIcon.Glyph(BrandIcons.flutter, IconTint.Fixed(Color(0xFF54C5F8))))
         // ProGuard/R8 keep-rule files (`proguard-rules.pro`, `consumer-rules.pro`) — the shrinker config.

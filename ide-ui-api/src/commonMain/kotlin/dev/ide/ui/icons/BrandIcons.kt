@@ -16,17 +16,31 @@ import androidx.compose.ui.unit.dp
 object BrandIcons {
     private val JAVA_BLUE = Color(0xFF5382A1)
     private val JAVA_ORANGE = Color(0xFFE76F00)
+    /** Official JetBrains Kotlin brand purple. */
+    private val KOTLIN_PURPLE = Color(0xFF7F52FF)
+    /** W3C XML logo orange (the document body). */
+    private val XML_ORANGE = Color(0xFFE37933)
+    /** W3C XML logo cream (the document face / page). */
+    private val XML_CREAM = Color(0xFFFAF6E3)
 
     private class Sub(val d: String, val fillType: PathFillType, val color: Color = Color.Black)
     private fun f(d: String, evenOdd: Boolean = false, color: Color = Color.Black) =
         Sub(d, if (evenOdd) PathFillType.EvenOdd else PathFillType.NonZero, color)
 
-    /** The Kotlin K letterform — the angular "K" the rhombus logo is built around, drawn in brand purple. */
+    /**
+     * Kotlin logo (matches the JetBrains brand mark): a rounded purple square with the angular K
+     * letterform in white in the top-left. Two paths drawn in this order so the K is on top of the
+     * purple background. Both colours are baked in here — the caller registers with [IconTint.Original]
+     * so [IconTint.Fixed] from [TreeIcons] doesn't recolour it.
+     */
+    private val kotlinBg = f("M5 0 H19 A5 5 0 0 1 24 5 V19 A5 5 0 0 1 19 24 H5 A5 5 0 0 1 0 19 V5 A5 5 0 0 1 5 0 Z", color = KOTLIN_PURPLE)
+    /** The Kotlin K letterform — angular vertical bar with two diagonals, sized to fit the top-left of the rhombus. */
     private val kotlinK = f(
         "M3.4 3.6 L6.0 3.6 L6.0 20.6 L3.4 20.6 Z" +
             "M6.3 4.4 L21.0 1.6 L21.0 6.4 L6.3 8.8 Z" +
             "M6.3 10.6 L21.0 17.4 L21.0 12.8 L6.3 9.2 Z" +
             "M6.3 20.6 L9.0 20.6 L9.0 23.0 L3.4 23.0 L3.4 20.6 Z",
+        color = Color.White,
     )
 
     private val javaBlue0 = f("M8.848 18.553s-0.915 0.532 0.652 0.713c1.898 0.217 2.869 0.186 4.961-0.21c0 0 0.55 0.345 1.318 0.644c-4.69 2.01-10.614-0.116-6.93-1.146", evenOdd = true, color = JAVA_BLUE)
@@ -38,7 +52,21 @@ object BrandIcons {
     private val javaOrange1 = f("M14.389 0.026s2.489 2.49-2.361 6.319c-3.889 3.072-0.887 4.823-0.002 6.824c-2.27-2.048-3.936-3.852-2.819-5.53C10.848 5.175 15.393 3.981 14.389 0.026", evenOdd = true, color = JAVA_ORANGE)
     private val javaBlue5 = f("M9.73 23.907c4.314 0.276 10.94-0.153 11.096-2.195c0 0-0.302 0.774-3.566 1.389c-3.682 0.693-8.224 0.612-10.918 0.168c0 0 0.551 0.456 3.387 0.638", evenOdd = true, color = JAVA_BLUE)
 
-    private val xmlP0 = f("M0.00 12.00 L0.00 24.00 L12.00 24.00 L24.00 24.00 L24.00 12.00 L24.00 0.00 L12.00 0.00 L0.00 0.00 L0.00 12.00 Z M16.16 2.58 C16.17 3.74 16.19 4.15 16.27 4.26 C16.37 4.38 16.55 4.40 17.99 4.40 L19.60 4.40 L19.60 8.20 L19.60 12.00 L12.00 12.00 L4.40 12.00 L4.40 6.57 C4.40 2.30 4.42 1.13 4.50 1.10 C4.55 1.07 7.20 1.05 10.38 1.05 L16.16 1.04 L16.16 2.58 Z M18.02 2.64 L18.95 3.60 L17.99 3.60 L17.04 3.60 L17.04 2.64 C17.04 2.11 17.05 1.68 17.06 1.68 C17.08 1.68 17.50 2.11 18.02 2.64 Z M21.68 16.24 L21.68 19.60 L11.96 19.60 L2.24 19.60 L2.24 16.24 L2.24 12.88 L11.96 12.88 L21.68 12.88 L21.68 16.24 Z M19.60 21.72 C19.60 22.94 19.60 22.96 19.42 23.00 C19.32 23.02 15.91 23.03 11.84 23.02 L4.44 23.00 L4.42 21.74 L4.39 20.48 L12.00 20.48 L19.60 20.48 L19.60 21.72 Z", evenOdd = true)
+    /**
+     * XML file mark (matches the W3C XML logo): orange document with folded top-right corner and a
+     * white `<` `>` chevron pair with a `/` between them. Colours baked in — caller uses
+     * [IconTint.Original]. Three layers so the chevron + slash sit on top of the document body and
+     * the fold triangle sits on top of the body but under the chevron.
+     */
+    private val xmlDoc = f("M4 0 H17 L24 7 V20 A4 4 0 0 1 20 24 H4 A4 4 0 0 1 0 20 V4 A4 4 0 0 1 4 0 Z", color = XML_ORANGE)
+    /** The folded corner triangle — the inside of the page shows in the cream tone used by the W3C mark. */
+    private val xmlFold = f("M17 0 V7 H24 Z", color = XML_CREAM)
+    /** `<` chevron pointing right, drawn as a filled polygon (thickness 2.5, height 8). */
+    private val xmlLt = f("M4 8 L9 12 L4 16 L7 16 L12 12 L7 8 Z", color = Color.White)
+    /** `>` chevron pointing left, mirror of the left one. */
+    private val xmlGt = f("M20 8 L15 12 L20 16 L17 16 L12 12 L17 8 Z", color = Color.White)
+    /** Diagonal slash through the chevrons, bottom-left to top-right. */
+    private val xmlSlash = f("M14 6 L10 18 L13 18 L17 6 Z", color = Color.White)
 
     private fun build(name: String, vararg subs: Sub): ImageVector {
         val b = ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f)
@@ -49,8 +77,8 @@ object BrandIcons {
         return b.build()
     }
 
-    /** Kotlin — the angular K letterform, so the purple paints the K (never the rhombus backdrop). */
-    val kotlin = build("brand-kotlin", kotlinK)
+    /** Kotlin brand mark — rounded purple square with white K, drawn in declared colour so the caller uses [IconTint.Original]. */
+    val kotlin = build("brand-kotlin", kotlinBg, kotlinK)
 
     /** Java logo — coffee cup mark with the steam rising above, blue + orange. */
     val java = build(
@@ -65,8 +93,8 @@ object BrandIcons {
         javaBlue2,
     )
 
-    /** XML tag mark. */
-    val xml = build("brand-xml", xmlP0)
+    /** XML file mark — orange document with folded corner and white `<`/`/`/`>` chevrons. Caller uses [IconTint.Original]. */
+    val xml = build("brand-xml", xmlDoc, xmlFold, xmlSlash, xmlLt, xmlGt)
 
     /** Dart logo — the D outline with the diagonal slash, from the user's `Dart-logo` SVG. */
     private val dartP0 = f("M0 12 L0 24 L5.351 23.995 C8.292 23.993 10.662 23.988 10.615 23.984 C10.535 23.974 10.345 23.791 8.395 21.848 C6.073 19.533 6.152 19.62 5.812 19.008 C5.524 18.49 5.231 17.702 5.128 17.168 L5.077 16.91 L5.07 10.945 L5.06 4.98 L8.67 2.59 C10.655 1.275 12.333 0.164 12.401 0.124 C12.469 0.082 12.567 0.037 12.619 0.026 C12.677 0.014 10.287 0.005 6.359 0.002 L0 0 L0 12 Z", evenOdd = true)
