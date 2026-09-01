@@ -16,12 +16,14 @@
     </style>
 
     <!--
-      Vendored Termux MessageDialogUtils passes R.style.Theme_AppCompat_Light_Dialog to AlertDialog.Builder.
-      That exact field name doesn't exist in androidx.appcompat — its dialog styles are
-      Theme.AppCompat.Light.Dialog / .Dialog.Alert / .Dialog.MinWidth. Declare a style whose simple
-      name is "Theme_AppCompat_Light_Dialog" (resolves from dot to underscore) extending the closest
-      match, so the R-class field exists and dialogs inflate with light dialog chrome.
+      Vendored Termux MessageDialogUtils constructs an AlertDialog with the upstream Termux style
+      Theme_AppCompat_Light_Dialog. AppCompat does not export that exact symbol — its dialog
+      styles are Theme.AppCompat.Light.Dialog / .Dialog.Alert / .Dialog.MinWidth. We declare a
+      thin wrapper here under a project-specific name (TermuxAppCompatLightDialog) so the R-class
+      field exists without colliding with any framework/AppCompat style name. Previously this was
+      named "Theme_AppCompat_Light_Dialog" which collided in :ide-android's merged resource set
+      when :termux:shared was reachable on more than one dep path.
     -->
-    <style name="Theme_AppCompat_Light_Dialog" parent="Theme.AppCompat.Light.Dialog" />
+    <style name="TermuxAppCompatLightDialog" parent="Theme.AppCompat.Light.Dialog" />
 
 </resources>

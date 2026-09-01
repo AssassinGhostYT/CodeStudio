@@ -51,10 +51,15 @@ public class MessageDialogUtils {
                                    final DialogInterface.OnClickListener onNegativeButton,
                                    final DialogInterface.OnDismissListener onDismiss) {
 
-        // Theme_AppCompat_Light_Dialog is the upstream vendored reference; AppCompat doesn't expose
-        // that exact symbol — its dialog styles are Theme.AppCompat.Light.Dialog / .Dialog.Alert / .Dialog.MinWidth.
-        // The matching field is declared in styles.xml so R.style.Theme_AppCompat_Light_Dialog resolves.
-        AlertDialog.Builder builder = new AlertDialog.Builder(context, R.style.Theme_AppCompat_Light_Dialog);
+        // Vendored Termux referenced R.style.Theme_AppCompat_Light_Dialog but AppCompat does not
+        // expose that exact symbol (its dialog styles are Theme.AppCompat.Light.Dialog /
+        // .Dialog.Alert / .Dialog.MinWidth). Earlier we declared a local style with that simple
+        // name to produce the R-class field, but that caused AAPT duplicate-key errors when
+        // :termux:shared was reachable on multiple dep paths through the merged resources set.
+        // Use the real AppCompat light dialog style directly via its resource ID; AlertDialog's
+        // two-arg constructor accepts any Theme.AppCompat.* style.
+        AlertDialog.Builder builder = new AlertDialog.Builder(context,
+            com.termux.shared.R.style.TermuxAppCompatLightDialog);
 
         LayoutInflater inflater = (LayoutInflater) context.getSystemService( Context.LAYOUT_INFLATER_SERVICE );
         View view = inflater.inflate(R.layout.dialog_show_message, null);
