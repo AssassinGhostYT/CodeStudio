@@ -41,19 +41,25 @@ object BrandIcons {
 
     /**
      * Kotlin logo (matches the JetBrains brand mark): the K letterform painted in JetBrains purple
-     * on a transparent background. The path traces the K outline (vertical stem with upper and lower
-     * angular arms and the V-notch where they meet), so only the K shape is filled — the outside is
-     * transparent and shows through whatever surface the icon is rendered on. No background fill is
-     * drawn by design (the reference shows the K as the visible coloured shape; the surrounding
-     * purple in the official mark is the cutout complement, not part of the K itself).
+     * on a transparent background. The path is the official Material Icons `kotlin` glyph, normalised
+     * from its native 32×32 viewBox to a 24×24 grid (factor 0.75), and traces a single closed polygon
+     * clockwise around the K outline: vertical left edge → horizontal stem top → slanted upper arm to
+     * the top-right corner → inward to the centre notch (the V where both arms meet) → outward to the
+     * bottom-right corner → slanted lower arm back to the stem → inward to the slanted stem bottom →
+     * close. Only the K shape is filled — the outside is transparent.
      */
     private val kotlinK = f(
-        // Single closed polygon traced clockwise around the K letterform.
-        // Top of stem (0..13.5) → right wall of upper arm down to the V-notch (13.5, 12) →
-        // diagonal up to top-right corner (21, 0) → outer top-right (24, 0) → down to (24, 24) →
-        // outer bottom-right (21, 24) → up the lower-arm right wall to its V-notch (21, 12) →
-        // diagonal down to bottom of stem (13.5, 24) → bottom of stem (0, 24) → close.
-        "M0 0 L13.5 0 L13.5 12 L21 0 L24 0 L24 24 L21 24 L21 12 L13.5 24 L0 24 Z",
+        // Material Icons "kotlin" outer outline, scaled 32→24 (×0.75):
+        //   M2.4,0  → (1.8, 0)
+        //   H13.2   → (9.9, 0)
+        //   L26.4,13.2 → (19.8, 9.9)
+        //   L18,21.6   → (13.5, 16.2)   ← V-notch tip
+        //   L26.4,32   → (19.8, 24)
+        //   H13.2      → (9.9, 24)
+        //   L0,14.4    → (0, 10.8)
+        //   V0         → (0, 0)
+        //   H2.4       → (1.8, 0)   close
+        "M1.8 0 H9.9 L19.8 9.9 L13.5 16.2 L19.8 24 H9.9 L0 10.8 V0 Z",
         color = KOTLIN_PURPLE,
     )
 
