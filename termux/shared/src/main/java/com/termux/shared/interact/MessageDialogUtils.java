@@ -51,6 +51,9 @@ public class MessageDialogUtils {
                                    final DialogInterface.OnClickListener onNegativeButton,
                                    final DialogInterface.OnDismissListener onDismiss) {
 
+        // Theme_AppCompat_Light_Dialog is the upstream vendored reference; AppCompat doesn't expose
+        // that exact symbol — its dialog styles are Theme.AppCompat.Light.Dialog / .Dialog.Alert / .Dialog.MinWidth.
+        // The matching field is declared in styles.xml so R.style.Theme_AppCompat_Light_Dialog resolves.
         AlertDialog.Builder builder = new AlertDialog.Builder(context, R.style.Theme_AppCompat_Light_Dialog);
 
         LayoutInflater inflater = (LayoutInflater) context.getSystemService( Context.LAYOUT_INFLATER_SERVICE );

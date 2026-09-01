@@ -15,4 +15,13 @@
         <item name="android:textColor">?android:attr/textColorSecondaryInverse</item>
     </style>
 
+    <!--
+      Vendored Termux MessageDialogUtils passes R.style.Theme_AppCompat_Light_Dialog to AlertDialog.Builder.
+      That exact field name doesn't exist in androidx.appcompat — its dialog styles are
+      Theme.AppCompat.Light.Dialog / .Dialog.Alert / .Dialog.MinWidth. Declare a style whose simple
+      name is "Theme_AppCompat_Light_Dialog" (resolves from dot to underscore) extending the closest
+      match, so the R-class field exists and dialogs inflate with light dialog chrome.
+    -->
+    <style name="Theme_AppCompat_Light_Dialog" parent="Theme.AppCompat.Light.Dialog" />
+
 </resources>
