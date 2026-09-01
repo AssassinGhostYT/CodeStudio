@@ -2,30 +2,27 @@ package dev.ide.android.Terminal
 
 import android.content.Context
 import android.system.Os
+import android.util.Log
+import com.termux.terminal.TerminalSession
+import com.termux.terminal.TerminalSessionClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
-import java.io.BufferedReader
 import java.io.BufferedOutputStream
+import java.io.BufferedReader
 import java.io.File
 import java.io.FileOutputStream
 import java.io.FileReader
 import java.net.HttpURLConnection
 import java.net.URL
-import java.util.concurrent.Executors
 
-object TerminalEngine {
+object TerminalEngine : TerminalSessionClient {
 
-    private val TOOLKIT_ASSETS = listOf(
-        "libtalloc.so.2",
-        "liblzma.so.5",
-        "libandroid-shmem.so",
-    )
+    private const val TAG = "TerminalEngine"
 
-    private const val ROOTFS_URL =
-        "https://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04.5-base-arm64.tar.gz"
-
+    private val TOOLKIT_ASSETS = listOf("libtalloc.so.2","liblzma.so.5","libandroid-shmem.so")
+    private const val ROOTFS_URL = "https://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04.5-base-arm64.tar.gz"
     private const val ROOTFS_FILE = "ubuntu-rootfs.tar.gz"
 
     sealed interface SetupState {
@@ -38,27 +35,25 @@ object TerminalEngine {
 
     private val _setup = MutableStateFlow<SetupState>(SetupState.Idle)
     val setup: StateFlow<SetupState> = _setup
-
     private val _running = MutableStateFlow(false)
     val running: StateFlow<Boolean> = _running
-
     private val _output = MutableStateFlow("")
     val output: StateFlow<String> = _output
 
     private var filesDir: File? = null
     private var appContext: Context? = null
-    private var process: Process? = null
-    private val pool = Executors.newFixedThreadPool(2) { r ->
-        Thread(r, "terminal-io").apply { isDaemon = true }
-    }
+    var session: TerminalSession? = null
+        private set
 
     fun init(context: Context) {
         appContext = context.applicationContext
         filesDir = context.applicationContext.filesDir
     }
 
-    private fun supportDir(): File = File(filesDir ?: error("TerminalEngine.init() not called"), "support").apply { mkdirs() }
-    private fun rootfsDir(): File = File(filesDir ?: error("TerminalEngine.init() not called"), "rootfs")
+    private fun supportDir() = File(filesDir!!, "support").apply { mkdirs() }
+    private fun rootfsDir() = File(filesDir!!, "rootfs")
+    private fun prootExec() = appContext?.let { File(it.applicationInfo.nativeLibraryDir, "libproot.so") } ?: File(supportDir(), "proot")
+    private fun nativeDir(name: String) = appContext?.let { File(it.applicationInfo.nativeLibraryDir, name) } ?: File("")
 
     suspend fun ensureReady(onProgress: (String) -> Unit = {}) = withContext(Dispatchers.IO) {
         if (_setup.value is SetupState.Ready) return@withContext
@@ -67,12 +62,10 @@ object TerminalEngine {
             val rootfs = rootfsDir()
             ensureToolkit()
             val report: (String) -> Unit = { msg ->
-                if (msg.startsWith("Downloading ") && msg.contains('%')) {
-                    _setup.value = SetupState.Downloading(msg)
-                }
+                if (msg.startsWith("Downloading ") && msg.contains('%')) _setup.value = SetupState.Downloading(msg)
                 onProgress(msg)
             }
-            if (!File(rootfs, "/bin/bash").exists() || !File(rootfs, ".cs-exec-v1").exists()) {
+            if (!File(rootfs, "bin/bash").exists() || !File(rootfs, ".cs-exec-v1").exists()) {
                 _setup.value = SetupState.Downloading("Downloading rootfs (~76 MB)…")
                 report("Downloading rootfs…")
                 val archive = downloadToCache(ROOTFS_URL, ROOTFS_FILE, report)
@@ -85,293 +78,98 @@ object TerminalEngine {
                 archive.delete()
             }
             val bad = TOOLKIT_ASSETS.mapNotNull { ensureExecutable(File(supportDir(), it)) }
-            _setup.value = if (bad.isEmpty()) SetupState.Ready
-                           else SetupState.Failed(bad.joinToString("; ") + " " + diagnostics(prootExecutable()))
+            _setup.value = if (bad.isEmpty()) SetupState.Ready else SetupState.Failed(bad.joinToString("; "))
         } catch (e: Exception) {
-            _setup.value = SetupState.Failed(e.message ?: e::class.simpleName ?: "Setup failed")
+            _setup.value = SetupState.Failed(e.message ?: "failed")
         }
     }
 
     private fun ensureToolkit() {
-        val context = appContext ?: return
+        val ctx = appContext ?: return
         val support = supportDir()
-        if (TOOLKIT_ASSETS.all { name -> File(support, name).exists() && File(support, name).length() > 0 }) return
+        if (TOOLKIT_ASSETS.all { File(support, it).exists() && File(support, it).length() > 0 }) return
         _setup.value = SetupState.Extracting
         for (name in TOOLKIT_ASSETS) {
-            val target = File(support, name)
-            if (target.exists() && target.length() > 0) continue
-            context.assets.open("terminal/$name").use { input ->
-                target.outputStream().use { input.copyTo(it) }
-            }
+            val t = File(support, name)
+            if (t.exists() && t.length() > 0) continue
+            ctx.assets.open("terminal/$name").use { inp -> t.outputStream().use { inp.copyTo(it) } }
         }
     }
 
-    fun startSession() {
-        if (process?.isAlive == true) return
+    fun startSession(cols: Int = 80, rows: Int = 24) {
+        if (session != null) return
         val rootfs = rootfsDir()
         val support = supportDir()
-        val proot = prootExecutable()
-        ensureExecutable(proot)
-        // ptywrapper allocates a real pseudo-terminal (pty) and runs proot on its slave side, bridging
-        // the app's stdio to the pty master. Without a tty bash shows no prompt and the UI is stuck on
-        // "Waiting for shell…"; the wrapper lives in nativeLibraryDir so ART lets the app exec it.
-        val ptywrap = nativeDir("libptywrap.so")
-        ensureExecutable(ptywrap)
-
-        val prootArgs = listOf(
-            "--kill-on-exit", "--link2symlink", "--sysvipc",
-            "-L", "-p",
-            "-r", rootfs.absolutePath,
-            "--change-id=0:0",
-            "--cwd=/root",
-            "-b", "/storage/emulated/0:/sdcard",
-            "-b", "/proc", "-b", "/sys", "-b", "/dev",
-            "/bin/bash", "-l",
-        )
-        // Bash and everything else come from the rootfs: TarGz now preserves the tar exec bits, so
-        // proot finds them executable. proot itself is exec'd directly from nativeLibraryDir (ART lets
-        // apps exec ELFs there), so no linker64 indirection is needed anymore.
-        val libPath = support.absolutePath
-        var usedVia = "none"
-        var lastErr: Exception? = null
-
-        fun tryLaunch(cmd: List<String>, via: String): Process? {
-            val pb = ProcessBuilder(cmd)
-            pb.directory(rootfs)
-            pb.environment()["LD_LIBRARY_PATH"] = libPath
-            pb.environment()["HOME"] = File(rootfs, "root").absolutePath
-            pb.environment()["TERM"] = "xterm-256color"
-            pb.environment()["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-            // This proot is a Termux build: its compiled-in temp dir is
-            // /data/data/com.termux/files/usr/tmp, which doesn't exist here. PROOT_TMP_DIR is a HOST
-            // path (proot builds the glue rootfs & f2fs probe there), so it must live inside the app
-            // sandbox — Android's /tmp isn't writable by apps. TMPDIR stays as the guest /tmp.
-            val hostTmp = File(filesDir ?: return null, "tmp").apply { mkdirs() }
-            pb.environment()["PROOT_TMP_DIR"] = hostTmp.absolutePath
-            pb.environment()["TMPDIR"] = "/tmp"
-            // This proot is a Termux build that boots guest ELFs through a separate statically-linked
-            // host loader. Without it proot reports `execve("/usr/bin/bash"): No such file or directory`
-            // because the guest's /lib/ld-linux-aarch64.so.1 doesn't exist on Android. Point PROOT_LOADER
-            // at the bundled loader. It must be an ELF the app is allowed to exec: ART only lets apps exec
-            // binaries from nativeLibraryDir, so we ship it there (jniLibs arm64-v8a/libproot_loader.so)
-            // rather than in filesDir — exec'ing it from filesDir makes proot fail with `Permission denied`
-            // under SELinux (same reason proot itself needs the linker64 vector).
-            val loader = nativeDir("libproot_loader.so")
-            chmodExecutable(loader)
-            if (loader.canExecute()) pb.environment()["PROOT_LOADER"] = loader.absolutePath
-            return try {
-                val p = pb.start()
-                usedVia = via
-                p
-            } catch (e: Exception) {
-                lastErr = e
-                null
-            }
-        }
-
-        val base = listOf(proot.absolutePath) + prootArgs
-        var p = if (ptywrap.canExecute()) tryLaunch(listOf(ptywrap.absolutePath) + base, "pty")
-                else null
-        if (p == null && proot.canExecute()) {
-            // Fall back to launching proot without a pty (bash may not show a prompt, but still runs).
-            p = tryLaunch(base, "direct")
-        }
-        if (p == null) {
-            val linker = if (File("/system/bin/linker64").exists()) "/system/bin/linker64" else "/system/bin/linker"
-            p = tryLaunch(listOf(linker) + base, "linker64")
-        }
-
-        _output.value = ""
-        if (p == null) {
-            _output.value = "error: ${lastErr?.message} via=none probe=${probeExec()} [d] ${diagnostics(proot)}\n"
-            _running.value = false
-            return
-        }
-        process = p
+        val proot = prootExec()
+        try { Os.chmod(proot.absolutePath, 0x1ED) } catch (_: Exception) { proot.setExecutable(true) }
+        val loader = nativeDir("libproot_loader.so")
+        try { Os.chmod(loader.absolutePath, 0x1ED) } catch (_: Exception) { loader.setExecutable(true) }
+        val hostTmp = File(filesDir!!, "tmp").apply { mkdirs() }
+        val prootPath = proot.absolutePath
+        val args = arrayOf(prootPath,"--kill-on-exit","--link2symlink","--sysvipc","-L","-p","-r",rootfs.absolutePath,"--change-id=0:0","--cwd=/root","-b","/storage/emulated/0:/sdcard","-b","/proc","-b","/sys","-b","/dev","/bin/bash","-l")
+        val env = arrayOf("LD_LIBRARY_PATH=${support.absolutePath}","HOME=/root","TERM=xterm-256color","PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","PROOT_TMP_DIR=${hostTmp.absolutePath}","TMPDIR=/tmp","PROOT_LOADER=${loader.absolutePath}")
+        val s = TerminalSession(prootPath, rootfs.absolutePath, args, env, 5000, this)
+        session = s
+        s.updateSize(cols, rows)
         _running.value = true
-        _output.value = ""
-        
-        val input = p.inputStream
-        val err = p.errorStream
-        pool.execute {
-            val buf = ByteArray(4096)
-            val out = StringBuilder()
-            while (true) {
-                val n = input.read(buf)
-                if (n < 0) break
-                out.append(String(buf, 0, n, Charsets.UTF_8))
-                if (out.length > 8192) { _output.value += out; out.setLength(0) }
-            }
-            _output.value += out
-        }
-        pool.execute {
-            val buf = ByteArray(4096)
-            val out = StringBuilder()
-            while (true) {
-                val n = err.read(buf)
-                if (n < 0) break
-                out.append(String(buf, 0, n, Charsets.UTF_8))
-                if (out.length > 8192) { _output.value += out; out.setLength(0) }
-            }
-            _output.value += out
-        }
-        pool.execute {
-            p.waitFor()
-            _running.value = false
-        }
+        Log.i(TAG, "termux session started")
     }
 
-    fun writeCommand(line: String) {
-        val p = process
-        if (p == null || !p.isAlive) {
-            _output.value += "\$ $line\n"
-            return
-        }
-        try {
-            p.outputStream.write((line + "\n").toByteArray(Charsets.UTF_8))
-            p.outputStream.flush()
-        } catch (_: Exception) {
-        }
-    }
+    fun stopSession() { session?.finishIfRunning(); session = null; _running.value = false }
+    fun writeCommand(line: String) { session?.write((line + "\n").toByteArray()) }
 
-    fun stopSession() {
-        process?.destroy()
-        _running.value = false
-    }
-
-    // proot is a dynamically-linked Android ELF; ART only lets an app exec binaries (incl. their
-    // interpreter /system/bin/linker64) from nativeLibraryDir. Exec'ing it from filesDir is denied by
-    // SELinux, which is why past builds had to fall back to an explicit linker64 launch. Bundle it as a
-    // jniLib (libproot.so) so it's extracted to nativeLibraryDir and "direct" exec just works.
-    private fun prootExecutable(): File =
-        appContext?.let { File(it.applicationInfo.nativeLibraryDir, "libproot.so") } ?: File(supportDir(), "proot")
-
-    // The loader (and proot) must live where ART lets an app actually exec ELFs: nativeLibraryDir
-    // (extracted from jniLibs at install), not filesDir, where exec is denied under SELinux.
-    private fun nativeDir(name: String): File = appContext?.let {
-        File(it.applicationInfo.nativeLibraryDir, name)
-    } ?: File("")
+    override fun onTextChanged(c: TerminalSession) {}
+    override fun onTitleChanged(c: TerminalSession) {}
+    override fun onSessionFinished(f: TerminalSession) { _running.value = false; session = null }
+    override fun onCopyTextToClipboard(s: TerminalSession, t: String) {}
+    override fun onPasteTextFromClipboard(s: TerminalSession?) {}
+    override fun onBell(s: TerminalSession) {}
+    override fun onColorsChanged(s: TerminalSession) {}
+    override fun onTerminalCursorStateChange(b: Boolean) {}
+    override fun setTerminalShellPid(s: TerminalSession, pid: Int) { Log.i(TAG, "shell pid $pid") }
+    override fun getTerminalCursorStyle(): Int? = null
+    override fun logError(t: String, m: String) { Log.e(TAG, m) }
+    override fun logWarn(t: String, m: String) { Log.w(TAG, m) }
+    override fun logInfo(t: String, m: String) { Log.i(TAG, m) }
+    override fun logDebug(t: String, m: String) { Log.d(TAG, m) }
+    override fun logVerbose(t: String, m: String) { Log.v(TAG, m) }
+    override fun logStackTraceWithMessage(t: String, m: String, e: Exception) { Log.e(t, m, e) }
+    override fun logStackTrace(t: String, e: Exception) { Log.e(t, "", e) }
 
     private fun ensureExecutable(file: File): String? {
         if (!file.exists()) return "${file.name}: missing"
-        chmodExecutable(file)
+        try { Os.chmod(file.absolutePath, 0x1ED) } catch (_: Exception) { file.setExecutable(true, false) }
         if (file.canExecute()) return null
         try {
-            val context = appContext
-            val name = file.name
-            file.parentFile?.mkdirs()
-            if (context != null) {
-                context.assets.open("terminal/$name").use { input ->
-                    file.outputStream().use { input.copyTo(it) }
-                }
-            }
-            chmodExecutable(file)
-        } catch (_: Exception) {
-        }
-        return if (file.canExecute()) null else "${file.name}: not executable (mode=0${modeString(file)})"
-    }
-
-    private fun chmodExecutable(file: File) {
-        if (!file.exists()) return
-        try {
-            Os.chmod(file.absolutePath, 0x1ED)
-        } catch (_: Exception) {
-            file.setExecutable(true, false)
-        }
-        try {
-            file.setExecutable(true, false)
-        } catch (_: Exception) {
-        }
-    }
-
-    private fun modeString(file: File): String = try {
-        Integer.toOctalString(Os.stat(file.absolutePath).st_mode and 0xFFF)
-    } catch (_: Exception) {
-        "?"
-    }
-
-    private fun diagnostics(file: File): String {
-        val sb = StringBuilder(file.name).append(" canExecute=").append(file.canExecute())
-            .append(" mode=0").append(modeString(file))
-            .append(" ctx=").append(selinuxCtx())
-            .append(" seccomp=").append(seccompMode())
-        try {
-            val path = file.absolutePath
-            BufferedReader(FileReader("/proc/self/mounts")).useLines { lines ->
-                val best = lines.map { it.split(" ") }
-                    .filter { path.startsWith(it[1]) }
-                    .maxByOrNull { it[1].length }
-                if (best != null) sb.append(" mount[").append(best[1]).append("]=").append(best[3])
-            }
-        } catch (_: Throwable) {
-        }
-        return sb.toString()
-    }
-
-    private fun selinuxCtx(): String = try {
-        File("/proc/self/attr/current").readText().trim().ifEmpty { "?" }
-    } catch (_: Throwable) {
-        "?"
-    }
-
-    private fun seccompMode(): String = try {
-        File("/proc/self/status").readLines().firstOrNull { it.startsWith("Seccomp:") }?.split(':')
-            ?.getOrNull(1)?.trim() ?: "?"
-    } catch (_: Throwable) {
-        "?"
-    }
-
-    private fun probeExec(): String {
-        val attempts = listOf(
-            listOf("/system/bin/toybox", "true"),
-            listOf("/system/bin/sh", "-c", "true"),
-        )
-        for (cmd in attempts) {
-            try {
-                val p = ProcessBuilder(cmd).start()
-                p.waitFor()
-                return "sys-exec(${cmd.first()})=ok"
-            } catch (_: Throwable) {
-            }
-        }
-        return "sys-exec=all-fail"
+            val ctx = appContext; val n = file.name; file.parentFile?.mkdirs()
+            if (ctx != null) ctx.assets.open("terminal/$n").use { inp -> file.outputStream().use { inp.copyTo(it) } }
+            try { Os.chmod(file.absolutePath, 0x1ED) } catch (_: Exception) { file.setExecutable(true, false) }
+        } catch (_: Exception) {}
+        return if (file.canExecute()) null else "${file.name}: not executable"
     }
 
     private fun downloadToCache(url: String, name: String, onProgress: (String) -> Unit): File {
-        val cacheDir = File(filesDir ?: error("TerminalEngine.init() not called"), "cache").apply { mkdirs() }
-        val target = File(cacheDir, name)
+        val cache = File(filesDir!!, "cache").apply { mkdirs() }
+        val target = File(cache, name)
         if (target.exists() && target.length() > 0) return target
-        val part = File(cacheDir, "$name.part")
+        val part = File(cache, "$name.part")
         try {
             streamTo(url, part, onProgress)
             if (!part.renameTo(target)) part.copyTo(target, overwrite = true).also { part.delete() }
             return target
-        } finally {
-            part.delete()
-        }
+        } finally { part.delete() }
     }
 
     private fun streamTo(url: String, target: File, onProgress: (String) -> Unit) {
         if (target.exists() && target.length() > 0) return
         target.parentFile?.mkdirs()
-        val conn = URL(url).openConnection() as HttpURLConnection
-        conn.instanceFollowRedirects = true
-        conn.connectTimeout = 15_000
-        conn.readTimeout = 60_000
-        conn.setRequestProperty("User-Agent", "CodeStudio-Terminal/1.0")
-        val total = conn.contentLengthLong
-        conn.inputStream.use { input ->
-            BufferedOutputStream(FileOutputStream(target)).use { output ->
-                val buf = ByteArray(64 * 1024)
-                var done = 0L
-                while (true) {
-                    val n = input.read(buf)
-                    if (n < 0) break
-                    output.write(buf, 0, n)
-                    done += n
-                    if (total > 0 && n > 0) onProgress("Downloading ${target.name} ${done * 100 / total}%")
-                }
-            }
-        }
+        val c = URL(url).openConnection() as HttpURLConnection
+        c.instanceFollowRedirects = true; c.connectTimeout = 15000; c.readTimeout = 60000
+        c.setRequestProperty("User-Agent", "CodeStudio-Terminal/1.0")
+        val tot = c.contentLengthLong
+        c.inputStream.use { inp -> BufferedOutputStream(FileOutputStream(target)).use { out ->
+            val buf = ByteArray(64*1024); var d = 0L
+            while (true) { val n = inp.read(buf); if (n<0) break; out.write(buf,0,n); d+=n; if (tot>0) onProgress("Downloading ${d*100/tot}%") }
+        }}
     }
 }
