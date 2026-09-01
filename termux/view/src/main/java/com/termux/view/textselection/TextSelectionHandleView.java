@@ -59,11 +59,13 @@ public class TextSelectionHandleView extends View {
         mCursorController = cursorController;
         mInitialOrientation = initialOrientation;
 
-        // The standard Material text-selection handles ship as platform drawables (added in API 21).
-        // The vendored Termux originally referenced R.drawable.* (a vendored copy); this fork uses the
-        // platform ones to drop the resource-vendoring requirement.
-        mHandleLeftDrawable = getContext().getDrawable(android.R.drawable.text_select_handle_left_material);
-        mHandleRightDrawable = getContext().getDrawable(android.R.drawable.text_select_handle_right_material);
+        // Local placeholder drawables (see res/drawable/text_select_handle_*_material.xml). The platform's
+        // android.R.drawable.text_select_handle_*_material is NOT a public symbol of android.R.drawable,
+        // so referencing it from Java fails at compile time even though the file exists in the platform
+        // tree — the upstream Termux shipped a vendored copy in :termux:view/res; we recreate a vector
+        // placeholder so the module doesn't have to vendor a whole resources tree.
+        mHandleLeftDrawable = getContext().getDrawable(R.drawable.text_select_handle_left_material);
+        mHandleRightDrawable = getContext().getDrawable(R.drawable.text_select_handle_right_material);
 
         setOrientation(mInitialOrientation);
     }

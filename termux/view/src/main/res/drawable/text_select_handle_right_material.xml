@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Minimal placeholder for the Material text-selection right handle. See text_select_handle_left_material.xml
+  for the rationale.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="22dp"
+    android:height="22dp"
+    android:viewportWidth="22"
+    android:viewportHeight="22">
+    <path
+        android:fillColor="#FF6200EE"
+        android:pathData="M11,2 L11,20 L17,14 L19,16 L19,6 L17,8 Z" />
+</vector>

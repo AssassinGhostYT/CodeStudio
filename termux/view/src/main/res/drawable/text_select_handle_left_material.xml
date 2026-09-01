@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Minimal placeholder for the Material text-selection left handle. The vendored Termux originally
+  shipped an upstream copy of this drawable in :termux:view/res; we recreate it as a small vector so
+  :termux:view doesn't have to vendor a whole resources tree.
+
+  The platform android.R.drawable.text_select_handle_*_material is not a public symbol of android.R
+  (no constant declared in core/res/res/values/public.xml), so referencing it from Java fails at
+  compile time even though the file exists in the platform tree.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="22dp"
+    android:height="22dp"
+    android:viewportWidth="22"
+    android:viewportHeight="22">
+    <path
+        android:fillColor="#FF6200EE"
+        android:pathData="M11,2 L11,20 L5,14 L3,16 L3,6 L5,8 Z" />
+</vector>
