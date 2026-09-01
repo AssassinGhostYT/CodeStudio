@@ -17,15 +17,15 @@ androidxTestRunner = "1.6.2"      # androidx.test:runner — AndroidJUnitRunner 
 androidxTestExtJunit = "1.2.1"    # androidx.test.ext:junit — JUnit4 + AndroidJUnit4 on device
 androidxAnnotation = "1.7.1"      # androidx.annotation:annotation — used by :termux:application (and view/emulator/shared)
 androidxAppcompat = "1.7.0"       # androidx.appcompat:appcompat — AppCompatActivity + theme attrs (:termux:shared)
-androidxDrawer = "1.3.0"          # androidx.drawerlayout:drawerlayout — DrawerLayout for the Termux sidebar (:termux:application)
+androidxDrawer = "1.2.0"          # androidx.drawerlayout:drawerlayout — DrawerLayout for the Termux sidebar (:termux:application). 1.2.0 is the latest stable on Google Maven.
 androidxPreference = "1.2.1"      # androidx.preference:preference — PreferenceFragment for Termux settings (:termux:application)
 androidxViewpager = "1.0.0"       # androidx.viewpager:viewpager — ViewPager for Termux help/welcome pages (:termux:application)
 androidxWindow = "1.0.0-alpha09"  # androidx.window:window — Do-not-disturb / IME insets detection (:termux:shared). Pin to alpha09 per Termux.
 material = "1.12.0"               # com.google.android.material:material — MaterialComponents themes (Termux Activity uses them)
 markwon = "4.6.2"                 # io.noties.markwon:* — Markdown rendering for Termux changelog/help dialogs
 commonsIo = "2.15.1"              # commons-io:commons-io — FileUtils helpers used by TermuxInstaller/shared
-termuxAmLib = "0.2.0"             # com.termux:termux-am-library — am command client lib (process / intent dispatch) for TermuxService
-hiddenApiBypass = "0.2.0"         # org.termux:hidden-api-bypass — reflection access to hidden Android APIs (used by TermuxInstaller)
+termuxAmLib = "v2.0.0"            # com.termux:termux-am-library — `com.termux.am.Am` am-command client lib (process / intent dispatch). v2.0.0 is the only published version; the leading 'v' is part of the coordinate.
+hiddenApiBypass = "4.3"           # org.lsposed.hiddenapibypass:hiddenapibypass — reflection access to hidden Android APIs (used by com.termux.shared.reflection.ReflectionUtils). NOT org.termux:hidden-api-bypass (which does not exist on Maven Central); Termux sources switched to LSPosed's fork upstream.
 # Pure-Java Android build tools, invoked IN-PROCESS (no `java -jar`) so they run on ART when statically
 # linked into the app. On desktop they're test-only; :ide-android bundles them (see android-support).
 r8 = "8.13.19"        # com.android.tools.r8.D8 — the dexer
@@ -151,7 +151,7 @@ common-markwon-recycler = { module = "io.noties.markwon:recycler", version.ref =
 # module pulls in. These are published under com.termux / org.termux groups on Maven Central.
 common-io = { module = "commons-io:commons-io", version.ref = "commonsIo" }
 common-termuxAmLib = { module = "com.termux:termux-am-library", version.ref = "termuxAmLib" }
-common-hiddenApiBypass = { module = "org.termux:hidden-api-bypass", version.ref = "hiddenApiBypass" }
+common-hiddenApiBypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", version.ref = "hiddenApiBypass" }
 desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 desugar-jdk-libs-configuration = { module = "com.android.tools:desugar_jdk_libs_configuration", version.ref = "desugarJdkLibs" }
 ow2-asm = { module = "org.ow2.asm:asm", version.ref = "asm" }
