@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Custom attributes referenced by layouts and themes in the vendored Termux :application module.
+  The upstream Termux tree ships these in res/values/attrs.xml; this fork does not vendor that
+  file. Each <attr> is declared without a default style so layouts can resolve them at runtime;
+  values are expected to come from a Theme.* that callers apply via setTheme().
+-->
+<resources>
+    <!-- Background drawable used by the navigation drawer in activity_termux.xml -->
+    <attr name="termuxActivityDrawerBackground" format="reference|color" />
+</resources>

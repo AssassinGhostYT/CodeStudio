@@ -14,7 +14,6 @@
     <string name="action_no">No</string>
     <string name="yes">Yes</string>
     <string name="no">No</string>
-    <string name="cancel">Cancel</string>
 
     <!-- Context menu / toolbar actions -->
     <string name="action_new_session">New session</string>

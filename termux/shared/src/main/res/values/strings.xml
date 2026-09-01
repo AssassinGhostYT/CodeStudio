@@ -8,6 +8,10 @@
 <resources>
     <string name="cancel">Cancel</string>
     <string name="ok">OK</string>
+    <string name="action_share">Share</string>
+    <string name="action_copy">Copy</string>
+    <string name="action_save_to_file">Save to file</string>
+    <string name="action_cancel">Cancel</string>
 
     <!-- Title / prompt strings -->
     <string name="title_open_url_with">Open URL with</string>

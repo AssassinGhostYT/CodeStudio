@@ -123,7 +123,6 @@ private fun TermView(session: TerminalSession) {
             tv.post { tv.requestFocus() }
             tv
         },
-        },
         update = { v ->
             if (v.mTermSession !== session) v.attachSession(session)
             v.requestFocus()
