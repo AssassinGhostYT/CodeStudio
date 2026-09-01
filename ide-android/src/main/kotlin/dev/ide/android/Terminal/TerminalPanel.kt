@@ -91,12 +91,12 @@ private fun TermView(session: TerminalSession) {
     AndroidView(
         modifier = Modifier.fillMaxSize(),
         factory = { c ->
-            TerminalView(c, null).apply {
-                isFocusable = true
-                isFocusableInTouchMode = true
-                setTerminalViewClient(object : TerminalViewClient {
-                    override fun onScale(s: Float) = s
-                    override fun onSingleTapUp(e: MotionEvent) { requestFocus(); (context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)?.showSoftInput(this, 0) }
+            val tv = TerminalView(c, null)
+            tv.isFocusable = true
+            tv.isFocusableInTouchMode = true
+            tv.setTerminalViewClient(object : TerminalViewClient {
+                override fun onScale(s: Float) = s
+                override fun onSingleTapUp(e: MotionEvent) { tv.requestFocus(); (tv.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager)?.showSoftInput(tv, 0) }
                     override fun shouldBackButtonBeMappedToEscape() = true
                     override fun shouldEnforceCharBasedInput() = false
                     override fun shouldUseCtrlSpaceWorkaround() = false
@@ -119,9 +119,10 @@ private fun TermView(session: TerminalSession) {
                     override fun logStackTraceWithMessage(t: String, m: String, e: Exception) { android.util.Log.e(t, m, e) }
                     override fun logStackTrace(t: String, e: Exception) { android.util.Log.e(t, "", e) }
                 })
-                attachSession(session)
-                post { requestFocus(); isFocusableInTouchMode = true }
-            }
+            tv.attachSession(session)
+            tv.post { tv.requestFocus() }
+            tv
+        },
         },
         update = { v ->
             if (v.mTermSession !== session) v.attachSession(session)
