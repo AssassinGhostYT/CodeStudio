@@ -27,7 +27,6 @@ import dev.ide.ui.editor.core.mapOffsetThroughEdits
 import dev.ide.ui.editor.languageFor
 import dev.ide.ui.editor.preview.PreviewKind
 import dev.ide.ui.editor.preview.previewKindOf
-import dev.ide.ui.ext.TERMINAL_TOOL_WINDOW_ID
 import dev.ide.ui.platform.ioDispatcher as platformIoDispatcher
 import dev.ide.ui.platform.isMobilePlatform
 import kotlinx.coroutines.CoroutineDispatcher
@@ -379,12 +378,13 @@ class IdeUiState(
     }
 
     /**
-     * What the editor toolbar's "Terminal" button does when tapped. Default keeps the legacy behaviour
-     * (focus the BOTTOM terminal tool-window tab inside the build console) so the desktop host, which
-     * never provides an override, keeps working. The Android host replaces this in [CodeStudioApp] with
-     * a launcher that opens `com.tom.rv2ide.activities.TerminalActivity` (real Termux).
+     * What the editor toolbar's "Terminal" button does when tapped. On Android the host overrides this
+     * in [CodeStudioApp] with a launcher that opens `com.termux.app.TermuxActivity` (real Termux, with
+     * bootstrap, pkg, extra keys, foreground service). On desktop there is no terminal — the toolbar
+     * button still renders but tapping it is a no-op. The old fallback that focused a BOTTOM tool-window
+     * tab is gone: that tab was the Ubuntu-PRoot custom dock, deleted when the in-process terminal was.
      */
-    var openTerminal: () -> Unit = { focusConsoleTab(TERMINAL_TOOL_WINDOW_ID) }
+    var openTerminal: () -> Unit = {}
 
     var paletteOpen by mutableStateOf(false)
     /** Whether the "More" actions sheet is showing (rail footer / bottom-nav More). */

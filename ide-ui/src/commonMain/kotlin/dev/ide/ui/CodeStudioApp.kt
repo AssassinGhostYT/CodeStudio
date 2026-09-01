@@ -61,9 +61,8 @@ fun CodeStudioApp(
      *  non-null value, the import preview opens for it. Null on desktop / normal launch. */
     importPackagePath: String? = null,
     /** What the editor's "Terminal" toolbar button does when tapped. Android passes a launcher that opens
-     *  the real Termux Activity (see `com.tom.rv2ide.activities.TerminalActivity`); desktop leaves the
-     *  default no-op (the toolbar still falls back to the BOTTOM tool-window tab via [IdeUiState.openTerminal]'s
-     *  default of `focusConsoleTab(TERMINAL_TOOL_WINDOW_ID)`). */
+     *  the real Termux Activity (`com.termux.app.TermuxActivity`); desktop leaves the default no-op (the
+     *  terminal is Android-only — desktop users have a separate "open in terminal" path per project). */
     onOpenTerminal: () -> Unit = {},
 ) {
     // Register the UI facets of the enabled plugins, then load once. The backend reports exactly the plugins

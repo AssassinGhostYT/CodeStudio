@@ -8,7 +8,6 @@ import dev.ide.analytics.AnalyticsEvent
 import dev.ide.analytics.DeviceInfo
 import dev.ide.analytics.EventCategory
 import dev.ide.analytics.Events
-import dev.ide.android.Terminal.TerminalPlugin
 import dev.ide.android.preview.SwingAwareProgramInterpreter
 import dev.ide.build.jvm.run.VmProgramInterpreter
 import dev.ide.analytics.impl.AnalyticsLogSink
@@ -82,9 +81,9 @@ object AndroidIde {
         // is the app-global "Build in a separate process" setting (default ON), checked in
         // IdeServicesBackend.buildRunnerFor. A build OOM then kills only that process, not the IDE.
         val appContext = context.applicationContext
-        // The PRoot terminal ships in the app (no bundling): wire the engine + register the BOTTOM tool
-        // window. Assets (proot/libs/rootfs) download on first open. Idempotent across re-bootsstraps.
-        TerminalPlugin.install(appContext)
+        // The terminal on Android is the real Termux Activity (com.termux.app.TermuxActivity), launched from
+        // MainActivity.onOpenTerminal and surfaced via the editor toolbar's Terminal button. No in-process
+        // terminal engine, no BOTTOM tool-window tab — the toolbar button is the single entry point.
         // Analytics is an application-scoped host service now; register it before the backend resolves it.
         manager.applicationContainer.registerServiceIfAbsent(ANALYTICS_SERVICE) { analytics }
         val backend = IdeServicesBackend(

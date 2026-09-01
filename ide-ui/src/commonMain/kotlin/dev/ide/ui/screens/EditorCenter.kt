@@ -42,7 +42,6 @@ import dev.ide.ui.editor.preview.ResourcePreviewPane
 import dev.ide.ui.editor.preview.isLayoutPreviewable
 import dev.ide.ui.editor.preview.isMarkdownPreviewable
 import dev.ide.ui.editor.preview.isPreviewable
-import dev.ide.ui.ext.TERMINAL_TOOL_WINDOW_ID
 import dev.ide.ui.ext.ToolWindowAnchor
 import dev.ide.ui.ext.ToolWindowRegistry
 import dev.ide.ui.ext.UiPluginHost
@@ -160,9 +159,11 @@ internal fun EditorCenter(
                 onOptimizeImports = { if (active != null) optimizeImportsEpoch++ },
                 onToggleConsole = { state.consoleOpen = !state.consoleOpen },
                 consoleOpen = state.consoleOpen,
-                onOpenTerminal = if (ToolWindowRegistry.forAnchor(ToolWindowAnchor.BOTTOM).any { it.id == TERMINAL_TOOL_WINDOW_ID }) {
-                    { state.openTerminal() }
-                } else null,
+                // The toolbar's Terminal button always shows. On Android the host replaces
+                // [IdeUiState.openTerminal] with a launcher for com.termux.app.TermuxActivity; on desktop it
+                // stays a no-op (the real terminal is Android-only). No conditional on a registered BOTTOM
+                // tool-window: that path was the legacy Ubuntu-PRoot dock and is gone.
+                onOpenTerminal = { state.openTerminal() },
                 rightToolIconId = rightPrimary?.iconId,
                 rightToolTitle = rightPrimary?.title ?: "",
                 rightToolOpen = state.selectedRightPanel != null,

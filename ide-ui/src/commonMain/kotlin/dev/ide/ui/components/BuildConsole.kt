@@ -82,7 +82,6 @@ import dev.ide.ui.ext.ToolWindowAnchor
 import dev.ide.ui.ext.ToolWindowContext
 import dev.ide.ui.ext.ToolWindowContribution
 import dev.ide.ui.ext.ToolWindowRegistry
-import dev.ide.ui.ext.TERMINAL_TOOL_WINDOW_ID
 import dev.ide.ui.icons.CaIcons
 import dev.ide.ui.theme.Ca
 import dev.ide.ui.theme.Motion
@@ -542,11 +541,6 @@ private fun ConsoleTabs(
                 badge = stepsTotal.takeIf { it > 0 }?.let { "$stepsDone/$it" },
                 badgeColor = MaterialTheme.colorScheme.outline
             ) { onSelect(BuildTab.Steps) }
-            // The PRoot terminal sits right after the built-in Pasos/Steps tab (its host places it there via
-            // ToolWindowRegistry; rendered at that spot only, so it reads as a first-class console tab).
-            pluginTabs.firstOrNull { it.id == TERMINAL_TOOL_WINDOW_ID }?.let { tw ->
-                TabItem(tw.title, activePluginTab == tw.id) { onSelectPlugin(tw.id) }
-            }
             // A green dot when a debug app is connected, else the line count once any logs have arrived.
             TabItem(
                 stringResource(Res.string.buildc_tab_logcat),
@@ -554,8 +548,10 @@ private fun ConsoleTabs(
                 badge = if (appLog.connected) "●" else appLog.lines.size.takeIf { it > 0 }?.toString(),
                 badgeColor = if (appLog.connected) Ide.colors.success else MaterialTheme.colorScheme.outline,
             ) { onSelect(BuildTab.Logcat) }
-            // Plugin-contributed BOTTOM tool windows (other than the terminal, shown above next to Steps).
-            pluginTabs.filter { it.id != TERMINAL_TOOL_WINDOW_ID }.forEach { tw ->
+            // Plugin-contributed BOTTOM tool windows. The PRoot terminal tab used to live here between
+            // Steps and Logcat — it's gone, the real Termux lives behind the toolbar's Terminal button
+            // and never registers a BOTTOM tool window.
+            pluginTabs.forEach { tw ->
                 TabItem(tw.title, activePluginTab == tw.id) { onSelectPlugin(tw.id) }
             }
         }
