@@ -233,7 +233,32 @@ class MainActivity : ComponentActivity() {
                     // manifest (launchMode=singleTask, exported=true so it can be launched via Intent; it is
                     // NOT a launcher entry, only the toolbar button starts it).
                     onOpenTerminal = {
-                        startActivity(Intent(this, com.termux.app.TermuxActivity::class.java))
+                        // Wrap in try-catch so a missing-class / not-found-activity failure surfaces as a Toast
+                        // instead of being silently swallowed by Compose's recomposition handler.
+                        try {
+                            val intent = Intent(this, com.termux.app.TermuxActivity::class.java)
+                            if (packageManager.resolveActivity(intent, 0) != null) {
+                                startActivity(intent)
+                            } else {
+                                Toast.makeText(
+                                    this@MainActivity,
+                                    "Termux activity not registered in this build",
+                                    Toast.LENGTH_LONG,
+                                ).show()
+                            }
+                        } catch (e: android.content.ActivityNotFoundException) {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Couldn't open Terminal: ${e.message}",
+                                Toast.LENGTH_LONG,
+                            ).show()
+                        } catch (e: Throwable) {
+                            Toast.makeText(
+                                this@MainActivity,
+                                "Terminal launch failed: ${e.javaClass.simpleName}: ${e.message}",
+                                Toast.LENGTH_LONG,
+                            ).show()
+                        }
                     },
                 )
 

@@ -12,8 +12,10 @@ import androidx.compose.ui.unit.dp
  * 24x24 grid via [ImageVector.Builder]. Brand colours are baked into the paths so the icons read
  * correctly even when the caller registers them with [IconTint.Original] (the tree's default
  * `Fixed(tint)` would otherwise override the colours). Java uses two fills (blue + orange)
- * matching the official logo; Kotlin paints a white K on the JetBrains purple so the letterform
- * stays visible on dark themes; XML is the user-supplied cream document with an orange chevron.
+ * matching the official logo; Kotlin paints the K letterform itself in JetBrains purple on a
+ * transparent background; XML is the user-supplied cream document with an orange chevron and
+ * "XML" wordmark. Sub-paths can be filled polygons or stroked polylines (round caps/joins) — the
+ * chevron and wordmark use strokes so their line ends stay rounded at icon size.
  */
 object BrandIcons {
     private val JAVA_BLUE = Color(0xFF5382A1)
@@ -27,24 +29,32 @@ object BrandIcons {
     /** Lighter cream for the folded top-right corner of the document. */
     private val XML_FOLD = Color(0xFFF5EFD9)
 
-    private class Sub(val d: String, val fillType: PathFillType, val color: Color = Color.Black)
-    private fun f(d: String, evenOdd: Boolean = false, color: Color = Color.Black) =
-        Sub(d, if (evenOdd) PathFillType.EvenOdd else PathFillType.NonZero, color)
+    private class Sub(
+        val d: String,
+        val fillType: PathFillType,
+        val color: Color = Color.Black,
+        /** When non-null, the path is rendered as a stroked outline instead of a filled shape. */
+        val strokeWidth: Float? = null,
+    )
+    private fun f(d: String, evenOdd: Boolean = false, color: Color = Color.Black, strokeWidth: Float? = null) =
+        Sub(d, if (evenOdd) PathFillType.EvenOdd else PathFillType.NonZero, color, strokeWidth)
 
     /**
-     * Kotlin logo (matches the JetBrains brand mark): a rounded purple square with the angular K
-     * letterform in white in the top-left. Two paths drawn in this order so the K is on top of the
-     * purple background. Both colours are baked in here — the caller registers with [IconTint.Original]
-     * so [IconTint.Fixed] from [TreeIcons] doesn't recolour it.
+     * Kotlin logo (matches the JetBrains brand mark): the K letterform painted in JetBrains purple
+     * on a transparent background. The path traces the K outline (vertical stem with upper and lower
+     * angular arms and the V-notch where they meet), so only the K shape is filled — the outside is
+     * transparent and shows through whatever surface the icon is rendered on. No background fill is
+     * drawn by design (the reference shows the K as the visible coloured shape; the surrounding
+     * purple in the official mark is the cutout complement, not part of the K itself).
      */
-    private val kotlinBg = f("M5 0 H19 A5 5 0 0 1 24 5 V19 A5 5 0 0 1 19 24 H5 A5 5 0 0 1 0 19 V5 A5 5 0 0 1 5 0 Z", color = KOTLIN_PURPLE)
-    /** The Kotlin K letterform — angular vertical bar with two diagonals, sized to fit the top-left of the rhombus. */
     private val kotlinK = f(
-        "M3.4 3.6 L6.0 3.6 L6.0 20.6 L3.4 20.6 Z" +
-            "M6.3 4.4 L21.0 1.6 L21.0 6.4 L6.3 8.8 Z" +
-            "M6.3 10.6 L21.0 17.4 L21.0 12.8 L6.3 9.2 Z" +
-            "M6.3 20.6 L9.0 20.6 L9.0 23.0 L3.4 23.0 L3.4 20.6 Z",
-        color = Color.White,
+        // Single closed polygon traced clockwise around the K letterform.
+        // Top of stem (0..13.5) → right wall of upper arm down to the V-notch (13.5, 12) →
+        // diagonal up to top-right corner (21, 0) → outer top-right (24, 0) → down to (24, 24) →
+        // outer bottom-right (21, 24) → up the lower-arm right wall to its V-notch (21, 12) →
+        // diagonal down to bottom of stem (13.5, 24) → bottom of stem (0, 24) → close.
+        "M0 0 L13.5 0 L13.5 12 L21 0 L24 0 L24 24 L21 24 L21 12 L13.5 24 L0 24 Z",
+        color = KOTLIN_PURPLE,
     )
 
     private val javaBlue0 = f("M8.848 18.553s-0.915 0.532 0.652 0.713c1.898 0.217 2.869 0.186 4.961-0.21c0 0 0.55 0.345 1.318 0.644c-4.69 2.01-10.614-0.116-6.93-1.146", evenOdd = true, color = JAVA_BLUE)
@@ -59,54 +69,64 @@ object BrandIcons {
     /**
      * XML file mark (user-supplied reference): a cream document with a folded top-right corner, an
      * orange `< / >` chevron pair centred on the page, and an orange band at the bottom holding the
-     * white "XML" wordmark. Colours baked in — caller uses [IconTint.Original]. Layers are stacked
-     * so the chevron sits on top of the document body and the fold triangle sits on top of the body
-     * but under the band.
+     * white "XML" wordmark. Colours baked in — caller uses [IconTint.Original]. The chevron is drawn
+     * as a stroked polyline with round line caps so the tips match the rounded ends in the reference
+     * (a filled-polygon chevron would render with sharp corners). The wordmark uses stroked lines
+     * too — same reason.
      */
     private val xmlDoc = f("M4 0 H17 L24 7 V20 A4 4 0 0 1 20 24 H4 A4 4 0 0 1 0 20 V4 A4 4 0 0 1 4 0 Z", color = XML_CREAM)
     /** Folded corner triangle — slightly lighter cream so the fold line reads. */
     private val xmlFold = f("M17 0 V7 H24 Z", color = XML_FOLD)
     /** Orange band across the bottom of the page where the "XML" wordmark sits. */
     private val xmlBand = f("M0 18 H24 V20 A4 4 0 0 1 20 24 H4 A4 4 0 0 1 0 20 Z", color = XML_ORANGE)
-    /** `<` chevron pointing right — filled polygon, thickness ~2.5, height ~10. */
-    private val xmlLt = f("M6 5 L11 10.5 L6 16 L8 16 L13 10.5 L8 5 Z", color = XML_ORANGE)
-    /** `>` chevron pointing left, mirror of the left one. */
-    private val xmlGt = f("M18 5 L13 10.5 L18 16 L16 16 L11 10.5 L16 5 Z", color = XML_ORANGE)
-    /** Diagonal slash through the chevrons, bottom-left to top-right. */
-    private val xmlSlash = f("M14 4 L10 17 L12 17 L16 4 Z", color = XML_ORANGE)
     /**
-     * "XML" wordmark painted in white on the orange bottom band — three letterforms built from
-     * filled rectangles and short stems so it stays legible at icon size (~16dp) without a font.
-     * Approximate widths match the visual weight of the reference rather than exact glyph metrics.
+     * `<` chevron — stroked polyline (tip, top, tip, bottom) with round caps so the V has the
+     * rounded endpoints of the reference rather than a sharp polygon.
      */
-    private val xmlTextX = f(
-        // X — two crossing diagonals
-        "M3 19 L4.5 19 L7 22.5 L5.5 22.5 Z" +
-            "M7 19 L8.5 19 L6 22.5 L4.5 22.5 Z",
-        color = Color.White,
-    )
+    private val xmlLt = f("M9 6 L4 11 L9 16", color = XML_ORANGE, strokeWidth = 2.4f)
+    /** `>` chevron — mirror of the left one. */
+    private val xmlGt = f("M15 6 L20 11 L15 16", color = XML_ORANGE, strokeWidth = 2.4f)
+    /** Diagonal slash through the chevrons, bottom-left to top-right. */
+    private val xmlSlash = f("M14.5 4 L9.5 18", color = XML_ORANGE, strokeWidth = 2.4f)
+    /**
+     * "XML" wordmark painted in white on the orange bottom band. Each letter is built from stroked
+     * segments with round caps so the strokes look like the bold sans-serif "XML" in the reference
+     * (filled polygon letters came out ragged at icon size; stroked lines stay legible at 16dp).
+     */
+    /** X — two crossing diagonals. */
+    private val xmlTextX = f("M3.5 19 L6.5 22.5 M6.5 19 L3.5 22.5", color = Color.White, strokeWidth = 1.6f)
+    /** M — two verticals + the centre V meeting at the baseline. */
     private val xmlTextM = f(
-        // M — two verticals + centre V
-        "M9 22.5 L10.5 22.5 L10.5 20 L11 21.2 L12 20 L12 22.5 L13.5 22.5 L13.5 19 L12.4 19 L11.5 20.6 L10.6 19 L9 19 Z",
+        "M8.2 22.5 L8.2 19 L10.6 21 L13 19 L13 22.5",
         color = Color.White,
+        strokeWidth = 1.6f,
     )
-    private val xmlTextL = f(
-        // L — vertical + bottom horizontal
-        "M14.5 19 L16 19 L16 22 L19.5 22 L19.5 22.5 L14.5 22.5 Z",
-        color = Color.White,
-    )
+    /** L — vertical + bottom horizontal. */
+    private val xmlTextL = f("M14.7 19 L14.7 22.5 L19.3 22.5", color = Color.White, strokeWidth = 1.6f)
 
     private fun build(name: String, vararg subs: Sub): ImageVector {
         val b = ImageVector.Builder(name, 24.dp, 24.dp, 24f, 24f)
         for (sub in subs) {
             val nodes = PathParser().parsePathString(sub.d).toNodes()
-            b.addPath(nodes, pathFillType = sub.fillType, fill = SolidColor(sub.color))
+            if (sub.strokeWidth != null) {
+                b.addPath(
+                    nodes,
+                    pathFillType = sub.fillType,
+                    fill = SolidColor(Color.Transparent),
+                    stroke = SolidColor(sub.color),
+                    strokeLineWidth = sub.strokeWidth,
+                    strokeLineCap = androidx.compose.ui.graphics.StrokeCap.Round,
+                    strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round,
+                )
+            } else {
+                b.addPath(nodes, pathFillType = sub.fillType, fill = SolidColor(sub.color))
+            }
         }
         return b.build()
     }
 
-    /** Kotlin brand mark — rounded purple square with white K, drawn in declared colour so the caller uses [IconTint.Original]. */
-    val kotlin = build("brand-kotlin", kotlinBg, kotlinK)
+    /** Kotlin brand mark — purple K letterform painted on a transparent background. Caller uses [IconTint.Original]. */
+    val kotlin = build("brand-kotlin", kotlinK)
 
     /** Java logo — coffee cup mark with the steam rising above, blue + orange. */
     val java = build(
