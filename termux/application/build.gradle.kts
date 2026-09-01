@@ -66,14 +66,13 @@ dependencies {
     implementation(libs.common.markwon.recycler)
     
     implementation(project(":core:common"))
-    // Expose the lower-level termux modules to consumers' compile classpath so IDE-side code can import
-    // com.termux.view.TerminalView etc. without needing to declare each module as a direct dependency.
-    // Using api() here is safe because :ide-android does not list :termux:view / :termux:shared directly —
-    // it depends on :termux:application only, so there is no double-inclusion that would trigger AAPT
-    // duplicate-resource errors (the prior error came from :ide-android declaring both :termux:shared
-    // and :termux:application as direct deps).
+    // Use api() on :termux:view so IDE-side code can import com.termux.view.TerminalView without
+    // needing :ide-android to declare :termux:view as a direct dependency. Keep :termux:shared as
+    // implementation() so its resources flow through :termux:application's R.txt exactly once — if
+    // both modules expose :termux:shared, AGP's runtime_symbol_list sees the symbol twice and fails
+    // with "Duplicate key Theme_AppCompat_Light_Dialog".
     api(project(":termux:view"))
-    api(project(":termux:shared"))
+    implementation(project(":termux:shared"))
 }
 
 tasks.register("versionName") {
