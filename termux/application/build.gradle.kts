@@ -19,7 +19,8 @@
 
 plugins {
     id("com.android.library")
-    id("kotlin-android")
+    // AGP 9.0 has built-in Kotlin support; the legacy `kotlin-android` plugin (which applied
+    // `org.jetbrains.kotlin.android`) is rejected on apply — see https://kotl.in/gradle/agp-built-in-kotlin.
 }
 
 val packageVariant = System.getenv("TERMUX_PACKAGE_VARIANT") ?: "apt-android-7" // Default: "apt-android-7"

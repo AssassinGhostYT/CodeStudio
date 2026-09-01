@@ -18,7 +18,7 @@
 
 plugins {
     id("com.android.library")
-    id("kotlin-android")
+    // AGP 9.0 has built-in Kotlin support; the legacy `kotlin-android` plugin is rejected on apply.
 }
 
 android {
