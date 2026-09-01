@@ -68,7 +68,12 @@ object TreeIcons {
         register("manifest", TreeIcon.Glyph(CaIcons.file, IconTint.Fixed(androidGreen)))
         register("file", fallback)
         register("java", TreeIcon.Glyph(BrandIcons.java, IconTint.Original))
-        register("kotlin", TreeIcon.Glyph(BrandIcons.kotlin, IconTint.Original))
+        // Kotlin brand K is a single-color glyph baked into the path; registering with IconTint.Fixed
+        // matching the baked color makes `Icon(... tint = KOTLIN_PURPLE)` apply ColorFilter.SrcIn against
+        // the same purple and preserve the brand visual. IconTint.Original routes through LocalContentColor
+        // which overrides the baked color and collapses the K to the theme text color — that was the
+        // "K looks like N" report (same shape, same theme color as the surrounding file rows).
+        register("kotlin", TreeIcon.Glyph(BrandIcons.kotlin, IconTint.Fixed(Color(0xFF7F52FF))))
         register("xml", TreeIcon.Glyph(BrandIcons.xml, IconTint.Original))
         register("dart", TreeIcon.Glyph(BrandIcons.dart, IconTint.Fixed(Color(0xFF0175C2))))
         register("flutter", TreeIcon.Glyph(BrandIcons.flutter, IconTint.Fixed(Color(0xFF54C5F8))))

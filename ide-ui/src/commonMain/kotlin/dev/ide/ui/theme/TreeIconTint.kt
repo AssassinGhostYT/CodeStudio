@@ -1,14 +1,10 @@
 package dev.ide.ui.theme
 
-import androidx.compose.foundation.Image
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.ImageVectorPainter
-import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.runtime.remember
 import dev.ide.ui.icons.IconTint
 
 /**
@@ -31,19 +27,14 @@ fun resolveTint(tint: IconTint): Color = when (tint) {
 }
 
 /**
- * Render a tree/file-type icon honoring its [IconTint].
+ * Render a tree/file-type icon honoring its [IconTint]. For every tint (including [IconTint.Original]
+ * after resolving via the live theme) the composable just delegates to material3 [Icon] with the resolved
+ * color. Single-color brand icons (Kotlin K, Dart, Flutter) should be registered with
+ * [IconTint.Fixed] holding their brand color — that way the `ColorFilter.tint(t, SrcIn)` step in
+ * [Icon] multiplies the baked-in color by the same brand color, preserving the brand visual.
  *
- * For [IconTint.Original] this bypasses the material3 [Icon] entirely and renders via `Image(
- * painter = ImageVectorPainter(...))` with NO `colorFilter` — that path is the only one that leaves the
- * sub-paths' baked-in brand colors intact. material3's `Icon(imageVector, ..., tint = ...)` (or even
- * `Icon(imageVector, ...)` with the default `LocalContentColor.current`) ALWAYS multiplies the vector
- * by a `ColorFilter.tint(..., BlendMode.SrcIn)`, replacing every baked-in fill with the resolved tint
- * color. That is why the Kotlin K (purple), XML chevron (orange), etc. were being rendered in the
- * theme's text color instead of their brand color.
- *
- * For every other tint the resolved color is passed and the icon adopts the surrounding palette.
- *
- * Pass-through `contentDescription` keeps the existing a11y labels at every call site.
+ * The [BrandIcon] composable wraps the icon-tint resolution in one place so call sites don't have to
+ * repeat the `Icon(..., tint = resolveTint(ic.tint))` boilerplate.
  */
 @Composable
 fun BrandIcon(
@@ -52,15 +43,5 @@ fun BrandIcon(
     modifier: Modifier = Modifier,
     contentDescription: String? = null,
 ) {
-    when (tint) {
-        IconTint.Original -> {
-            val painter: Painter = remember(image) { ImageVectorPainter(image) }
-            Image(
-                painter = painter,
-                contentDescription = contentDescription,
-                modifier = modifier,
-            )
-        }
-        else -> Icon(image, contentDescription, modifier, tint = resolveTint(tint))
-    }
+    Icon(image, contentDescription, modifier, tint = resolveTint(tint))
 }
