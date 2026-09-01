@@ -943,7 +943,10 @@ public final class TerminalView extends View {
     public void updateSize() {
         int viewWidth = getWidth();
         int viewHeight = getHeight();
-        if (viewWidth == 0 || viewHeight == 0 || mTermSession == null) return;
+        // mRenderer is created lazily by setTextSize() / setTypeface(); before that the view has been
+        // measured (Compose-driven layout) and onSizeChanged fires with non-zero dimensions but
+        // mRenderer is still null. Skip the update — it will be retried after the renderer exists.
+        if (viewWidth == 0 || viewHeight == 0 || mTermSession == null || mRenderer == null) return;
 
         // Set to 80 and 24 if you want to enable vttest.
         int newColumns = Math.max(4, (int) (viewWidth / mRenderer.mFontWidth));

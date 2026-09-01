@@ -92,6 +92,10 @@ private fun TermView(session: TerminalSession) {
         modifier = Modifier.fillMaxSize(),
         factory = { c ->
             val tv = TerminalView(c, null)
+            // Initialise the TerminalRenderer before Compose measures the view. mRenderer is created
+            // lazily by setTextSize/setTypeface, so without this Compose's first onSizeChanged fires
+            // with mRenderer == null and updateSize() throws NPE reading mRenderer.mFontWidth.
+            tv.setTextSize(14)
             tv.isFocusable = true
             tv.isFocusableInTouchMode = true
             tv.setTerminalViewClient(object : TerminalViewClient {
