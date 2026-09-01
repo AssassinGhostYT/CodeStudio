@@ -23,6 +23,7 @@ plugins {
 
 android {
     namespace = "com.termux.shared"
+    compileSdk = 36
     packaging.jniLibs.useLegacyPackaging = true
     ndkVersion = "27.1.12297006"
     

@@ -23,6 +23,7 @@ plugins {
 
 android {
     namespace = "com.termux.view"
+    compileSdk = 36
 }
 
 dependencies {

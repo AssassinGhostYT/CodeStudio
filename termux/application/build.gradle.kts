@@ -33,6 +33,7 @@ val termuxPackageName = "com.codestudio.ide"
 
 android {
     namespace = "com.termux"
+    compileSdk = 36
 
     defaultConfig {
         buildConfigField("String", "TERMUX_PACKAGE_VARIANT", "\"" + packageVariant + "\"") // Used by TermuxApplication class
