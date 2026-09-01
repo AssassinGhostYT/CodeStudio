@@ -189,7 +189,7 @@ object TerminalEngine {
         }
         process = p
         _running.value = true
-        if (usedVia != "direct") _output.value = "[launch: $usedVia]\n"
+        _output.value = ""
         
         val input = p.inputStream
         val err = p.errorStream

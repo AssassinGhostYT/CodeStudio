@@ -2,6 +2,7 @@ package dev.ide.android.Terminal
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +18,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -29,6 +29,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -127,39 +128,36 @@ private fun SpecialKeysBar(onKeyPress: (String) -> Unit, enabled: Boolean) {
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            Box(Modifier.weight(1f)) { SpecialKeyButton("ESC", { onKeyPress("\u001B") }, enabled) }
-            Box(Modifier.weight(1f)) { SpecialKeyButton("|", { onKeyPress("|") }, enabled) }
-            Box(Modifier.weight(1f)) { SpecialKeyButton("/", { onKeyPress("/") }, enabled) }
-            Box(Modifier.weight(1f)) { SpecialKeyButton("HOME", { onKeyPress("\u001B[H") }, enabled) }
-            Box(Modifier.weight(1f)) { SpecialKeyButton("UP", { onKeyPress("\u001B[A") }, enabled) }
-            Box(Modifier.weight(1f)) { SpecialKeyButton("END", { onKeyPress("\u001B[F") }, enabled) }
-            Box(Modifier.weight(1f)) { SpecialKeyButton("PGUP", { onKeyPress("\u001B[5~") }, enabled) }
-            Box(Modifier.weight(1f)) { SpecialKeyButton("DEL", { onKeyPress("\u001B[3~") }, enabled) }
+            Box(Modifier.weight(1f)) { ExtraKey("ESC", { onKeyPress("\u001B") }, enabled) }
+            Box(Modifier.weight(1f)) { ExtraKey("/", { onKeyPress("/") }, enabled) }
+            Box(Modifier.weight(1f)) { ExtraKey("-", { onKeyPress("-") }, enabled) }
+            Box(Modifier.weight(1f)) { ExtraKey("HOME", { onKeyPress("\u001B[H") }, enabled) }
+            Box(Modifier.weight(1f)) { ExtraKey("↑", { onKeyPress("\u001B[A") }, enabled) }
+            Box(Modifier.weight(1f)) { ExtraKey("END", { onKeyPress("\u001B[F") }, enabled) }
+            Box(Modifier.weight(1f)) { ExtraKey("PGUP", { onKeyPress("\u001B[5~") }, enabled) }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            Box(Modifier.weight(1f)) { SpecialKeyButton("TAB", { onKeyPress("\t") }, enabled) }
-            Box(Modifier.weight(1f)) { SpecialKeyButton("CTRL", { ctrlPressed = !ctrlPressed; if (ctrlPressed) onKeyPress("\u001D") }, enabled, active = ctrlPressed) }
-            Box(Modifier.weight(1f)) { SpecialKeyButton("ALT", { altPressed = !altPressed; if (altPressed) onKeyPress("\u001B") }, enabled, active = altPressed) }
-            Box(Modifier.weight(1f)) { SpecialKeyButton("LEFT", { onKeyPress("\u001B[D") }, enabled) }
-            Box(Modifier.weight(1f)) { SpecialKeyButton("DOWN", { onKeyPress("\u001B[B") }, enabled) }
-            Box(Modifier.weight(1f)) { SpecialKeyButton("RIGHT", { onKeyPress("\u001B[C") }, enabled) }
-            Box(Modifier.weight(1f)) { SpecialKeyButton("PGDN", { onKeyPress("\u001B[6~") }, enabled) }
-            Box(Modifier.weight(1f)) { SpecialKeyButton("BKSP", { onKeyPress("\u007F") }, enabled) }
+            Box(Modifier.weight(1f)) { ExtraKey("TAB", { onKeyPress("\t") }, enabled) }
+            Box(Modifier.weight(1f)) { ExtraKey("CTRL", { ctrlPressed = !ctrlPressed; if (ctrlPressed) onKeyPress("\u001D") }, enabled, active = ctrlPressed) }
+            Box(Modifier.weight(1f)) { ExtraKey("ALT", { altPressed = !altPressed; if (altPressed) onKeyPress("\u001B") }, enabled, active = altPressed) }
+            Box(Modifier.weight(1f)) { ExtraKey("←", { onKeyPress("\u001B[D") }, enabled) }
+            Box(Modifier.weight(1f)) { ExtraKey("↓", { onKeyPress("\u001B[B") }, enabled) }
+            Box(Modifier.weight(1f)) { ExtraKey("→", { onKeyPress("\u001B[C") }, enabled) }
+            Box(Modifier.weight(1f)) { ExtraKey("PGDN", { onKeyPress("\u001B[6~") }, enabled) }
         }
     }
 }
 
 @Composable
-private fun SpecialKeyButton(label: String, onClick: () -> Unit, enabled: Boolean, active: Boolean = false) {
-    Surface(
-        color = if (active) Color(0xFF1F6FEB) else Color(0xFF21262D),
-        shape = RoundedCornerShape(4.dp),
-        modifier = Modifier.fillMaxWidth(),
-        onClick = onClick,
-        enabled = enabled
+private fun ExtraKey(label: String, onClick: () -> Unit, enabled: Boolean, active: Boolean = false) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(4.dp))
+            .background(if (active) Color(0xFF1F6FEB) else Color.Transparent)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 8.dp)
     ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(vertical = 8.dp)) {
-            Text(label, color = if (enabled) Color(0xFFE6EDF3) else Color(0xFF6E7681), fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-        }
+        Text(label, color = if (!enabled) Color(0xFF6E7681) else if (active) Color.White else Color(0xFFE6EDF3), fontSize = 11.sp, fontFamily = FontFamily.Monospace)
     }
 }
