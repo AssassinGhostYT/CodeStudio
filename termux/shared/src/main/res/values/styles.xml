@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Style resources referenced by the vendored Termux :shared layouts. The upstream Termux tree ships
+  these in res/values/styles.xml; this fork does not vendor that file, so we recreate only the keys
+  actually used here. Each one delegates to an AppCompat ancestor so the look matches the platform.
+-->
+<resources>
+
+    <!-- Toolbar title/subtitle text appearance used by partial_primary_toolbar.xml -->
+    <style name="TextAppearance.Widget.BaseToolbar.Title" parent="TextAppearance.AppCompat.Title">
+        <item name="android:textColor">?android:attr/textColorPrimaryInverse</item>
+    </style>
+
+    <style name="TextAppearance.Widget.BaseToolbar.Subtitle" parent="TextAppearance.AppCompat.Subhead">
+        <item name="android:textColor">?android:attr/textColorSecondaryInverse</item>
+    </style>
+
+</resources>

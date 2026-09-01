@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Color resources referenced by the vendored Termux :shared module. The upstream Termux ships these in
+  res/values/colors.xml; this fork doesn't vendor that file, so we recreate the keys here with neutral
+  values sufficient for compilation and runtime. Replace with upstream values when re-vendoring.
+-->
+<resources>
+    <color name="red_400">#FFEF5350</color>
+    <color name="background_markdown_code_inline">#1A808080</color>
+    <color name="background_markdown_code_block">#FFEEEEEE</color>
+</resources>

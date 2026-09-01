@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Dimens referenced by layout XML and Java code in the vendored :termux:shared module. The upstream
+  Termux source tree ships a res/values/dimens.xml that this fork does not vendor; we restore the
+  keys used here so layouts compile.
+-->
+<resources>
+    <dimen name="content_padding">8dp</dimen>
+    <dimen name="content_padding_half">4dp</dimen>
+</resources>

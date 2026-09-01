@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Custom attributes referenced by the vendored Termux :shared module (ExtraKeysView). Upstream Termux
+  declares these in res/values/attrs.xml; the vendored copy under termux/shared/ does not include a
+  res/ folder, so we recreate the keys here. Style values are intentionally omitted — ExtraKeysView
+  reads these through obtainStyledAttributes at runtime and falls back gracefully if no style is set.
+-->
+<resources>
+    <attr name="extraKeysButtonTextColor" format="color" />
+    <attr name="extraKeysButtonActiveTextColor" format="color" />
+    <attr name="extraKeysButtonBackgroundColor" format="color" />
+    <attr name="extraKeysButtonActiveBackgroundColor" format="color" />
+</resources>
