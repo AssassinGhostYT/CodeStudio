@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  String resources referenced by the vendored Termux :application module. The upstream Termux tree
+  ships a richer res/values/strings.xml that this fork doesn't vendor; this file restores the keys
+  referenced from the Java sources so the module compiles and runtime lookups succeed.
+
+  Format specifiers match what the calling sites pass to getString(...) — %1$s for a String, %1$d for an int.
+  Where two args are used they're %1$s and %2$s.
+-->
+<resources>
+
+    <!-- Generic actions / confirmation buttons -->
+    <string name="action_yes">Yes</string>
+    <string name="action_no">No</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+
+    <!-- Context menu / toolbar actions -->
+    <string name="action_new_session">New session</string>
+    <string name="action_toggle_soft_keyboard">Toggle soft keyboard</string>
+    <string name="action_toggle_keep_screen_on">Keep screen on</string>
+    <string name="action_reset_terminal">Reset terminal</string>
+    <string name="action_kill_process">Kill process (pid %1$d)</string>
+    <string name="action_select_url">Select URL</string>
+    <string name="action_share_transcript">Share transcript</string>
+    <string name="action_share_selected_text">Share selected text</string>
+    <string name="action_autofill_password">Autofill password</string>
+    <string name="action_open_help">Help</string>
+    <string name="action_report_issue">Report issue</string>
+    <string name="action_new_session_failsafe">New failsafe session</string>
+    <string name="action_rename_session_confirm">Rename</string>
+    <string name="action_create_named_session_confirm">Create</string>
+    <string name="action_file_received_edit">Edit</string>
+    <string name="action_file_received_open_directory">Open folder</string>
+
+    <!-- Bootstrap installer dialog -->
+    <string name="bootstrap_error_title">Bootstrap install failed</string>
+    <string name="bootstrap_error_body">The bootstrap installation did not complete successfully.</string>
+    <string name="bootstrap_error_abort">Abort</string>
+    <string name="bootstrap_error_try_again">Retry</string>
+    <string name="bootstrap_error_not_primary_user_message">The Termux bootstrap can only be installed when running as the primary user on this device.</string>
+    <string name="bootstrap_error_installed_on_portable_sd">The bootstrap is currently installed on portable storage, which is unsupported.</string>
+    <string name="bootstrap_installer_body">Installing Termux bootstrap, please wait…</string>
+
+    <!-- Error / status messages -->
+    <string name="error_execution_cancelled">Execution cancelled</string>
+    <string name="error_termux_service_start_failed_general">Failed to start Termux service</string>
+    <string name="error_termux_service_start_failed_bg">Failed to start Termux service in background</string>
+    <string name="error_termux_service_invalid_execution_command_runner">Invalid runner: %1$s</string>
+    <string name="error_termux_service_unsupported_execution_command_runner">Unsupported runner: %1$s</string>
+    <string name="error_termux_service_execution_command_shell_name_unset">Shell name unset for mode: %1$s</string>
+    <string name="error_termux_service_unsupported_execution_command_shell_create_mode">Unsupported shell create mode: %1$s</string>
+    <string name="error_display_over_other_apps_permission_not_granted_to_start_terminal">Display-over-other-apps permission not granted</string>
+
+    <!-- Notification actions -->
+    <string name="notification_action_exit">Exit</string>
+    <string name="notification_action_wake_lock">Acquire wakelock</string>
+    <string name="notification_action_wake_unlock">Release wakelock</string>
+
+    <!-- Report / debug -->
+    <string name="msg_add_termux_debug_info">Add debug info</string>
+    <string name="msg_generating_report">Generating report…</string>
+
+    <!-- Terminal status / limits -->
+    <string name="msg_enabling_terminal_toolbar">Enabling terminal toolbar</string>
+    <string name="msg_disabling_terminal_toolbar">Disabling terminal toolbar</string>
+    <string name="msg_terminal_reset">Terminal reset</string>
+    <string name="msg_max_terminals_reached">Maximum number of terminals reached</string>
+    <string name="msg_select_url_copied_to_clipboard">URL copied to clipboard</string>
+    <string name="msg_storage_permission_granted_on_request">Storage permission granted</string>
+    <string name="msg_storage_permission_not_granted_on_request">Storage permission denied</string>
+
+    <!-- Dialog titles -->
+    <string name="title_confirm_kill_process">Kill process?</string>
+    <string name="title_create_named_session">Create new session</string>
+    <string name="title_rename_session">Rename session</string>
+    <string name="title_file_received">File received</string>
+    <string name="title_max_terminals_reached">Maximum terminals reached</string>
+    <string name="title_select_url_dialog">Select URL</string>
+    <string name="title_select_url_none_found">No URL found at cursor</string>
+    <string name="title_share_transcript">Share transcript</string>
+    <string name="title_share_transcript_with">Share transcript with</string>
+    <string name="title_share_selected_text">Share selected text</string>
+    <string name="title_share_selected_text_with">Share selected text with</string>
+
+</resources>
