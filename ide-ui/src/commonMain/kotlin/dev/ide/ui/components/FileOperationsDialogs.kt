@@ -54,7 +54,7 @@ import dev.ide.ui.generated.resources.rename
 import dev.ide.ui.icons.CaIcons
 import dev.ide.ui.icons.TreeIcon
 import dev.ide.ui.icons.TreeIcons
-import dev.ide.ui.theme.resolveTint
+import dev.ide.ui.theme.BrandIcon
 import dev.ide.ui.theme.Ca
 import org.jetbrains.compose.resources.stringResource
 
@@ -266,8 +266,8 @@ private fun DirectoryBrowserPanel(
 @Composable
 private fun EntryIcon(iconId: String) {
     when (val ic = TreeIcons.resolve(iconId)) {
-        is TreeIcon.Glyph -> Icon(ic.image, null, Modifier.size(17.dp), tint = resolveTint(ic.tint))
-        is TreeIcon.Folder -> Icon(ic.closed, null, Modifier.size(17.dp), tint = resolveTint(ic.tint))
+        is TreeIcon.Glyph -> BrandIcon(ic.image, ic.tint, Modifier.size(17.dp))
+        is TreeIcon.Folder -> BrandIcon(ic.closed, ic.tint, Modifier.size(17.dp))
         is TreeIcon.Badge -> LetterBadge(ic.text, ic.color, 17)
     }
 }

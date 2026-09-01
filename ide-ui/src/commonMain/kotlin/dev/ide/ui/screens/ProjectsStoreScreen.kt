@@ -76,7 +76,7 @@ import dev.ide.ui.generated.resources.store_by_author
 import dev.ide.ui.icons.CaIcons
 import dev.ide.ui.icons.TreeIcon
 import dev.ide.ui.icons.TreeIcons
-import dev.ide.ui.theme.resolveTint
+import dev.ide.ui.theme.BrandIcon
 import dev.ide.ui.theme.Ca
 import org.jetbrains.compose.resources.stringResource
 
@@ -530,8 +530,12 @@ private fun StoreGlyph(
 ) {
     Box(Modifier.size(tile).clip(RoundedCornerShape(Ca.radius.md)).background(fill), contentAlignment = Alignment.Center) {
         when (val ic = TreeIcons.resolve(iconId)) {
-            is TreeIcon.Glyph -> Icon(ic.image, null, Modifier.size(glyph), tint = tint ?: resolveTint(ic.tint))
-            is TreeIcon.Folder -> Icon(ic.closed, null, Modifier.size(glyph), tint = tint ?: resolveTint(ic.tint))
+            is TreeIcon.Glyph ->
+                if (tint != null) Icon(ic.image, null, Modifier.size(glyph), tint = tint)
+                else BrandIcon(ic.image, ic.tint, Modifier.size(glyph))
+            is TreeIcon.Folder ->
+                if (tint != null) Icon(ic.closed, null, Modifier.size(glyph), tint = tint)
+                else BrandIcon(ic.closed, ic.tint, Modifier.size(glyph))
             is TreeIcon.Badge -> Text(ic.text, color = tint ?: ic.color, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
     }

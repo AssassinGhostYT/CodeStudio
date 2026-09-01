@@ -130,7 +130,7 @@ import dev.ide.ui.icons.CaIcons
 import dev.ide.ui.icons.TreeIcon
 import dev.ide.ui.icons.TreeIcons
 import dev.ide.ui.icons.fileIconId
-import dev.ide.ui.theme.resolveTint
+import dev.ide.ui.theme.BrandIcon
 import dev.ide.ui.platform.secondaryClickable
 import dev.ide.ui.icons.actionIcon
 import dev.ide.ui.theme.Ca
@@ -1234,8 +1234,8 @@ private fun EditorTab(
 @Composable
 private fun TabFileIcon(name: String) {
     when (val ic = TreeIcons.resolve(fileIconId(name))) {
-        is TreeIcon.Glyph -> Icon(ic.image, null, Modifier.size(15.dp), tint = resolveTint(ic.tint))
-        is TreeIcon.Folder -> Icon(ic.closed, null, Modifier.size(15.dp), tint = resolveTint(ic.tint))
+        is TreeIcon.Glyph -> BrandIcon(ic.image, ic.tint, Modifier.size(15.dp))
+        is TreeIcon.Folder -> BrandIcon(ic.closed, ic.tint, Modifier.size(15.dp))
         is TreeIcon.Badge -> LetterBadge(ic.text, ic.color, 15)
     }
 }

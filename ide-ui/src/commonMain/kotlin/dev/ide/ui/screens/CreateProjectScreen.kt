@@ -58,7 +58,7 @@ import dev.ide.ui.generated.resources.store_coming_soon
 import dev.ide.ui.icons.CaIcons
 import dev.ide.ui.icons.TreeIcon
 import dev.ide.ui.icons.TreeIcons
-import dev.ide.ui.theme.resolveTint
+import dev.ide.ui.theme.BrandIcon
 import dev.ide.ui.theme.Ca
 import org.jetbrains.compose.resources.stringResource
 
@@ -350,8 +350,8 @@ private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
 private fun TemplateGlyph(iconId: String) {
     Box(Modifier.size(44.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Ca.radius.md)), contentAlignment = Alignment.Center) {
         when (val ic = TreeIcons.resolve(iconId)) {
-            is TreeIcon.Glyph -> Icon(ic.image, null, Modifier.size(24.dp), tint = resolveTint(ic.tint))
-            is TreeIcon.Folder -> Icon(ic.closed, null, Modifier.size(24.dp), tint = resolveTint(ic.tint))
+            is TreeIcon.Glyph -> BrandIcon(ic.image, ic.tint, Modifier.size(24.dp))
+            is TreeIcon.Folder -> BrandIcon(ic.closed, ic.tint, Modifier.size(24.dp))
             is TreeIcon.Badge -> Text(ic.text, color = ic.color, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         }
     }

@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import android.webkit.MimeTypeMap
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -234,25 +235,30 @@ class MainActivity : ComponentActivity() {
                     // NOT a launcher entry, only the toolbar button starts it).
                     onOpenTerminal = {
                         // Wrap in try-catch so a missing-class / not-found-activity failure surfaces as a Toast
-                        // instead of being silently swallowed by Compose's recomposition handler.
+                        // instead of being silently swallowed by Compose's recomposition handler. Every branch
+                        // also logs to logcat under [TERMINAL_TAG] so `adb logcat -s CodeTermux:*` shows the trace
+                        // even when the Toast is missed (fades in ~3.5s, easy to overlook).
+                        val terminalTag = "CodeTermux"
                         try {
                             val intent = Intent(this, com.termux.app.TermuxActivity::class.java)
-                            if (packageManager.resolveActivity(intent, 0) != null) {
+                            val resolved = packageManager.resolveActivity(intent, 0)
+                            if (resolved != null) {
+                                Log.i(terminalTag, "tap → resolveActivity hit ${resolved.activityInfo.name}, launching")
                                 startActivity(intent)
                             } else {
-                                Toast.makeText(
-                                    this@MainActivity,
-                                    "Termux activity not registered in this build",
-                                    Toast.LENGTH_LONG,
-                                ).show()
+                                val msg = "Termux activity not registered in this build (mergeManifest missing com.termux.app.TermuxActivity?)"
+                                Log.e(terminalTag, msg)
+                                Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
                             }
                         } catch (e: android.content.ActivityNotFoundException) {
+                            Log.e(terminalTag, "ActivityNotFoundException", e)
                             Toast.makeText(
                                 this@MainActivity,
                                 "Couldn't open Terminal: ${e.message}",
                                 Toast.LENGTH_LONG,
                             ).show()
                         } catch (e: Throwable) {
+                            Log.e(terminalTag, "launch failed", e)
                             Toast.makeText(
                                 this@MainActivity,
                                 "Terminal launch failed: ${e.javaClass.simpleName}: ${e.message}",
