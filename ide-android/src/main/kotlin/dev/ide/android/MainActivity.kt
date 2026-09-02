@@ -237,16 +237,18 @@ class MainActivity : ComponentActivity() {
                         // Wrap in try-catch so a missing-class / not-found-activity failure surfaces as a Toast
                         // instead of being silently swallowed by Compose's recomposition handler. Every branch
                         // also logs to logcat under [terminalTag] so `adb logcat -s CodeTermux:*` shows the trace
-                        // even when the Toast is missed (fades in ~3.5s, easy to overlook).
+                        // even when the Toast is missed.
                         //
-                        // The happy path ([startActivity] returns) ALSO Toasts, but briefly, so we can verify
-                        // visually that the tap reached MainActivity and the launch was issued without needing
-                        // adb. If the user sees "Lanzando Termux…" but no terminal appears, the failure is on
-                        // Termux's side (e.g. TermuxAppSharedPreferences.build() returning null at line 212 of
-                        // TermuxActivity.java — see ce63814 for the TERMUX_PACKAGE_NAME alignment that usually
-                        // fixes it).
+                        // Both happy-path AND error Toasts are LENGTH_LONG (~3.5s) so we can verify visually —
+                        // without depending on adb — that the tap reached MainActivity, that the class is in
+                        // the APK, that the manifest merge declared the activity, and that startActivity
+                        // returned. If the user sees "Lanzando Termux…" but no terminal appears, the failure
+                        // is on Termux's side (e.g. TermuxAppSharedPreferences.build() returning null at
+                        // line 212 of TermuxActivity.java — see ce63814 for the TERMUX_PACKAGE_NAME alignment
+                        // that usually fixes it).
                         val terminalTag = "CodeTermux"
                         Log.i(terminalTag, "tap fired; activity=${this@MainActivity.javaClass.simpleName}")
+                        Toast.makeText(this@MainActivity, "[Termux] entré al handler", Toast.LENGTH_LONG).show()
                         try {
                             // Resolve the class explicitly so a missing-class failure (e.g. Termux not bundled
                             // in this APK) shows up in logcat instead of dying silently before resolveActivity.
@@ -258,7 +260,7 @@ class MainActivity : ComponentActivity() {
                                 Log.i(terminalTag, "resolveActivity hit ${resolved.activityInfo.name}; launching")
                                 startActivity(intent)
                                 Log.i(terminalTag, "startActivity returned")
-                                Toast.makeText(this@MainActivity, "✓ Lanzando Termux…", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(this@MainActivity, "✓ Lanzando Termux…", Toast.LENGTH_LONG).show()
                             } else {
                                 val msg = "❌ Termux activity not registered in this build (merged manifest missing com.termux.app.TermuxActivity)"
                                 Log.e(terminalTag, msg)

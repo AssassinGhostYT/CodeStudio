@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -93,8 +94,12 @@ fun CodeStudioApp(
     // Apply settings to the active project's live editor state whenever they change (or the project swaps).
     LaunchedEffect(state, app.settings) { state.applySettings(app.settings) }
     // Hand the host's terminal-opener over to the IDE state so the toolbar button can call it. Side-effecting
-    // this in composition is fine: openTerminal is just a () -> Unit, never read mid-render.
-    LaunchedEffect(onOpenTerminal) { state.openTerminal = onOpenTerminal }
+    // this in composition is fine: openTerminal is just a () -> Unit, never read mid-render. We assign on
+    // every successful composition (SideEffect, not LaunchedEffect) because the host's lambda is a fresh
+    // instance on every recomposition — a LaunchedEffect keyed on it would re-launch each frame and the
+    // assignment could in theory land AFTER the user already tapped the toolbar button, leaving them looking
+    // at the no-op `{}` default for that first tap.
+    SideEffect { state.openTerminal = onOpenTerminal }
     // A `.caproj` handed in from outside the app ("Open with"): read its preview and open the import screen.
     // Keyed on the path (the host makes each hand-off a distinct path) so it fires once per inbound package.
     LaunchedEffect(importPackagePath) { importPackagePath?.let { app.openImportPackage(it) } }
