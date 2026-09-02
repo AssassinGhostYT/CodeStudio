@@ -60,18 +60,20 @@
           android:layout_height="wrap_content"
           android:orientation="horizontal">
 
-          <com.google.android.material.button.MaterialButton
+          <!-- Plain android.widget.Button instead of MaterialButton: see activity_termux.xml for the
+               full rationale (avoid Widget.Material3.Button.TextButton + Theme.Material3.* parent). -->
+          <Button
             android:id="@+id/toggle_keyboard_button"
-            style="@style/Widget.Material3.Button.TextButton"
+            style="?android:attr/borderlessButtonStyle"
             android:textAllCaps="true"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="@string/action_toggle_soft_keyboard" />
 
-          <com.google.android.material.button.MaterialButton
+          <Button
             android:id="@+id/new_session_button"
-            style="@style/Widget.Material3.Button.TextButton"
+            style="?android:attr/borderlessButtonStyle"
             android:textAllCaps="true"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

@@ -60,18 +60,22 @@
           android:layout_height="wrap_content"
           android:orientation="horizontal">
 
-          <com.google.android.material.button.MaterialButton
+          <!-- Plain android.widget.Button instead of MaterialButton to avoid the
+               Widget.Material3.Button.TextButton style + Theme.Material3.* parent requirement.
+               The two text-only buttons in the drawer ("Toggle keyboard" / "New session") don't
+               need Material3 styling; AppCompat's borderless button fits the dark terminal drawer. -->
+          <Button
             android:id="@+id/toggle_keyboard_button"
-            style="@style/Widget.Material3.Button.TextButton"
+            style="?android:attr/borderlessButtonStyle"
             android:textAllCaps="true"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="@string/action_toggle_soft_keyboard" />
 
-          <com.google.android.material.button.MaterialButton
+          <Button
             android:id="@+id/new_session_button"
-            style="@style/Widget.Material3.Button.TextButton"
+            style="?android:attr/borderlessButtonStyle"
             android:textAllCaps="true"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

@@ -1,29 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- TermuxActivity extends AppCompatActivity. AppCompat enforces that the activity's theme descend from
-     Theme.AppCompat; the IDE's app theme (@android:style/Theme.Material.NoActionBar) does NOT, so when
-     Termux's onCreate runs, AppCompatDelegateImpl.createSubDecor dies with "You need to use a Theme.AppCompat
-     theme" before any of Termux's own setup can happen.
+<!-- TermuxActivity extends BaseIDEActivity → AppCompatActivity. AppCompat enforces that the
+     activity's theme descend from Theme.AppCompat; the IDE's app theme (@android:style/Theme.Material.NoActionBar)
+     is a SYSTEM theme that AppCompat does NOT recognise, so when Termux's onCreate runs,
+     AppCompatDelegateImpl.createSubDecor throws IllegalStateException("You need to use a Theme.AppCompat
+     theme") before any of Termux's own setup can run.
 
-     Pointing TermuxActivity at this theme (Theme.AppCompat.DayNight.NoActionBar) gives it the AppCompat
-     decor AppCompatActivity requires while keeping the look neutral (no action bar — Termux draws its own
-     title bar + extra keys). DayNight so the dark/light toggle still works inside the terminal. -->
+     Pointing TermuxActivity at Theme.AppCompat.DayNight.NoActionBar gives it the AppCompat decor
+     AppCompatActivity requires, with DayNight so dark/light toggle still works. The previous attempt to
+     use Theme.Material3.DayNight.NoActionBar was abandoned: activity_termux.xml's two buttons used
+     MaterialButton + Widget.Material3.Button.TextButton, which still inflated with a Material3-style
+     InflateException. Switching those buttons to plain android.widget.Button (see layout diff) removes
+     the Material3 dependency entirely, so AppCompat is enough. -->
 <resources>
-    <!-- Theme.Material3.DayNight.NoActionBar descends (transitively) from Theme.MaterialComponents.Bridge
-         which itself descends from Theme.AppCompat — so AppCompatActivity (TermuxActivity's base via
-         our BaseIDEActivity) is happy AND MaterialButton (used in activity_termux.xml line 63 / 72 with
-         style=Widget.Material3.Button.TextButton) is happy. Theme.AppCompat.DayNight.NoActionBar alone
-         is NOT enough: MaterialButton's constructor reads Material theme attrs that don't exist in
-         pure AppCompat, dying with "Error inflating class com.google.android.material.button.MaterialButton". -->
-    <style name="Theme.CodeStudio.Termux" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Termux paints its own UI over a black canvas; keep the window transparent so its full-bleed
-             background lands correctly. The translucent flag avoids a black flash during launch. -->
+    <style name="Theme.CodeStudio.Termux" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <!-- Termux paints its own UI over a black canvas; pin the window background so its full-bleed
+             background lands correctly with no white flash during launch. -->
         <item name="android:windowBackground">@android:color/black</item>
-        <item name="android:windowIsTranslucent">false</item>
         <item name="android:statusBarColor">@android:color/black</item>
         <item name="android:navigationBarColor">@android:color/black</item>
-        <!-- AppCompat DayNight already supplies these, but pin them so a future Theme.AppCompat swap
-             doesn't silently change the keyboard / terminal colors Termux reads. -->
-        <item name="colorPrimary">@android:color/holo_blue_dark</item>
-        <item name="colorAccent">@android:color/holo_blue_dark</item>
     </style>
 </resources>
