@@ -185,7 +185,31 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
     @NonNull
     @Override
     protected View bindLayout() {
-        return getLayoutInflater().inflate(R.layout.activity_termux, null, false);
+        // The IDE's BaseIDEActivity is a no-op stub that explicitly does NOT call
+        // setContentView(bindLayout()) — its javadoc says "callers must invoke
+        // setContentView(bindLayout()) themselves". Without that, findViewById() in setMargins()
+        // returns null and TermuxActivity crashes with NPE before any UI shows.
+        //
+        // Diagnostic wrapper: catch any InflateException (or anything else) here and dump the FULL
+        // cause chain via android.util.Log under tag "CodeTermux" so the next logcat reveals the
+        // actual root cause even when the user copies only the visible part of the stack. Re-throw
+        // after logging so Android's normal crash flow still kills the activity — we just gain
+        // visibility into WHY it died.
+        try {
+            return getLayoutInflater().inflate(R.layout.activity_termux, null, false);
+        } catch (Throwable t) {
+            android.util.Log.e("CodeTermux", "bindLayout: failed to inflate R.layout.activity_termux", t);
+            int depth = 0;
+            Throwable cause = t.getCause();
+            while (cause != null && depth < 10) {
+                android.util.Log.e("CodeTermux",
+                    "bindLayout cause[" + depth + "]: " + cause.getClass().getName() + ": " + cause.getMessage(),
+                    cause);
+                cause = cause.getCause();
+                depth++;
+            }
+            throw t;
+        }
     }
 
     @Override
