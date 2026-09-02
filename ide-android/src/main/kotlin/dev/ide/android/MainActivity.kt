@@ -238,6 +238,13 @@ class MainActivity : ComponentActivity() {
                         // instead of being silently swallowed by Compose's recomposition handler. Every branch
                         // also logs to logcat under [terminalTag] so `adb logcat -s CodeTermux:*` shows the trace
                         // even when the Toast is missed (fades in ~3.5s, easy to overlook).
+                        //
+                        // The happy path ([startActivity] returns) ALSO Toasts, but briefly, so we can verify
+                        // visually that the tap reached MainActivity and the launch was issued without needing
+                        // adb. If the user sees "Lanzando Termux…" but no terminal appears, the failure is on
+                        // Termux's side (e.g. TermuxAppSharedPreferences.build() returning null at line 212 of
+                        // TermuxActivity.java — see ce63814 for the TERMUX_PACKAGE_NAME alignment that usually
+                        // fixes it).
                         val terminalTag = "CodeTermux"
                         Log.i(terminalTag, "tap fired; activity=${this@MainActivity.javaClass.simpleName}")
                         try {
@@ -251,8 +258,9 @@ class MainActivity : ComponentActivity() {
                                 Log.i(terminalTag, "resolveActivity hit ${resolved.activityInfo.name}; launching")
                                 startActivity(intent)
                                 Log.i(terminalTag, "startActivity returned")
+                                Toast.makeText(this@MainActivity, "✓ Lanzando Termux…", Toast.LENGTH_SHORT).show()
                             } else {
-                                val msg = "Termux activity not registered in this build (merged manifest missing com.termux.app.TermuxActivity)"
+                                val msg = "❌ Termux activity not registered in this build (merged manifest missing com.termux.app.TermuxActivity)"
                                 Log.e(terminalTag, msg)
                                 Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
                             }
@@ -260,21 +268,21 @@ class MainActivity : ComponentActivity() {
                             Log.e(terminalTag, "TermuxActivity class not in this APK", e)
                             Toast.makeText(
                                 this@MainActivity,
-                                "Termux no incluido en este build",
+                                "❌ Termux no incluido en este build",
                                 Toast.LENGTH_LONG,
                             ).show()
                         } catch (e: android.content.ActivityNotFoundException) {
                             Log.e(terminalTag, "ActivityNotFoundException", e)
                             Toast.makeText(
                                 this@MainActivity,
-                                "Couldn't open Terminal: ${e.message}",
+                                "❌ Couldn't open Terminal: ${e.message}",
                                 Toast.LENGTH_LONG,
                             ).show()
                         } catch (e: Throwable) {
                             Log.e(terminalTag, "launch failed", e)
                             Toast.makeText(
                                 this@MainActivity,
-                                "Terminal launch failed: ${e.javaClass.simpleName}: ${e.message}",
+                                "❌ Terminal launch failed: ${e.javaClass.simpleName}: ${e.message}",
                                 Toast.LENGTH_LONG,
                             ).show()
                         }

@@ -160,11 +160,18 @@ class AndroidAdHost(
             AndroidView(
                 modifier = modifier,
                 factory = { ctx ->
-                    val widthPx = ctx.resources.displayMetrics.widthPixels
-                    // Anchored adaptive banner, per the AdMob guide: width = the container's real width, flexible
-                    // height, pinned to the bottom (this is the FOOTER placement). Uses the user's own real
-                    // banner unit (BuildConfig.AD_BANNER_UNIT_ID is never a test id).
-                    val adSize = AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(ctx, widthPx)
+                    // Anchored adaptive banner, per the AdMob guide: width = the container's real width,
+                    // flexible height, pinned to the bottom (this is the FOOTER placement). Uses the user's
+                    // own real banner unit (BuildConfig.AD_BANNER_UNIT_ID is never a test id).
+                    //
+                    // The AdSize factory expects the width in dp (density-independent pixels), NOT raw pixels;
+                    // passing widthPixels here returned a_h=90 a_w=1080 against a 384dp screen, and AdMob
+                    // rejected the request with code=1 "Ad size will not fit on screen" (logged at warn).
+                    // Dividing by displayMetrics.density normalises px → dp (1080 / 2.75 ≈ 392dp), which
+                    // fits and lets AdMob fill the slot.
+                    val metrics = ctx.resources.displayMetrics
+                    val widthDp = (metrics.widthPixels / metrics.density).toInt()
+                    val adSize = AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(ctx, widthDp)
                     AdView(ctx).apply {
                         setAdSize(adSize)
                         adUnitId = BuildConfig.AD_BANNER_UNIT_ID
