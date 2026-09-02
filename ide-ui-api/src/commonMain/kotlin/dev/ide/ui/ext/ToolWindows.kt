@@ -21,6 +21,11 @@ import dev.ide.ui.backend.IdeBackend
 /** Where a tool window docks. LEFT = the side-rail / navigator region; BOTTOM = the build-console region. */
 enum class ToolWindowAnchor { LEFT, RIGHT, BOTTOM }
 
+/** Stable id for the in-IDE proot-based terminal tool window (Android host only). The editor toolbar's
+ *  "Terminal" button looks this id up in [ToolWindowRegistry.forAnchor] and toggles it when present, so the
+ *  toolbar wires itself up without the host having to pass a separate launcher. */
+const val TERMINAL_TOOL_WINDOW_ID = "terminal"
+
 /** What a tool-window body is handed when rendered. */
 interface ToolWindowContext {
     val backend: IdeBackend

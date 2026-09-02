@@ -81,9 +81,11 @@ object AndroidIde {
         // is the app-global "Build in a separate process" setting (default ON), checked in
         // IdeServicesBackend.buildRunnerFor. A build OOM then kills only that process, not the IDE.
         val appContext = context.applicationContext
-        // The terminal on Android is the real Termux Activity (com.termux.app.TermuxActivity), launched from
-        // MainActivity.onOpenTerminal and surfaced via the editor toolbar's Terminal button. No in-process
-        // terminal engine, no BOTTOM tool-window tab — the toolbar button is the single entry point.
+        // The terminal on Android is an in-IDE proot-based panel (TerminalEngine + TerminalPanel), installed
+        // as a RIGHT-anchored tool window by TerminalPlugin. The editor toolbar's Terminal button toggles it
+        // via state.toggleRightPanel(TERMINAL_TOOL_WINDOW_ID). It runs Ubuntu 22.04 base via PRoot, which
+        // works without root because PRoot translates syscalls in userspace via ptrace (the SELinux
+        // `untrusted_app` cannot-exec-on-app_data_file restriction does not apply to its child processes).
         // Analytics is an application-scoped host service now; register it before the backend resolves it.
         manager.applicationContainer.registerServiceIfAbsent(ANALYTICS_SERVICE) { analytics }
         val backend = IdeServicesBackend(
@@ -104,6 +106,10 @@ object AndroidIde {
         // Process-wide uncaught-exception handler: report app_crash + surface the non-fatal dialog + keep the
         // app alive (the MainActivity main-thread guard handles the UI looper). See IdeServicesBackend.
         backend.installCrashReporting()
+        // Install the in-IDE terminal as a RIGHT-anchored tool window (idempotent — AtomicBoolean guard
+        // inside TerminalPlugin). Must run after the IDE plugin registries are observable, so the toolbar's
+        // Terminal button can resolve TERMINAL_TOOL_WINDOW_ID via ToolWindowRegistry.forAnchor.
+        dev.ide.android.Terminal.TerminalPlugin.install(appContext)
         // cold_start: time the whole on-device bootstrap (asset copy + project load + engine init). Emitted
         // once per launch for users who consented; no-op otherwise. Also serves as the per-launch anchor.
         if (backend.diagnostics.analyticsConsent() == true) {

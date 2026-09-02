@@ -228,36 +228,16 @@ class MainActivity : ComponentActivity() {
                     // instance is stable across project switches (it swaps services internally), so one host suffices.
                     composePreviewHost = (b as? IdeServicesBackend)?.let { AndroidComposePreviewHost(it) },
                     importPackagePath = importPackagePath,
-                    // Real Termux terminal as an Activity — replaces the legacy in-IDE PRoot dock for the
-                    // toolbar button. The activity is com.termux.app.TermuxActivity, declared in :termux:application's
-                    // manifest (launchMode=singleTask, exported=true so it can be launched via Intent; it is
-                    // NOT a launcher entry, only the toolbar button starts it).
-                    //
-                    // Currently this handler does NOT launch Termux: Android's stock SELinux policy denies
-                    // `execute` on `app_data_file` to the `untrusted_app` domain (the domain every regular
-                    // user-installed APK runs in, including this one), so even after the bootstrap installs
-                    // successfully, the JNI's `execvp("$PREFIX/bin/bash")` fails with EACCES and the session
-                    // dies before showing a prompt. The only known workarounds require changes outside the
-                    // app's control — root + Magisk SELinux module, or re-signing the APK with the platform
-                    // key and installing as a system app. Until either is in place, surface a clear message
-                    // instead of letting the user hit the cryptic "exec(\"...bash\"): Permission denied" in
-                    // Termux. The diagnostic Log line still fires so `adb logcat -s CodeTermux:*` shows the
-                    // tap reached the handler (kept for regression testing of the wiring itself).
+                    // In-IDE proot-based terminal as a RIGHT-anchored tool window (registered by
+                    // TerminalPlugin.install() in AndroidIde.bootstrap()). The toolbar's Terminal button
+                    // toggles the panel via state.toggleRightPanel(TERMINAL_TOOL_WINDOW_ID); we just log
+                    // the tap here so `adb logcat -s CodeTermux:*` still confirms the wiring reaches
+                    // MainActivity (regression coverage of the lambda plumbing).
                     onOpenTerminal = {
-                        val terminalTag = "CodeTermux"
-                        Log.i(terminalTag, "tap fired; activity=${this@MainActivity.javaClass.simpleName}")
-                        Log.w(
-                            terminalTag,
-                            "Terminal launch suppressed: device lacks exec permission on app_data_file " +
-                                "(SELinux). Root + a SELinux exec module is required to use Termux here.",
+                        Log.i(
+                            "CodeTermux",
+                            "tap fired; routed to in-IDE terminal panel (id=terminal)",
                         )
-                        Toast.makeText(
-                            this@MainActivity,
-                            "❌ Terminal no disponible: el dispositivo no permite ejecutar binarios sin root. " +
-                                "Para usar la terminal necesitas rootear e instalar un módulo Magisk " +
-                                "que habilite exec sobre app_data_file.",
-                            Toast.LENGTH_LONG,
-                        ).show()
                     },
                 )
 
