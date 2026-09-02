@@ -10,7 +10,14 @@
      use Theme.Material3.DayNight.NoActionBar was abandoned: activity_termux.xml's two buttons used
      MaterialButton + Widget.Material3.Button.TextButton, which still inflated with a Material3-style
      InflateException. Switching those buttons to plain android.widget.Button (see layout diff) removes
-     the Material3 dependency entirely, so AppCompat is enough. -->
+     the Material3 dependency entirely, so AppCompat is enough.
+
+     termuxActivityDrawerBackground is declared in :termux:application/res/values/attrs.xml but the
+     vendored Termux tree ships no theme that supplies a value. activity_termux.xml:47 (and
+     frag_terminal.xml:47) reference it as ?attr/... on the left-drawer LinearLayout; with no theme
+     override LayoutInflater throws InflateException("Error inflating class <unknown>") with cause
+     Resources$NotFoundException("Attribute ... not found"). Pin it to @android:color/black here so
+     both layouts resolve it against this activity's theme. -->
 <resources>
     <style name="Theme.CodeStudio.Termux" parent="Theme.AppCompat.DayNight.NoActionBar">
         <!-- Termux paints its own UI over a black canvas; pin the window background so its full-bleed
@@ -18,5 +25,8 @@
         <item name="android:windowBackground">@android:color/black</item>
         <item name="android:statusBarColor">@android:color/black</item>
         <item name="android:navigationBarColor">@android:color/black</item>
+        <!-- See top-of-file note: provides a concrete value for ?attr/termuxActivityDrawerBackground
+             referenced by activity_termux.xml + frag_terminal.xml. -->
+        <item name="termuxActivityDrawerBackground">@android:color/black</item>
     </style>
 </resources>
