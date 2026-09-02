@@ -207,6 +207,13 @@ public class TermuxActivity extends BaseIDEActivity implements ServiceConnection
 
         super.onCreate(savedInstanceState);
 
+        // The IDE's BaseIDEActivity is a no-op stub — it deliberately does NOT call
+        // setContentView(bindLayout()) (see the BaseIDEActivity doc: "Callers must invoke
+        // setContentView(bindLayout()) themselves — the IDE does not invoke this hook.").
+        // Without this line, findViewById() in setMargins() / onCreate below returns null
+        // and TermuxActivity crashes with NPE before any UI is shown.
+        setContentView(bindLayout());
+
         // Load termux shared preferences
         // This will also fail if TermuxConstants.TERMUX_PACKAGE_NAME does not equal applicationId
         mPreferences = TermuxAppSharedPreferences.build(this, true);
