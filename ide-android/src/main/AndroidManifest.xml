@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?><!-- The package/namespace comes from android.namespace in build.gradle.kts (AGP 9.x). -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Maven dependency resolution downloads artifacts from Maven Central (the Dependencies screen). -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -110,7 +111,21 @@
              launchMode=singleTask configChanges) is declared in :termux:application's manifest and merged
              into this APK. Internally launched from the IDE toolbar's "Terminal" button — not a launcher
              entry. The foreground service that keeps the shell alive (TermuxService, specialUse subtype)
-             is also declared in :termux:application's manifest and gets merged here. -->
+             is also declared in :termux:application's manifest and gets merged here.
+
+             Theme.AppCompat.DayNight.NoActionBar is REQUIRED: TermuxActivity extends AppCompatActivity, and
+             AppCompatDelegateImpl.createSubDecor throws IllegalStateException if the activity's theme
+             doesn't descend from Theme.AppCompat (the IDE's app theme is Theme.Material, so we override it
+             for this activity only). The transparent/black window settings match Termux's own
+             decor — it paints its own background. -->
+        <activity
+                android:name="com.termux.app.TermuxActivity"
+                android:configChanges="orientation|screenSize|smallestScreenSize|density|screenLayout|keyboard|keyboardHidden|navigation"
+                android:exported="true"
+                android:launchMode="singleTask"
+                android:resizeableActivity="true"
+                android:theme="@style/Theme.CodeStudio.Termux"
+                tools:replace="android:theme,android:exported" />
 
         <!-- Phase-2 build-process-isolation skeleton (docs/build-process-isolation.md): the build/run daemon
              runs in its own ":build" OS process so a build OOM or a user-program crash kills only it, not

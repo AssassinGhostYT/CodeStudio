@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- TermuxActivity extends AppCompatActivity. AppCompat enforces that the activity's theme descend from
+     Theme.AppCompat; the IDE's app theme (@android:style/Theme.Material.NoActionBar) does NOT, so when
+     Termux's onCreate runs, AppCompatDelegateImpl.createSubDecor dies with "You need to use a Theme.AppCompat
+     theme" before any of Termux's own setup can happen.
+
+     Pointing TermuxActivity at this theme (Theme.AppCompat.DayNight.NoActionBar) gives it the AppCompat
+     decor AppCompatActivity requires while keeping the look neutral (no action bar — Termux draws its own
+     title bar + extra keys). DayNight so the dark/light toggle still works inside the terminal. -->
+<resources>
+    <style name="Theme.CodeStudio.Termux" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <!-- Termux paints its own UI over a black canvas; keep the window transparent so its full-bleed
+             background lands correctly. The translucent flag avoids a black flash during launch. -->
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowIsTranslucent">false</item>
+        <item name="android:statusBarColor">@android:color/black</item>
+        <item name="android:navigationBarColor">@android:color/black</item>
+        <!-- AppCompat DayNight already supplies these, but pin them so a future Theme.AppCompat swap
+             doesn't silently change the keyboard / terminal colors Termux reads. -->
+        <item name="colorPrimary">@android:color/holo_blue_dark</item>
+        <item name="colorAccent">@android:color/holo_blue_dark</item>
+    </style>
+</resources>
