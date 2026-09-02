@@ -52,8 +52,17 @@ public abstract class UnixShellEnvironment implements IShellEnvironment {
     public static final String ENV_TMPDIR = "TMPDIR";
 
 
-    /** Names for common/supported login shell binaries. */
-    public static final String[] LOGIN_SHELL_BINARIES = new String[]{"login", "bash", "zsh", "fish", "sh"};
+    /**
+     * Names for common/supported login shell binaries. "login" used to lead this list,
+     * but on Android its `File.canExecute()` can return {@code true} even when the kernel-level
+     * {@code execvp()} of {@code $PREFIX/bin/login} later fails with EACCES (chmod not propagated,
+     * broken symlink to a non-+x target, or a SELinux context that disallows exec on that specific
+     * file). The fork then dies on the first attempt instead of falling through to {@code bash},
+     * which lives in the same directory with a working +x. Dropping {@code login} makes the
+     * fallback chain start at a shell that actually launches; a real Unix-style {@code login} is
+     * not needed by Termux on Android (no getty, no PAM, sessions are started directly).
+     */
+    public static final String[] LOGIN_SHELL_BINARIES = new String[]{"bash", "zsh", "fish", "sh"};
 
 
 
