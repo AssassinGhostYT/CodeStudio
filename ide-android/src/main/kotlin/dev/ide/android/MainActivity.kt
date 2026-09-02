@@ -1,6 +1,5 @@
 package dev.ide.android
 
-import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -233,61 +232,32 @@ class MainActivity : ComponentActivity() {
                     // toolbar button. The activity is com.termux.app.TermuxActivity, declared in :termux:application's
                     // manifest (launchMode=singleTask, exported=true so it can be launched via Intent; it is
                     // NOT a launcher entry, only the toolbar button starts it).
+                    //
+                    // Currently this handler does NOT launch Termux: Android's stock SELinux policy denies
+                    // `execute` on `app_data_file` to the `untrusted_app` domain (the domain every regular
+                    // user-installed APK runs in, including this one), so even after the bootstrap installs
+                    // successfully, the JNI's `execvp("$PREFIX/bin/bash")` fails with EACCES and the session
+                    // dies before showing a prompt. The only known workarounds require changes outside the
+                    // app's control — root + Magisk SELinux module, or re-signing the APK with the platform
+                    // key and installing as a system app. Until either is in place, surface a clear message
+                    // instead of letting the user hit the cryptic "exec(\"...bash\"): Permission denied" in
+                    // Termux. The diagnostic Log line still fires so `adb logcat -s CodeTermux:*` shows the
+                    // tap reached the handler (kept for regression testing of the wiring itself).
                     onOpenTerminal = {
-                        // Wrap in try-catch so a missing-class / not-found-activity failure surfaces as a Toast
-                        // instead of being silently swallowed by Compose's recomposition handler. Every branch
-                        // also logs to logcat under [terminalTag] so `adb logcat -s CodeTermux:*` shows the trace
-                        // even when the Toast is missed.
-                        //
-                        // Both happy-path AND error Toasts are LENGTH_LONG (~3.5s) so we can verify visually —
-                        // without depending on adb — that the tap reached MainActivity, that the class is in
-                        // the APK, that the manifest merge declared the activity, and that startActivity
-                        // returned. If the user sees "Lanzando Termux…" but no terminal appears, the failure
-                        // is on Termux's side (e.g. TermuxAppSharedPreferences.build() returning null at
-                        // line 212 of TermuxActivity.java — see ce63814 for the TERMUX_PACKAGE_NAME alignment
-                        // that usually fixes it).
                         val terminalTag = "CodeTermux"
                         Log.i(terminalTag, "tap fired; activity=${this@MainActivity.javaClass.simpleName}")
-                        Toast.makeText(this@MainActivity, "[Termux] entré al handler", Toast.LENGTH_LONG).show()
-                        try {
-                            // Resolve the class explicitly so a missing-class failure (e.g. Termux not bundled
-                            // in this APK) shows up in logcat instead of dying silently before resolveActivity.
-                            val activityClass = Class.forName("com.termux.app.TermuxActivity")
-                            Log.i(terminalTag, "loaded ${activityClass.name}")
-                            val intent = Intent(this, activityClass)
-                            val resolved = packageManager.resolveActivity(intent, 0)
-                            if (resolved != null) {
-                                Log.i(terminalTag, "resolveActivity hit ${resolved.activityInfo.name}; launching")
-                                startActivity(intent)
-                                Log.i(terminalTag, "startActivity returned")
-                                Toast.makeText(this@MainActivity, "✓ Lanzando Termux…", Toast.LENGTH_LONG).show()
-                            } else {
-                                val msg = "❌ Termux activity not registered in this build (merged manifest missing com.termux.app.TermuxActivity)"
-                                Log.e(terminalTag, msg)
-                                Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
-                            }
-                        } catch (e: ClassNotFoundException) {
-                            Log.e(terminalTag, "TermuxActivity class not in this APK", e)
-                            Toast.makeText(
-                                this@MainActivity,
-                                "❌ Termux no incluido en este build",
-                                Toast.LENGTH_LONG,
-                            ).show()
-                        } catch (e: android.content.ActivityNotFoundException) {
-                            Log.e(terminalTag, "ActivityNotFoundException", e)
-                            Toast.makeText(
-                                this@MainActivity,
-                                "❌ Couldn't open Terminal: ${e.message}",
-                                Toast.LENGTH_LONG,
-                            ).show()
-                        } catch (e: Throwable) {
-                            Log.e(terminalTag, "launch failed", e)
-                            Toast.makeText(
-                                this@MainActivity,
-                                "❌ Terminal launch failed: ${e.javaClass.simpleName}: ${e.message}",
-                                Toast.LENGTH_LONG,
-                            ).show()
-                        }
+                        Log.w(
+                            terminalTag,
+                            "Terminal launch suppressed: device lacks exec permission on app_data_file " +
+                                "(SELinux). Root + a SELinux exec module is required to use Termux here.",
+                        )
+                        Toast.makeText(
+                            this@MainActivity,
+                            "❌ Terminal no disponible: el dispositivo no permite ejecutar binarios sin root. " +
+                                "Para usar la terminal necesitas rootear e instalar un módulo Magisk " +
+                                "que habilite exec sobre app_data_file.",
+                            Toast.LENGTH_LONG,
+                        ).show()
                     },
                 )
 
