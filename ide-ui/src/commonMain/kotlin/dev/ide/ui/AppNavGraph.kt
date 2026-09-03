@@ -6,7 +6,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import dev.ide.ui.backend.FileActions
 import dev.ide.ui.backend.ProjectInfo
-import dev.ide.ui.components.BetaInfo
 import dev.ide.ui.generated.resources.Res
 import dev.ide.ui.generated.resources.settings_title
 import dev.ide.ui.navigation.ScreenHost
@@ -19,7 +18,6 @@ import dev.ide.ui.screens.ImportPreviewScreen
 import dev.ide.ui.screens.KeystoreCreateScreen
 import dev.ide.ui.screens.KeystoreImportScreen
 import dev.ide.ui.screens.KeystoreManagerScreen
-import dev.ide.ui.screens.LearnScreen
 import dev.ide.ui.screens.LessonPlayerScreen
 import dev.ide.ui.screens.LessonTrackScreen
 import dev.ide.ui.screens.ModuleConfigScreen
@@ -248,7 +246,7 @@ internal fun AppNavGraph(
 
 /**
  * The landing surface: the project picker on its own, or (behind the Projects Store flag) the picker as one
- * tab of [HomeScreen] alongside the store and Learn.
+ * tab of [HomeScreen] alongside the Store (Explorar) tab. The Learn tab was removed from the bottom nav.
  */
 @Composable
 private fun HomeRoute(app: CodeStudioAppState, fileActions: FileActions) {
@@ -262,7 +260,6 @@ private fun HomeRoute(app: CodeStudioAppState, fileActions: FileActions) {
         onSelectTab = app::selectHomeTab,
         projectsContent = { ProjectPickerRoute(app, fileActions, projects) },
         storeContent = { StoreRoute(app) },
-        learnContent = { LearnRoute(app, fileActions) },
     )
 }
 
@@ -278,20 +275,13 @@ private fun ProjectPickerRoute(
         onOpen = app::openProject,
         onNewProject = { app.createProject() },
         onDeleteProject = app::deleteProject,
-        onImportProject = if (fileActions.canPickFile) app::pickProjectPackage else null,
         onImportGradle = if (fileActions.canPickDirectory) app::requestGradleImport else null,
         onExportProject = if (fileActions.canShare || fileActions.canExport || fileActions.canReveal) {
             app::startExport
         } else null,
         onBackup = app::backupProjects,
         onOpenHub = { app.openHub(Screen.Projects) },
-        onJoinDiscord = { }, // The Discord community is coming soon — the Projects card shows a snackbar.
-        onSponsor = if (fileActions.canOpenUrl) {
-            { fileActions.openUrl(BetaInfo.SPONSOR_URL) }
-        } else null,
-        onStarOnGitHub = if (fileActions.canOpenUrl) {
-            { fileActions.openUrl(BetaInfo.REPO_URL) }
-        } else null,
+        onOpenStore = { app.selectHomeTab(HomeTab.Store) },
         storagePath = backend.projects.storageRootPath(),
         onOpenInFiles = if (fileActions.canReveal) {
             { backend.projects.storageRootPath()?.let { fileActions.reveal(it) } }
@@ -308,19 +298,5 @@ private fun StoreRoute(app: CodeStudioAppState) {
         backend = app.backend,
         onOpenItem = app::openStoreItem,
         onOpenHub = { app.openHub(Screen.Projects) },
-    )
-}
-
-@Composable
-private fun LearnRoute(app: CodeStudioAppState, fileActions: FileActions) {
-    LearnScreen(
-        backend = app.backend,
-        epoch = app.learnEpoch,
-        onOpenTrack = app::openTrack,
-        onResume = app::resumeLesson,
-        onOpenDocs = if (fileActions.canOpenUrl) {
-            { fileActions.openUrl(BetaInfo.REPO_URL) }
-        } else null,
-        onJoinDiscord = { }, // The Discord community is coming soon — no external invite is opened.
     )
 }

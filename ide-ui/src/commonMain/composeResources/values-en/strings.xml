@@ -120,13 +120,6 @@ We never collect your code, file or project names, which features you use, or an
     <string name="export_retry">Try again</string>
     <string name="join_the_community">Join the community</string>
     <string name="join_the_community_content">Chat, get help, and share what you build on Discord.</string>
-    <string name="discord_coming_soon">Coming soon — the Discord community is on its way</string>
-    <string name="support_title">Support CodeStudio</string>
-    <string name="support_content">Built in my free time and kept free for everyone. If it helps you, a sponsor or a star means a lot.</string>
-    <string name="support_chip_free">100% free</string>
-    <string name="support_chip_open_source">Open source</string>
-    <string name="support_sponsor">Sponsor</string>
-    <string name="support_star">Star on GitHub</string>
     <string name="support_show_ads">Show ads</string>
     <string name="support_show_ads_desc">Show ads in the app. You can turn them off at any time.</string>
     <string name="support_ad_privacy">Manage ad consent</string>
@@ -135,7 +128,6 @@ We never collect your code, file or project names, which features you use, or an
     <string name="ad_label">Ad</string>
     <string name="house_ad_support_title">Enjoying CodeStudio?</string>
     <string name="house_ad_support_content">Support the project on GitHub Sponsors.</string>
-    <string name="no_project_yet">No projects yet. Create one to get started.</string>
     <string name="your_projects">Your projects</string>
     <string name="project_kind_android">Android</string>
     <string name="project_opened_just_now">Opened just now</string>
@@ -458,7 +450,6 @@ We never collect your code, file or project names, which features you use, or an
     <string name="comingsoon_footnote">Coming soon</string>
     <string name="edscreen_project_root">project root</string>
     <string name="home_store">Explore</string>
-    <string name="home_learn">Learn</string>
     <string name="store_title">Explore</string>
     <string name="store_subtitle">Templates and sample projects to start from</string>
     <string name="store_settings_and_tools">Settings &amp; tools</string>
@@ -1219,4 +1210,15 @@ We never collect your code, file or project names, which features you use, or an
     <string name="block_palette_variable">Variable</string>
     <string name="block_palette_call">Call</string>
     <string name="block_palette_comment">Comment</string>
+    <string name="home_tagline">Your mobile IDE — powerful and lightweight.</string>
+    <string name="quick_section_title">Quick access</string>
+    <string name="quick_recent">Recent</string>
+    <string name="quick_templates">Templates</string>
+    <string name="quick_favorites">Favorites</string>
+    <string name="quick_backups">Backups</string>
+    <string name="no_projects_title">No projects yet</string>
+    <string name="no_projects_content">Create a new one or import a Gradle project to get started.</string>
+    <string name="coming_soon">Coming soon</string>
+    <string name="backup_complete">Backup created</string>
+    <string name="backup_failed">Couldn\'t create the backup</string>
 </resources>

@@ -120,13 +120,6 @@ Nunca recopilamos su código, nombres de archivos o proyectos, qué funciones us
     <string name="export_retry">Reintentar</string>
     <string name="join_the_community">Únete a la comunidad</string>
     <string name="join_the_community_content">Chatea, obtén ayuda y comparte lo que construyes en Discord.</string>
-    <string name="discord_coming_soon">Próximamente — la comunidad de Discord llega pronto</string>
-    <string name="support_title">Apoya a CodeStudio</string>
-    <string name="support_content">Construido en mi tiempo libre y mantenido gratuito para todos. Si te ayuda, un patrocinio o una estrella significan mucho.</string>
-    <string name="support_chip_free">100% gratis</string>
-    <string name="support_chip_open_source">Código abierto</string>
-    <string name="support_sponsor">Patrocinar</string>
-    <string name="support_star">Dar estrella en GitHub</string>
     <string name="support_show_ads">Mostrar anuncios</string>
     <string name="support_show_ads_desc">Mostrar anuncios en la aplicación. Puedes desactivarlos en cualquier momento.</string>
     <string name="support_ad_privacy">Gestionar consentimiento de anuncios</string>
@@ -135,7 +128,6 @@ Nunca recopilamos su código, nombres de archivos o proyectos, qué funciones us
     <string name="ad_label">Anuncio</string>
     <string name="house_ad_support_title">¿Disfrutas de CodeStudio?</string>
     <string name="house_ad_support_content">Apoya el proyecto en GitHub Sponsors.</string>
-    <string name="no_project_yet">Aún no hay proyectos. Crea uno para comenzar.</string>
     <string name="your_projects">Tus proyectos</string>
     <string name="project_kind_android">Android</string>
     <string name="project_opened_just_now">Abierto justo ahora</string>
@@ -458,7 +450,6 @@ Nunca recopilamos su código, nombres de archivos o proyectos, qué funciones us
     <string name="comingsoon_footnote">Próximamente</string>
     <string name="edscreen_project_root">raíz del proyecto</string>
     <string name="home_store">Explorar</string>
-    <string name="home_learn">Aprender</string>
     <string name="store_title">Explorar</string>
     <string name="store_subtitle">Plantillas y proyectos de ejemplo para empezar</string>
     <string name="store_settings_and_tools">Configuración y herramientas</string>
@@ -1219,4 +1210,15 @@ Nunca recopilamos su código, nombres de archivos o proyectos, qué funciones us
     <string name="block_palette_variable">Variable</string>
     <string name="block_palette_call">Llamada</string>
     <string name="block_palette_comment">Comentario</string>
+    <string name="home_tagline">Tu IDE móvil, poderoso y ligero.</string>
+    <string name="quick_section_title">Acceso rápido</string>
+    <string name="quick_recent">Recientes</string>
+    <string name="quick_templates">Plantillas</string>
+    <string name="quick_favorites">Favoritos</string>
+    <string name="quick_backups">Respaldos</string>
+    <string name="no_projects_title">Aún no hay proyectos</string>
+    <string name="no_projects_content">Crea uno nuevo o importa un proyecto Gradle para empezar.</string>
+    <string name="coming_soon">Próximamente</string>
+    <string name="backup_complete">Respaldo creado</string>
+    <string name="backup_failed">No se pudo crear el respaldo</string>
 </resources>

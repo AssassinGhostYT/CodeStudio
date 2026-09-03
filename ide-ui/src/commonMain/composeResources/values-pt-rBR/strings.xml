@@ -107,18 +107,11 @@ Nunca coletamos seu código, nomes de arquivos ou projetos, quais recursos você
     <string name="export_retry">Tentar novamente</string>
     <string name="join_the_community">Junte-se à comunidade</string>
     <string name="join_the_community_content">Converse, obtenha ajuda e compartilhe o que você constrói no Discord.</string>
-    <string name="support_title">Apoie o CodeStudio</string>
-    <string name="support_content">Desenvolvido no meu tempo livre e mantido gratuito para todos. Se ajudou você, um patrocínio ou uma estrela significam muito.</string>
-    <string name="support_chip_free">100% gratuito</string>
-    <string name="support_chip_open_source">Código aberto</string>
-    <string name="support_sponsor">Patrocinar</string>
-    <string name="support_star">Dar estrela no GitHub</string>
     <string name="support_show_ads">Mostrar anúncios</string>
     <string name="support_show_ads_desc">Mostrar anúncios no aplicativo. Você pode desativá-los a qualquer momento.</string>
     <string name="ad_label">Anúncio</string>
     <string name="house_ad_support_title">Gostando do CodeStudio?</string>
     <string name="house_ad_support_content">Apoie o projeto no GitHub Sponsors.</string>
-    <string name="no_project_yet">Nenhum projeto ainda. Crie um para começar.</string>
     <string name="your_projects">Seus projetos</string>
     <string name="project_kind_android">Android</string>
     <string name="project_opened_just_now">Aberto agora mesmo</string>
@@ -371,7 +364,6 @@ Nunca coletamos seu código, nomes de arquivos ou projetos, quais recursos você
 
     <!-- home/store/learn/search/logs/palette -->
     <string name="home_store">Explorar</string>
-    <string name="home_learn">Aprender</string>
     <string name="store_title">Explorar</string>
     <string name="store_subtitle">Modelos e projetos de exemplo para começar</string>
     <string name="store_settings_and_tools">Configurações e ferramentas</string>
@@ -1138,4 +1130,16 @@ Nunca coletamos seu código, nomes de arquivos ou projetos, quais recursos você
         <item quantity="one">%1$d arquivo</item>
         <item quantity="other">%1$d arquivos</item>
     </plurals>
+
+    <string name="home_tagline">Seu IDE móvel — poderoso e leve.</string>
+    <string name="quick_section_title">Acesso rápido</string>
+    <string name="quick_recent">Recentes</string>
+    <string name="quick_templates">Modelos</string>
+    <string name="quick_favorites">Favoritos</string>
+    <string name="quick_backups">Backups</string>
+    <string name="no_projects_title">Ainda não há projetos</string>
+    <string name="no_projects_content">Crie um novo ou importe um projeto Gradle para começar.</string>
+    <string name="coming_soon">Em breve</string>
+    <string name="backup_complete">Backup criado</string>
+    <string name="backup_failed">Não foi possível criar o backup</string>
 </resources>

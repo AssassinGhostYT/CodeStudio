@@ -21,17 +21,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,9 +45,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -66,26 +65,26 @@ import dev.ide.ui.components.pressScale
 import dev.ide.ui.backend.AdPlacement
 import dev.ide.ui.components.AdSlot
 import dev.ide.ui.generated.resources.Res
-import dev.ide.ui.generated.resources.dismiss
-import dev.ide.ui.generated.resources.picker_delete_project
-import dev.ide.ui.generated.resources.settings_hub_title
 import dev.ide.ui.generated.resources.backup
-import dev.ide.ui.generated.resources.discord_coming_soon
+import dev.ide.ui.generated.resources.backup_complete
+import dev.ide.ui.generated.resources.backup_failed
 import dev.ide.ui.generated.resources.cancel
+import dev.ide.ui.generated.resources.coming_soon
 import dev.ide.ui.generated.resources.compatibility
 import dev.ide.ui.generated.resources.delete
 import dev.ide.ui.generated.resources.delete_project
 import dev.ide.ui.generated.resources.delete_project_content
+import dev.ide.ui.generated.resources.dismiss
 import dev.ide.ui.generated.resources.export_share
+import dev.ide.ui.generated.resources.home_tagline
 import dev.ide.ui.generated.resources.import_gradle_subtitle
 import dev.ide.ui.generated.resources.import_gradle_title
-import dev.ide.ui.generated.resources.import_project
-import dev.ide.ui.generated.resources.join_the_community
-import dev.ide.ui.generated.resources.join_the_community_content
 import dev.ide.ui.generated.resources.modules
 import dev.ide.ui.generated.resources.new_project
 import dev.ide.ui.generated.resources.new_project_content
-import dev.ide.ui.generated.resources.no_project_yet
+import dev.ide.ui.generated.resources.no_projects_content
+import dev.ide.ui.generated.resources.no_projects_title
+import dev.ide.ui.generated.resources.picker_delete_project
 import dev.ide.ui.generated.resources.project_kind_android
 import dev.ide.ui.generated.resources.project_opened_days
 import dev.ide.ui.generated.resources.project_opened_hours
@@ -93,14 +92,14 @@ import dev.ide.ui.generated.resources.project_opened_just_now
 import dev.ide.ui.generated.resources.project_opened_minutes
 import dev.ide.ui.generated.resources.project_opened_weeks
 import dev.ide.ui.generated.resources.projects
+import dev.ide.ui.generated.resources.quick_backups
+import dev.ide.ui.generated.resources.quick_favorites
+import dev.ide.ui.generated.resources.quick_recent
+import dev.ide.ui.generated.resources.quick_section_title
+import dev.ide.ui.generated.resources.quick_templates
 import dev.ide.ui.generated.resources.recovered_projects
 import dev.ide.ui.generated.resources.recovered_projects_content
-import dev.ide.ui.generated.resources.support_chip_free
-import dev.ide.ui.generated.resources.support_chip_open_source
-import dev.ide.ui.generated.resources.support_content
-import dev.ide.ui.generated.resources.support_sponsor
-import dev.ide.ui.generated.resources.support_star
-import dev.ide.ui.generated.resources.support_title
+import dev.ide.ui.generated.resources.settings_hub_title
 import dev.ide.ui.generated.resources.your_files
 import dev.ide.ui.generated.resources.your_projects
 import dev.ide.ui.icons.CaIcons
@@ -113,27 +112,31 @@ import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
-/** The "Projects" picker: a collapsing large title, a New-Project FAB, and a card per known project. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * The "Projects" picker: a brand header, the New-Project / Import-Gradle leading cards, a Quick-Access row
+ * (Recientes / Plantillas / Favoritos / Respaldos), and either a populated project list or an empty-state.
+ * The legacy recovery banner sits between the quick-access row and the project list. Tiles in [QuickAccessRow]
+ * either deep-link (Plantillas → [onOpenStore]) or fire-and-forget locally (Recientes / Favoritos show
+ * "Próximamente"; Respaldos triggers [onBackup] and surfaces the result via Snackbar).
+ */
 @Composable
 fun ProjectPickerScreen(
     projects: List<ProjectInfo>,
     onOpen: (ProjectInfo) -> Unit,
     onNewProject: () -> Unit,
     onDeleteProject: ((ProjectInfo) -> Unit)? = null,
-    /** Import a shared `.caproj` package (shows the top-bar Import action). Null hides it. */
-    onImportProject: (() -> Unit)? = null,
     /** Import an external Gradle project folder (best effort). Shows a secondary card; null hides it. */
     onImportGradle: (() -> Unit)? = null,
     /** Export a project as a shareable `.caproj` (shows a per-card Share action). Null hides it. */
     onExportProject: ((ProjectInfo) -> Unit)? = null,
+    /** Backup every project to a sharable zip. Wired to both the header cube icon and the Respaldos tile. */
     onBackup: (() -> Unit)? = null,
     /** Open the global Settings & Tools hub (settings · code style · SDK & keystore managers) — reachable
      *  here without an open project. Null hides the entry point. */
     onOpenHub: (() -> Unit)? = null,
-    onJoinDiscord: (() -> Unit)? = null,
-    onSponsor: (() -> Unit)? = null,
-    onStarOnGitHub: (() -> Unit)? = null,
+    /** Switch to the Explorar / Store tab when the user taps the Plantillas quick-access tile. Null falls
+     *  back to the same "Próximamente" snackbar as the other quick-access tiles (desktop / no-store-flag). */
+    onOpenStore: (() -> Unit)? = null,
     storagePath: String? = null,
     onOpenInFiles: (() -> Unit)? = null,
     showLegacyRecovery: Boolean = false,
@@ -144,28 +147,16 @@ fun ProjectPickerScreen(
     var pendingDelete by remember { mutableStateOf<ProjectInfo?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    val discordComingSoon = stringResource(Res.string.discord_coming_soon)
+    val comingSoonMsg = stringResource(Res.string.coming_soon)
     val compatibilityCount = projects.count { it.compatibility }
-    val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
-        modifier = Modifier.fillMaxSize().nestedScroll(scroll.nestedScrollConnection),
+        modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            LargeTopAppBar(
-                title = { Text(stringResource(Res.string.projects)) },
-                actions = {
-                    if (onImportProject != null) IconButton(onClick = onImportProject) {
-                        Icon(CaIcons.download, stringResource(Res.string.import_project))
-                    }
-                    if (onBackup != null) IconButton(onClick = onBackup) {
-                        Icon(CaIcons.box, stringResource(Res.string.backup))
-                    }
-                    if (onOpenHub != null) IconButton(onClick = onOpenHub) {
-                        Icon(CaIcons.gear, stringResource(Res.string.settings_hub_title))
-                    }
-                },
-                scrollBehavior = scroll,
+            BrandHeader(
+                onBackup = onBackup,
+                onOpenHub = onOpenHub,
             )
         },
     ) { padding ->
@@ -175,7 +166,7 @@ fun ProjectPickerScreen(
         ) {
             Column(
                 Modifier.widthIn(max = 640.dp).fillMaxWidth()
-                    .padding(horizontal = 16.dp).padding(top = 4.dp, bottom = 24.dp),
+                    .padding(horizontal = 16.dp).padding(top = 12.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 // The primary action leads: a prominent New-Project card (no floating button).
@@ -184,20 +175,23 @@ fun ProjectPickerScreen(
                 // A secondary path: import an existing Gradle project (best-effort compatibility mode).
                 if (onImportGradle != null) ImportGradleCard(onImportGradle)
 
-                // The support card: CodeStudio is free, ad-free and open source, so the only "monetisation"
-                // is an optional sponsor/star. Shown whenever the host can open links.
-                if (onSponsor != null || onStarOnGitHub != null) {
-                    SupportCard(onSponsor = onSponsor, onStar = onStarOnGitHub)
-                }
+                // Quick access row — 4 tiles for the most-used shortcuts from the project picker. Each
+                // lambda ends with `Unit` because `scope.launch { … }` returns Job and the call site
+                // expects `() -> Unit` — without the trailing Unit the block evaluates to Job and the
+                // param assignment fails the type check.
+                QuickAccessRow(
+                    onRecent = { scope.launch { snackbarHostState.showSnackbar(comingSoonMsg) }; Unit },
+                    onTemplates = onOpenStore ?: { scope.launch { snackbarHostState.showSnackbar(comingSoonMsg) }; Unit },
+                    onFavorites = { scope.launch { snackbarHostState.showSnackbar(comingSoonMsg) }; Unit },
+                    onBackups = onBackup ?: { scope.launch { snackbarHostState.showSnackbar(comingSoonMsg) }; Unit },
+                )
+
                 if (showLegacyRecovery && compatibilityCount > 0) {
                     LegacyRecoveryBanner(count = compatibilityCount, onDismiss = onDismissLegacyRecovery)
                 }
-                if (onJoinDiscord != null) DiscordCard {
-                    scope.launch { snackbarHostState.showSnackbar(discordComingSoon) }
-                }
 
                 if (projects.isEmpty()) {
-                    Text(stringResource(Res.string.no_project_yet), color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.bodyMedium)
+                    EmptyStateProjectsCard(onCreate = onNewProject)
                 } else {
                     SectionLabel(stringResource(Res.string.your_projects), count = projects.size)
                     // A single "now" so every card's relative "opened …" label is consistent across the list.
@@ -374,126 +368,154 @@ private fun SectionLabel(text: String, count: Int? = null) {
     }
 }
 
-/** Discord brand "blurple" — used only for the community card's icon/accent. */
-private val DiscordBlurple = Color(0xFF5865F2)
-
-/** A slim, blurple-tinted card inviting the user to join the community Discord. */
+/**
+ * The custom brand header that replaces the Material3 large app bar: a logo cube + the app name + a one-line
+ * tagline on the left, and the cube (backup) + gear (settings hub) action icons on the right. No lupa,
+ * no download — CodeStudio's home screen is intentionally kept narrow.
+ */
 @Composable
-private fun DiscordCard(onClick: () -> Unit) {
-    val interaction = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(Ca.radius.lg)
+private fun BrandHeader(onBackup: (() -> Unit)?, onOpenHub: (() -> Unit)?) {
     Row(
         Modifier
             .fillMaxWidth()
-            .pressScale(interaction)
-            .background(DiscordBlurple.copy(alpha = 0.12f), shape)
-            .border(1.dp, DiscordBlurple.copy(alpha = 0.35f), shape)
-            .clickable(interaction, indication = null, onClick = onClick)
-            .padding(14.dp),
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Box(
-            Modifier.size(40.dp).background(DiscordBlurple, RoundedCornerShape(Ca.radius.md)),
+            Modifier.size(40.dp).background(Ide.colors.success.copy(alpha = 0.18f), RoundedCornerShape(Ca.radius.md)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(CaIcons.discord, null, Modifier.size(22.dp), tint = Color.White)
+            Icon(CaIcons.box, null, Modifier.size(22.dp), tint = Ide.colors.success)
         }
+        Spacer(Modifier.size(12.dp))
         Column(Modifier.weight(1f)) {
-            Text(stringResource(Res.string.join_the_community), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium)
-            Text(stringResource(Res.string.join_the_community_content), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                "CodeStudio",
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                stringResource(Res.string.home_tagline),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelSmall,
+            )
         }
-        Icon(CaIcons.chevronRight, null, Modifier.size(20.dp), tint = DiscordBlurple)
+        if (onBackup != null) IconButton(onClick = onBackup) {
+            Icon(CaIcons.box, stringResource(Res.string.backup))
+        }
+        if (onOpenHub != null) IconButton(onClick = onOpenHub) {
+            Icon(CaIcons.gear, stringResource(Res.string.settings_hub_title))
+        }
     }
 }
 
-/** GitHub Sponsors' pink — the support card's icon/accent, kept distinct from the app accent. */
-private val SponsorPink = Color(0xFFDB61A2)
-
 /**
- * A persistent card asking for support. CodeStudio is free, ad-free and fully open source, so the only
- * ask is an optional GitHub sponsorship or a star. [onSponsor]/[onStar] are wired by the host to open the
- * respective URLs; a null action simply hides that button.
+ * The "Acceso rápido" row: four equal-width tappable tiles for the most-used shortcuts from the project
+ * picker. Each tile shows a circular brand-green icon well and a small label. Tiles that have no backing
+ * feature yet (Recientes / Favoritos) show a "Próximamente" snackbar; Plantillas deep-links to the Store
+ * tab; Respaldos triggers [onBackups] (which the host wires to a real backup flow).
  */
 @Composable
-private fun SupportCard(onSponsor: (() -> Unit)?, onStar: (() -> Unit)?) {
+private fun QuickAccessRow(
+    onRecent: () -> Unit,
+    onTemplates: () -> Unit,
+    onFavorites: () -> Unit,
+    onBackups: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(
+            stringResource(Res.string.quick_section_title).uppercase(),
+            color = MaterialTheme.colorScheme.outline,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            QuickAccessTile(CaIcons.clock, stringResource(Res.string.quick_recent), Modifier.weight(1f), onRecent)
+            QuickAccessTile(CaIcons.layers, stringResource(Res.string.quick_templates), Modifier.weight(1f), onTemplates)
+            QuickAccessTile(CaIcons.star, stringResource(Res.string.quick_favorites), Modifier.weight(1f), onFavorites)
+            QuickAccessTile(CaIcons.archive, stringResource(Res.string.quick_backups), Modifier.weight(1f), onBackups)
+        }
+    }
+}
+
+@Composable
+private fun QuickAccessTile(icon: ImageVector, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(Ca.radius.lg)
+    Column(
+        modifier
+            .pressScale(interaction)
+            .background(MaterialTheme.colorScheme.surface, shape)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
+            .clickable(interaction, indication = null, onClick = onClick)
+            .padding(vertical = 14.dp, horizontal = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(
+            Modifier.size(40.dp).background(Ide.colors.success.copy(alpha = 0.15f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, null, Modifier.size(20.dp), tint = Ide.colors.success)
+        }
+        Text(
+            label,
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/**
+ * The "Aún no hay proyectos" empty-state card. Shown when [projects] is empty, replacing the old
+ * one-liner text. Encourages the user to either create or import a project.
+ */
+@Composable
+private fun EmptyStateProjectsCard(onCreate: () -> Unit) {
     val shape = RoundedCornerShape(Ca.radius.lg)
     Column(
         Modifier
             .fillMaxWidth()
-            .background(SponsorPink.copy(alpha = 0.10f), shape)
-            .border(1.dp, SponsorPink.copy(alpha = 0.30f), shape)
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .background(MaterialTheme.colorScheme.surface, shape)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
+            .padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(
-                Modifier.size(40.dp).background(SponsorPink, RoundedCornerShape(Ca.radius.md)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(CaIcons.heart, null, Modifier.size(22.dp), tint = Color.White)
-            }
-            Column(Modifier.weight(1f)) {
-                Text(stringResource(Res.string.support_title), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(Res.string.support_content), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
-            }
+        Box(
+            Modifier.size(72.dp).background(Ide.colors.success.copy(alpha = 0.12f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(CaIcons.folderOpen, null, Modifier.size(36.dp), tint = Ide.colors.success)
         }
-
-        // The ads on/off switch used to live here; it moved to Settings → Privacy & Data. This card is now
-        // just the support actions (Sponsor / Star), kept separate from ads.
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (onSponsor != null) {
-                SupportButton(stringResource(Res.string.support_sponsor), CaIcons.heart, Modifier.weight(1f), filled = true, onClick = onSponsor)
-            }
-            if (onStar != null) {
-                SupportButton(stringResource(Res.string.support_star), CaIcons.star, Modifier.weight(1f), filled = false, onClick = onStar)
-            }
-        }
-    }
-}
-
-
-@Composable
-private fun SupportChip(text: String) {
-    Row(
-        Modifier
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Ca.radius.pill))
-            .padding(horizontal = 10.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        Icon(CaIcons.check, null, Modifier.size(13.dp), tint = SponsorPink)
-        Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-    }
-}
-
-/** A support action: a filled (sponsor) or outlined (star) button with a leading glyph. */
-@Composable
-private fun SupportButton(text: String, icon: ImageVector, modifier: Modifier = Modifier, filled: Boolean, onClick: () -> Unit) {
-    val interaction = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(Ca.radius.control)
-    val surface =
-        if (filled) Modifier.background(SponsorPink, shape)
-        else Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh, shape).border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
-    Row(
-        modifier
-            .pressScale(interaction)
-            .then(surface)
-            .clickable(interaction, indication = null, onClick = onClick)
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Icon(icon, null, Modifier.size(16.dp), tint = if (filled) Color.White else MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.size(6.dp))
         Text(
-            text,
-            color = if (filled) Color.White else MaterialTheme.colorScheme.onSurface,
-            style = MaterialTheme.typography.bodyLarge,
+            stringResource(Res.string.no_projects_title),
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
         )
+        Text(
+            stringResource(Res.string.no_projects_content),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
+            textAlign = TextAlign.Center,
+        )
+        TextButton(onClick = onCreate) {
+            Text(
+                stringResource(Res.string.new_project),
+                color = Ide.colors.success,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
     }
 }
 

@@ -12,7 +12,6 @@ import dev.ide.ui.HomeTab
 import dev.ide.ui.components.BottomNavBar
 import dev.ide.ui.components.BottomNavItem
 import dev.ide.ui.generated.resources.Res
-import dev.ide.ui.generated.resources.home_learn
 import dev.ide.ui.generated.resources.home_store
 import dev.ide.ui.generated.resources.projects
 import dev.ide.ui.icons.CaIcons
@@ -21,9 +20,11 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * The home/landing scaffold: the selected [HomeTab]'s content above a [BottomNavBar] that switches between
- * the project picker, the Projects Store, and Learn. Each tab's content is supplied by the host (so all the
- * picker/store/learn wiring stays in one place) and crossfades on switch. Only shown on `Screen.Projects`;
- * full-screen destinations (editor, settings, run) push over it without the nav bar.
+ * the project picker and the Projects Store (the Explorar tab). The Learn tab was removed; [HomeTab.Learn]
+ * is kept in the enum so legacy state references still resolve, but no row is rendered for it. Each tab's
+ * content is supplied by the host (so all the picker/store wiring stays in one place) and crossfades on
+ * switch. Only shown on `Screen.Projects`; full-screen destinations (editor, settings, run) push over it
+ * without the nav bar.
  */
 @Composable
 fun HomeScreen(
@@ -31,7 +32,6 @@ fun HomeScreen(
     onSelectTab: (HomeTab) -> Unit,
     projectsContent: @Composable () -> Unit,
     storeContent: @Composable () -> Unit,
-    learnContent: @Composable () -> Unit,
 ) {
     Column(Modifier.fillMaxSize()) {
         Crossfade(
@@ -44,7 +44,8 @@ fun HomeScreen(
                 when (t) {
                     HomeTab.Projects -> projectsContent()
                     HomeTab.Store -> storeContent()
-                    HomeTab.Learn -> learnContent()
+                    // HomeTab.Learn is intentionally unrendered; see the file-level doc.
+                    else -> projectsContent()
                 }
             }
         }
@@ -52,7 +53,6 @@ fun HomeScreen(
             items = listOf(
                 BottomNavItem(HomeTab.Projects.name, stringResource(Res.string.projects), CaIcons.folder),
                 BottomNavItem(HomeTab.Store.name, stringResource(Res.string.home_store), CaIcons.grid),
-                BottomNavItem(HomeTab.Learn.name, stringResource(Res.string.home_learn), CaIcons.lightbulb),
             ),
             selectedId = tab.name,
             onSelect = { id -> onSelectTab(HomeTab.valueOf(id)) },
