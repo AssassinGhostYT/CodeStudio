@@ -16,14 +16,24 @@ import java.io.FileOutputStream
 import java.io.FileReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.zip.ZipInputStream
 
 object TerminalEngine : TerminalSessionClient {
 
     private const val TAG = "TerminalEngine"
 
     private val TOOLKIT_ASSETS = listOf("libtalloc.so.2","liblzma.so.5","libandroid-shmem.so")
-    private const val ROOTFS_URL = "https://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04.5-base-arm64.tar.gz"
-    private const val ROOTFS_FILE = "ubuntu-rootfs.tar.gz"
+    // Termux userland bootstrap — same rootfs Termux the app installs, so `pkg`, `$PREFIX/bin`,
+    // and `/etc/profile` conventions all match. Pinned to a specific release (the version stamp in
+    // the path is updated periodically by Termux; bump here when Termux bumps it). The bootstrap
+    // zip is ~30 MB vs Ubuntu's ~76 MB and runs entirely under proot, so the SELinux `untrusted_app`
+    // cannot-exec-on-app_data_file restriction never applies to its child processes.
+    private const val ROOTFS_URL = "https://github.com/termux/termux-packages/releases/download/bootstrap-2026.08.30-r1%2Bapt.android-7/bootstrap-arm64-v8a.zip"
+    private const val ROOTFS_FILE = "bootstrap-arm64-v8a.zip"
+    // Marker written under the rootfs after a successful extract. Re-runs skip re-downloading when
+    // the marker + the bash sentinel both exist. Versioned so a future Termux bootstrap layout change
+    // (e.g. $PREFIX moves) invalidates the cache without manual cleanup.
+    private const val ROOTFS_MARKER = ".cs-termux-exec-v1"
 
     sealed interface SetupState {
         data object Idle : SetupState
@@ -65,16 +75,16 @@ object TerminalEngine : TerminalSessionClient {
                 if (msg.startsWith("Downloading ") && msg.contains('%')) _setup.value = SetupState.Downloading(msg)
                 onProgress(msg)
             }
-            if (!File(rootfs, "bin/bash").exists() || !File(rootfs, ".cs-exec-v1").exists()) {
-                _setup.value = SetupState.Downloading("Downloading rootfs (~76 MB)…")
-                report("Downloading rootfs…")
+            if (!File(rootfs, "usr/bin/bash").exists() || !File(rootfs, ROOTFS_MARKER).exists()) {
+                _setup.value = SetupState.Downloading("Downloading Termux bootstrap (~30 MB)…")
+                report("Downloading Termux bootstrap…")
                 val archive = downloadToCache(ROOTFS_URL, ROOTFS_FILE, report)
                 _setup.value = SetupState.Extracting
-                report("Extracting rootfs…")
+                report("Extracting Termux bootstrap…")
                 if (rootfs.exists()) rootfs.deleteRecursively()
                 rootfs.mkdirs()
-                TarGz.extract(archive, rootfs)
-                File(rootfs, ".cs-exec-v1").writeText("exec-bits-preserved\n")
+                extractZip(archive, rootfs)
+                File(rootfs, ROOTFS_MARKER).writeText("ok\n")
                 archive.delete()
             }
             val bad = TOOLKIT_ASSETS.mapNotNull { ensureExecutable(File(supportDir(), it)) }
@@ -105,9 +115,29 @@ object TerminalEngine : TerminalSessionClient {
         val loader = nativeDir("libproot_loader.so")
         try { Os.chmod(loader.absolutePath, 0x1ED) } catch (_: Exception) { loader.setExecutable(true) }
         val hostTmp = File(filesDir!!, "tmp").apply { mkdirs() }
+        val homeDir = File(filesDir!!, "home").apply { mkdirs() }
+        val prefixDir = File(rootfs, "usr")
         val prootPath = proot.absolutePath
-        val args = arrayOf(prootPath,"--kill-on-exit","--link2symlink","--sysvipc","-L","-p","-r",rootfs.absolutePath,"--change-id=0:0","--cwd=/root","-b","/storage/emulated/0:/sdcard","-b","/proc","-b","/sys","-b","/dev","/bin/bash","-l")
-        val env = arrayOf("LD_LIBRARY_PATH=${support.absolutePath}","HOME=/root","TERM=xterm-256color","PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","PROOT_TMP_DIR=${hostTmp.absolutePath}","TMPDIR=/tmp","PROOT_LOADER=${loader.absolutePath}")
+        // Proot argv: see https://github.com/termux/proot for the option set. `--link2symlink` is
+        // mandatory on Android (no real symlink support across the bind mounts); `-L` follows
+        // absolute symlinks; `-p` pretends to be root inside the chroot; `--kill-on-exit` cleans up
+        // the child if proot dies. We exec Termux's bash directly (`/usr/bin/bash -l`) rather than
+        // `/usr/bin/login` so the env we pass below is the only env the shell sees.
+        val args = arrayOf(prootPath,"--kill-on-exit","--link2symlink","-L","-p","-r",rootfs.absolutePath,"-b","/storage/emulated/0:/sdcard","-b","/proc","-b","/sys","-b","/dev","/usr/bin/bash","-l")
+        // Termux-style env: PREFIX points at the rootfs' `usr/`, PATH includes Termux's
+        // $PREFIX/bin + $PREFIX/bin/applets + Android's /system/bin (so Android's `am`, `pm`,
+        // `cmd` are reachable from inside the shell). HOME is a per-app `home/` that proot sees
+        // as `/home` once the rootfs has been chrooted into.
+        val env = arrayOf(
+            "HOME=${homeDir.absolutePath}",
+            "PREFIX=${prefixDir.absolutePath}",
+            "TERM=xterm-256color",
+            "PATH=${prefixDir.absolutePath}/bin:${prefixDir.absolutePath}/bin/applets:${prefixDir.absolutePath}/cmd:/system/bin",
+            "LD_LIBRARY_PATH=${support.absolutePath}",
+            "PROOT_TMP_DIR=${hostTmp.absolutePath}",
+            "TMPDIR=${hostTmp.absolutePath}",
+            "PROOT_LOADER=${loader.absolutePath}",
+        )
         val s = TerminalSession(prootPath, rootfs.absolutePath, args, env, 5000, this)
         session = s
         s.updateSize(cols, rows)
@@ -171,5 +201,39 @@ object TerminalEngine : TerminalSessionClient {
             val buf = ByteArray(64*1024); var d = 0L
             while (true) { val n = inp.read(buf); if (n<0) break; out.write(buf,0,n); d+=n; if (tot>0) onProgress("Downloading ${d*100/tot}%") }
         }}
+    }
+
+    /**
+     * Pure-JDK extractor for the Termux bootstrap zip (no commons-compress on the classpath).
+     * The Termux zip has flat entries like `usr/`, `usr/bin/bash`, `usr/lib/libfoo.so` — no
+     * directory entries that need a `+x` bit, only files. We preserve the executable bit from
+     * the zip's external attributes (Unix mode bits live in the upper 16 bits, mask 0x49 picks
+     * owner/group/other +x). proot refuses to run a binary whose exec bit got lost in flight.
+     */
+    private fun extractZip(archive: File, dest: File) {
+        ZipInputStream(archive.inputStream().buffered()).use { zis ->
+            val buf = ByteArray(64 * 1024)
+            var entry = zis.nextEntry
+            while (entry != null) {
+                val out = File(dest, entry.name)
+                if (entry.isDirectory) {
+                    out.mkdirs()
+                } else {
+                    out.parentFile?.mkdirs()
+                    FileOutputStream(out).use { fos ->
+                        while (true) {
+                            val n = zis.read(buf)
+                            if (n < 0) break
+                            fos.write(buf, 0, n)
+                        }
+                    }
+                    val unixMode = (entry.externalAttributes.toInt() shr 16) and 0xFFFF
+                    if (unixMode and 0x49 != 0) {
+                        try { Os.chmod(out.absolutePath, 0x1ED) } catch (_: Exception) { out.setExecutable(true, false) }
+                    }
+                }
+                entry = zis.nextEntry
+            }
+        }
     }
 }

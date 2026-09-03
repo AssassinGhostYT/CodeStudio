@@ -83,9 +83,12 @@ object AndroidIde {
         val appContext = context.applicationContext
         // The terminal on Android is an in-IDE proot-based panel (TerminalEngine + TerminalPanel), installed
         // as a RIGHT-anchored tool window by TerminalPlugin. The editor toolbar's Terminal button toggles it
-        // via state.toggleRightPanel(TERMINAL_TOOL_WINDOW_ID). It runs Ubuntu 22.04 base via PRoot, which
-        // works without root because PRoot translates syscalls in userspace via ptrace (the SELinux
-        // `untrusted_app` cannot-exec-on-app_data_file restriction does not apply to its child processes).
+        // via state.toggleRightPanel(TERMINAL_TOOL_WINDOW_ID). It runs the Termux userland bootstrap
+        // (same rootfs Termux the app installs) under PRoot, which works without root because PRoot
+        // translates syscalls in userspace via ptrace (the SELinux `untrusted_app` cannot-exec-on-
+        // app_data_file restriction does not apply to its child processes). The visual surface is a
+        // docked Compose panel with the same keyboard bar Termux uses; the userland inside is the
+        // full Termux bootstrap (`pkg install`, `$PREFIX/bin`, etc.).
         // Analytics is an application-scoped host service now; register it before the backend resolves it.
         manager.applicationContainer.registerServiceIfAbsent(ANALYTICS_SERVICE) { analytics }
         val backend = IdeServicesBackend(
