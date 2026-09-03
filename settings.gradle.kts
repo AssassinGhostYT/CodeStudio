@@ -135,6 +135,9 @@ if (System.getenv("CI_CORE_ONLY") != "true") {
     // :terminal-proot lives under ide-android/terminal-proot/ (sibling of the :ide-android module
     // it serves), not at the conventional `<root>/terminal-proot/`. Gradle's include() infers the
     // projectDir by splitting the path on `:`, so ":terminal-proot" would resolve to `<root>/terminal-proot/`
-    // — which doesn't exist. Set projectDir explicitly so the build finds it.
-    include(":terminal-proot") { projectDir = file("ide-android/terminal-proot") }
+    // — which doesn't exist. Set projectDir explicitly so the build finds it. The Kotlin DSL of
+    // Settings.include() does not expose the Project instance in a block lambda (Gradle's older Groovy
+    // DSL does); use `project("…").projectDir = …` after the include call instead.
+    include(":terminal-proot")
+    project(":terminal-proot").projectDir = file("ide-android/terminal-proot")
 }
