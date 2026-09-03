@@ -38,6 +38,7 @@ import dev.ide.ui.editor.preview.isMarkdownPreviewable
 import dev.ide.ui.editor.preview.isPreviewable
 import dev.ide.ui.generated.resources.Res
 import dev.ide.ui.generated.resources.breadcrumb_blocks
+import dev.ide.ui.generated.resources.breadcrumb_canvas
 import dev.ide.ui.generated.resources.breadcrumb_code
 import dev.ide.ui.generated.resources.breadcrumb_preview
 import dev.ide.ui.generated.resources.breadcrumb_split
@@ -143,6 +144,12 @@ private fun ViewModeToggle(
                     EditorViewMode.Split
                 )
             }
+        }
+        // Canvas = drag components onto a phone-shape surface; tapping adds an XML stub to the project tree.
+        SegmentItem(CaIcons.grid, stringResource(Res.string.breadcrumb_canvas), mode == EditorViewMode.Canvas) {
+            onSelect(
+                EditorViewMode.Canvas
+            )
         }
     }
 }
