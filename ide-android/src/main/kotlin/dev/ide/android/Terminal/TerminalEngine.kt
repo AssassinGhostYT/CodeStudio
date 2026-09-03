@@ -211,8 +211,13 @@ object TerminalEngine : TerminalSessionClient {
      * Pure-JDK extractor for the Termux bootstrap zip (no commons-compress on the classpath).
      * The zip has a FLAT layout — `bin/`, `lib/`, `etc/`, `share/`, `var/`, `include/` sit at the
      * root of the zip (NOT under `usr/`). proot refuses to run a binary whose exec bit got lost
-     * in flight, so we restore the executable bit from each entry's external attributes (Unix
-     * mode bits live in the upper 16 bits; mask `0x49` picks owner/group/other +x).
+     * in flight.
+     *
+     * Android's `java.util.zip.ZipEntry` stub jar hides `getExternalAttributes()` (real Android
+     * also strips it at runtime on API levels <26), so we can't read the zip's recorded mode bits.
+     * Instead we chmod +x everything under `bin/`, `lib/`, and `libexec/` — these are the only
+     * paths the Termux bootstrap ships executables in. Everything else (config, docs, share data)
+     * is left without +x, matching the upstream zip's intent.
      *
      * Symlinks are NOT stored as zip symlink entries in the Termux bootstrap — instead the zip
      * ships a top-level `SYMLINKS.txt` manifest (one entry per line, `<target>←<source>`
@@ -231,23 +236,18 @@ object TerminalEngine : TerminalSessionClient {
                     val baos = java.io.ByteArrayOutputStream()
                     while (true) { val n = zis.read(buf); if (n < 0) break; baos.write(buf, 0, n) }
                     symlinksManifest = baos.toByteArray()
-                } else {
+                } else if (!entry.isDirectory) {
                     val out = File(dest, entry.name)
-                    if (entry.isDirectory) {
-                        out.mkdirs()
-                    } else {
-                        out.parentFile?.mkdirs()
-                        FileOutputStream(out).use { fos ->
-                            while (true) {
-                                val n = zis.read(buf)
-                                if (n < 0) break
-                                fos.write(buf, 0, n)
-                            }
+                    out.parentFile?.mkdirs()
+                    FileOutputStream(out).use { fos ->
+                        while (true) {
+                            val n = zis.read(buf)
+                            if (n < 0) break
+                            fos.write(buf, 0, n)
                         }
-                        val unixMode = (entry.externalAttributes.toInt() shr 16) and 0xFFFF
-                        if (unixMode and 0x49 != 0) {
-                            try { Os.chmod(out.absolutePath, 0x1ED) } catch (_: Exception) { out.setExecutable(true, false) }
-                        }
+                    }
+                    if (entry.name.startsWith("bin/") || entry.name.startsWith("lib/") || entry.name.startsWith("libexec/")) {
+                        try { Os.chmod(out.absolutePath, 0x1ED) } catch (_: Exception) { out.setExecutable(true, false) }
                     }
                 }
                 entry = zis.nextEntry
@@ -260,7 +260,12 @@ object TerminalEngine : TerminalSessionClient {
      * Parse Termux's `SYMLINKS.txt` (UTF-8, one `<target>←<source>` per line, U+2190 separator)
      * and create each relative symlink under [dest]. Lines whose target starts with `/data/data/`
      * (real Termux app paths) are skipped — they don't apply to our chroot. A missing source is
-     * logged and skipped, not fatal: termux-keyring links reference files outside the bootstrap.
+     * skipped, not fatal: termux-keyring links reference files outside the bootstrap.
+     *
+     * Android's `java.io.File` stub jar does NOT include `isSymbolicLink()` (it's only on the
+     * real filesystem at runtime, not on the compile-time stubs). Instead of pre-checking, we
+     * unconditionally `Files.deleteIfExists` the target before calling `createSymbolicLink` —
+     * `deleteIfExists` is in `java.nio.file` which IS stubbed on Android, so it compiles cleanly.
      */
     private fun applySymlinksManifest(bytes: ByteArray, dest: File) {
         val sep = "←".toByteArray(Charsets.UTF_8)
@@ -279,9 +284,14 @@ object TerminalEngine : TerminalSessionClient {
             if (!resolvedSource.exists()) continue
             linkFile.parentFile?.mkdirs()
             try {
-                if (linkFile.exists() || linkFile.isSymbolicLink()) linkFile.delete()
+                java.nio.file.Files.deleteIfExists(linkFile.toPath())
                 java.nio.file.Files.createSymbolicLink(linkFile.toPath(), resolvedSource.toPath())
             } catch (_: Exception) { /* UnsupportedOperationException on filesystems that disallow symlinks — fall through. */ }
+        }
+    }
+
+    /** UTF-8 byte index of [needle] in [haystack], or -1 if absent. Cheaper than `String.indexOf` on a CharSequence because we don't decode. */
+    private fun indexOfUtf8(haystack: String, needle: ByteArray): Int {
         }
     }
 
