@@ -91,7 +91,7 @@ internal fun DrawScope.drawUvIcon(icon: UvIcon, tint: Color, size: Size) {
     val drawnH = icon.viewportHeight * scaleF
     val ox = (size.width - drawnW) / 2f
     val oy = (size.height - drawnH) / 2f
-    translate(ox, oy, 0f, 0f) {
+    translate(ox, oy) {
         scale(scaleF, scaleF, pivot = Offset.Zero) {
             for (p in icon.paths) {
                 val path = AndroidPathParser.parse(p.data)
