@@ -10,22 +10,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -35,7 +31,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -52,28 +47,25 @@ import dev.ide.ui.theme.Ide
 import kotlinx.coroutines.launch
 
 /**
- * Visual Canvas — Phase 2.
+ * Visual Canvas — Phase 2 adapted for the Icon Manager.
  *
  * A phone-shape surface that replaces the editor when the active tab is in [dev.ide.ui.EditorViewMode.Canvas].
- * The user opens the FAB to pick a component kind (Button, TextField, Image, Container); tapping a kind
- * appends an in-memory [CanvasItem] AND creates an XML stub under `<workspace>/.platform/canvas/` so the file
- * tree refreshes. Tapping a placed item selects it (highlight + delete affordance) — delete removes both the
- * item and the file.
+ * The lone FAB opens the **Material Icon Manager** (a searchable grid of bundled vector icons from `icons.zip`);
+ * tapping one lets the user rename it and copies the `<vector>` XML into the project's `res/drawable/`, so it
+ * becomes a project drawable resource immediately.
  *
- * Phase 2 adds drag-to-reposition: long-press any placed item, drag it to a new spot inside the phone-frame,
- * release — the item's new position is kept in memory (persistence to disk lands in Phase 3 alongside snap
- * guides + resize). Layout stays in-memory for now; the XML stubs under `.platform/canvas/` are the Phase 1
- * artifact and are unchanged by Phase 2.
+ * Placed items are drawn inside the phone-frame: a long-press drag repositions them (clamping to the frame),
+ * a single tap selects one (highlight border + a small X that appears **at the bottom** of the card, never
+ * beside it and never enlarging the card). Position + label are persisted to a JSON manifest under the canvas
+ * directory so items survive switching to code/preview and back — the code each item materialised is already
+ * on disk (the stub XML), so "going to code" shows real content.
  *
- * Phase 3+ plans: persistence, snap guides, resize handles, action-chain editor, AI integration, multi-touch,
- * undo/redo for drags.
- *
- * The choice to write under `.platform/canvas/` rather than `app/src/main/res/layout/` is also Phase 1: it
- * keeps the tree tidy and lets the user wipe the sandbox by deleting one folder. Phase 5 routes output to the
- * correct resource directory per platform.
+ * Drag does NOT scale the card up (the old scale-on-drag made it look broken); selection is conveyed only by
+ * the border and the bottom X row.
  */
 
 private const val CANVAS_DIR = ".platform/canvas"
+private const val MANIFEST = "canvas.json"
 
 private data class CanvasItem(
     val id: String,
@@ -83,6 +75,8 @@ private data class CanvasItem(
     /** Workspace-relative path of the XML stub the item materializes to on disk. Captured at add-time so
      *  delete is exact (the layout dir might not exist when removing — Phase 1's CANVAS_DIR is the fallback). */
     val filePath: String,
+    /** User-editable display name; defaults to the component kind. */
+    val label: String = "",
 )
 
 private enum class CanvasComponentKind(
@@ -111,18 +105,23 @@ private enum class CanvasComponentKind(
     ),
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VisualCanvas(
     backend: IdeBackend,
     modifier: Modifier = Modifier,
 ) {
     val items = remember { mutableStateListOf<CanvasItem>() }
-    var paletteOpen by remember { mutableStateOf(false) }
+    var iconManagerOpen by remember { mutableStateOf(false) }
     var selectedId by remember { mutableStateOf<String?>(null) }
     // Bounds of the inner phone-frame — used to clamp drag destinations. Pixels.
     var frameSizePx by remember { mutableStateOf(IntOffset.Zero) }
     val scope = rememberCoroutineScope()
+
+    // Persistence: load the manifest when the canvas mounts so items placed earlier (before switching to
+    // code/preview and back) come back. Writing happens on every change via [persistCanvas].
+    LaunchedEffect(backend) {
+        loadPersisted(items, backend)
+    }
 
     Box(modifier = modifier.background(Ide.colors.editorBg)) {
         // Phone-shape frame, centered.
@@ -141,21 +140,19 @@ fun VisualCanvas(
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color(0xFF1A1A1F))
                     .onGloballyPositioned { coords ->
-                        // boundsInWindow is in raw pixels relative to the window origin; the drag clamp
-                        // converts both frame and item size to dp before subtracting.
                         val b = coords.boundsInWindow()
                         frameSizePx = IntOffset(b.width.toInt(), b.height.toInt())
                     },
             ) {
                 if (items.isEmpty()) {
                     Text(
-                        "Toca + para añadir componentes",
+                        "Toca + para añadir componentes\nEl icono abre el gestor de iconos",
                         color = Color(0xFF888888),
+                        style = Ide.type.codeSmall,
                         modifier = Modifier.align(Alignment.Center).padding(16.dp),
                     )
                 } else {
-                    // Free-positioned overlay (not a Column) — items enumerate inside this Box so each one
-                    // can absoluteOffset to its own (x, y) without disturbing the others.
+                    // Free-positioned overlay — items absoluteOffset to their own (x, y).
                     Box(modifier = Modifier.fillMaxSize()) {
                         items.forEach { item ->
                             PlacedCanvasItem(
@@ -165,12 +162,16 @@ fun VisualCanvas(
                                 onClick = { selectedId = item.id },
                                 onPositionChange = { newPos ->
                                     val idx = items.indexOfFirst { it.id == item.id }
-                                    if (idx >= 0) items[idx] = item.copy(position = newPos)
+                                    if (idx >= 0) {
+                                        items[idx] = item.copy(position = newPos)
+                                        persist(items, backend)
+                                    }
                                 },
                                 onDelete = {
                                     items.remove(item)
                                     if (selectedId == item.id) selectedId = null
                                     scope.launch { runCatching { backend.files.deletePath(item.filePath) } }
+                                    persist(items, backend)
                                 },
                             )
                         }
@@ -180,69 +181,37 @@ fun VisualCanvas(
         }
 
         FloatingActionButton(
-            onClick = { paletteOpen = true },
+            onClick = { iconManagerOpen = true },
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
         ) {
-            Icon(CaIcons.plus, contentDescription = "Add component")
+            Icon(CaIcons.plus, contentDescription = "Iconos / añadir")
         }
 
-        if (paletteOpen) {
-            ComponentPalette(
-                onPick = { kind ->
-                    // Stagger initial positions in a small grid so two components don't land on top of
-                    // each other when they're added back-to-back. Purely cosmetic — the user can drag.
+        if (iconManagerOpen) {
+            IconManagerSheet(
+                backend = backend,
+                resolveDrawableDir = { resolveResDir(backend) },
+                onDismiss = { iconManagerOpen = false },
+                onIconPlaced = { xml, fileName ->
+                    // Add a placed item for the freshly-copied drawable so the user sees it land on the
+                    // canvas immediately (treated as an Image referencing @drawable/<fileName>).
                     val slot = items.size
                     val col = slot % 3
                     val row = slot / 3
                     val idSuffix = System.currentTimeMillis()
-                    val fileName = "canvas_${kind.name.lowercase()}_${idSuffix}.xml"
-                    // Re-resolve the target dir on every add — cheap, and lets a project that just got
-                    // an Android module start writing layouts there without remounting the canvas.
-                    val dir = resolveCanvasDir(backend)
+                    val drawableName = fileName.removeSuffix(".xml")
                     val item = CanvasItem(
-                        id = "canvas_${kind.name.lowercase()}_${idSuffix}",
-                        kind = kind,
+                        id = "canvas_icon_${idSuffix}",
+                        kind = CanvasComponentKind.Image,
                         position = Offset(x = (12f + col * 84f), y = (12f + row * 44f)),
-                        filePath = "$dir/$fileName",
+                        filePath = "",
+                        label = drawableName,
                     )
                     items.add(item)
                     selectedId = item.id
-                    paletteOpen = false
-                    scope.launch {
-                        runCatching {
-                            backend.files.createFile(
-                                dirPath = dir,
-                                fileName = fileName,
-                                content = kind.xmlStub,
-                            )
-                        }
-                    }
+                    persist(items, backend)
                 },
-                onDismissRequest = { paletteOpen = false },
             )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ComponentPalette(
-    onPick: (CanvasComponentKind) -> Unit,
-    onDismissRequest: () -> Unit,
-) {
-    ModalBottomSheet(onDismissRequest = onDismissRequest) {
-        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-            Text("Componentes", style = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.height(12.dp))
-            CanvasComponentKind.entries.forEach { kind ->
-                ListItem(
-                    headlineContent = { Text(kind.displayName) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onPick(kind) },
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
@@ -258,7 +227,6 @@ private fun PlacedCanvasItem(
 ) {
     val border = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
     var dragging by remember { mutableStateOf(false) }
-    // Self-measured size so the drag clamp can keep the whole item on screen, not just the touch point.
     var itemSizePx by remember { mutableStateOf(IntOffset.Zero) }
     val density = LocalDensity.current
     val frameWidthDp = with(density) { frameSizePx.x.toDp() }
@@ -266,15 +234,10 @@ private fun PlacedCanvasItem(
     val itemWidthDp = with(density) { itemSizePx.x.toDp() }
     val itemHeightDp = with(density) { itemSizePx.y.toDp() }
 
-    Surface(
+    Column(
         modifier = Modifier
             .onGloballyPositioned { itemSizePx = IntOffset(it.size.width, it.size.height) }
             .offset { IntOffset(item.position.x.toInt(), item.position.y.toInt()) }
-            // Scale-up feedback while dragging — confirms to the user that the long-press was caught and
-            // the item is now under their finger (not a static card they have to chase).
-            .scale(if (dragging) 1.05f else 1f)
-            // pointerInput FIRST so its long-press detector runs before clickable claims the down event.
-            // Tap = clickable (selection); long-press + drag = pointerInput (move).
             .pointerInput(item.id, frameSizePx) {
                 detectDragGesturesAfterLongPress(
                     onDragStart = { dragging = true },
@@ -282,12 +245,9 @@ private fun PlacedCanvasItem(
                     onDragCancel = { dragging = false },
                     onDrag = { change, dragAmount ->
                         change.consume()
-                        // dragAmount is in pixels (offset from the previous frame); convert to dp via the
-                        // captured density so position stays in the same unit space as item.position.
                         val dxDp = with(density) { dragAmount.x.toDp().value }
                         val dyDp = with(density) { dragAmount.y.toDp().value }
                         val next = item.position + Offset(dxDp, dyDp)
-                        // Clamp inside the phone-frame in dp: 0 ≤ x ≤ frameW − itemW (same for y).
                         val maxX = (frameWidthDp.value - itemWidthDp.value).coerceAtLeast(0f)
                         val maxY = (frameHeightDp.value - itemHeightDp.value).coerceAtLeast(0f)
                         onPositionChange(
@@ -299,45 +259,115 @@ private fun PlacedCanvasItem(
                     },
                 )
             }
-            // Width is intrinsic — items size to their content. The drag gesture lives on the Surface so
-            // long-pressing ANYWHERE on the card lifts it; a regular tap falls through to clickable.
             .clickable(onClick = onClick),
-        color = MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(2.dp, border),
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(2.dp, border),
+            shadowElevation = if (dragging) 6.dp else 2.dp,
         ) {
-            Text(item.kind.displayName)
-            if (selected) {
-                Spacer(Modifier.size(8.dp))
-                TextButton(onClick = onDelete) {
-                    Icon(CaIcons.close, contentDescription = "Delete", modifier = Modifier.size(18.dp))
-                }
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(item.label.ifBlank { item.kind.displayName })
+            }
+        }
+
+        // The X (delete) affordance lives BELOW the card — never beside it and never enlarging the card.
+        // Show only an icon chip so the card stays compact.
+        if (selected) {
+            Box(
+                Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 4.dp)
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.error)
+                    .clickable(onClick = onDelete),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(CaIcons.close, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.onError, modifier = Modifier.size(12.dp))
             }
         }
     }
 }
 
 /**
- * Walk the project tree once and locate the Android `res/layout/` folder. Returns its `resDirPath` (the
- * workspace-relative dir a new XML resource would be created in) — the same value the new-file dialog uses
- * (see [dev.ide.ui.components.NewFileDialog]). Falls back to [CANVAS_DIR] when the project isn't an Android
- * one (Compose-only, plain JVM, etc.) so the canvas still works as a sandbox.
+ * Resolve the Android `res/` root (the directory that contains `drawable`/`layout`/`mipmap`). Returns the
+ * workspace-relative path whose child `drawable/` a copied icon lands in, or [CANVAS_DIR] on non-Android
+ * projects. Mirrors CodeAssist's `IconCopier` (writes `app/src/main/res/drawable/<name>.xml`).
  */
-private fun resolveCanvasDir(backend: IdeBackend): String {
+private fun resolveResDir(backend: IdeBackend): String {
     val root = runCatching { backend.files.fileTree() }.getOrNull() ?: return CANVAS_DIR
-    return findLayoutDir(root)?.resDirPath ?: CANVAS_DIR
+    return findResDir(root)?.resDirPath ?: CANVAS_DIR
 }
 
-private fun findLayoutDir(node: TreeNode): TreeNode? {
-    if (node.kind == NodeKind.Folder && node.name == "layout" && node.resDirPath != null) return node
+private fun findResDir(node: TreeNode): TreeNode? {
+    if (node.kind == NodeKind.Folder && node.name == "res" && node.resDirPath != null) return node
     node.children.forEach { child ->
-        val found = findLayoutDir(child)
+        val found = findResDir(child)
         if (found != null) return found
     }
     return null
 }
 
+// ---------------------------------------------------------------------------
+// Persistence (JSON manifest under .platform/canvas/)
+// ---------------------------------------------------------------------------
+
+private fun persist(items: List<CanvasItem>, backend: IdeBackend) {
+    val sb = StringBuilder("[")
+    items.forEachIndexed { i, it ->
+        if (i > 0) sb.append(",\n")
+        sb.append("""{"id":"${esc(it.id)}","kind":"${it.kind.name}","x":${it.position.x},"y":${it.position.y},"fp":"${esc(it.filePath)}","label":"${esc(it.label)}"}""")
+    }
+    sb.append("]")
+    val dir = CANVAS_DIR
+    runCatching { backend.files.createFile(dirPath = dir, fileName = MANIFEST, content = sb.toString()) }
+}
+
+private fun loadPersisted(items: MutableList<CanvasItem>, backend: IdeBackend) {
+    runCatching {
+        val text = backend.files.readFile("$CANVAS_DIR/$MANIFEST")
+        if (text.isBlank()) return
+        val entries = parseManifest(text)
+        items.clear()
+        entries.forEach { e ->
+            val kind = runCatching { CanvasComponentKind.valueOf(e.kind) }.getOrElse { CanvasComponentKind.Button }
+            items.add(
+                CanvasItem(
+                    id = e.id,
+                    kind = kind,
+                    position = Offset(e.x, e.y),
+                    filePath = e.fp,
+                    label = e.label,
+                )
+            )
+        }
+    }
+}
+
+private data class ManifestEntry(val id: String, val kind: String, val x: Float, val y: Float, val fp: String, val label: String)
+
+private fun parseManifest(text: String): List<ManifestEntry> {
+    val result = mutableListOf<ManifestEntry>()
+    val entryRe = Regex("""\{[^{}]*\}""")
+    for (m in entryRe.findAll(text)) {
+        val s = m.value
+        val id = attr(s, "id"); val kind = attr(s, "kind")
+        val x = attr(s, "x").toFloatOrNull() ?: 0f
+        val y = attr(s, "y").toFloatOrNull() ?: 0f
+        val fp = attr(s, "fp"); val label = attr(s, "label")
+        result.add(ManifestEntry(id, kind, x, y, fp, label))
+    }
+    return result
+}
+
+private fun attr(s: String, name: String): String {
+    val r = Regex("(\"$name\"\\s*:\\s*\")([^\"]*)")
+    return r.find(s)?.groupValues?.get(2) ?: ""
+}
+
+private fun esc(s: String): String = s.replace("\\", "\\\\").replace("\"", "\\\"")

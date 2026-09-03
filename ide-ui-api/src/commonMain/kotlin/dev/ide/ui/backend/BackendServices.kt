@@ -1195,3 +1195,32 @@ interface AgentService {
         override fun answerPermission(id: Int, decision: UiAgentPermissionDecision) {}
     }
 }
+
+// ---------------------------------------------------------------------------
+// Icon catalog (Material 3 vector icons from a bundled assets zip)
+// ---------------------------------------------------------------------------
+
+/** One Material icon in the catalog: a display [name] plus its drawable XML source. */
+data class UiCatalogIcon(
+    /** Readable name e.g. "add circle". */
+    val name: String,
+    /** The raw `<vector>…</vector>` XML that becomes a drawable. */
+    val xml: String,
+)
+
+/**
+ * The bundled Material-icon catalog powering the Canvas Icon Manager. The host ships the vectors in an assets
+ * zip (`icons.zip`, entries named `baseline_<name>_24.xml`); this service unwraps them for the reusable UI.
+ * A backend that ships no bundle inherits [IconService.Unsupported] (the picker then shows an empty state).
+ */
+interface IconService {
+    /** Platform-neutral copy of [UiCatalogIcon]s with their vector XML, grouped by nothing — a flat list. */
+    fun icons(): List<UiCatalogIcon>
+
+    companion object {
+        /** A catalog with nothing — the default for backends that ship no icon bundle. */
+        val Unsupported: IconService = object : IconService {
+            override fun icons(): List<UiCatalogIcon> = emptyList()
+        }
+    }
+}

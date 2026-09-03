@@ -9,6 +9,7 @@ import dev.ide.ui.backend.DiagnosticsService
 import dev.ide.ui.backend.EditorService
 import dev.ide.ui.backend.FileService
 import dev.ide.ui.backend.GitService
+import dev.ide.ui.backend.IconService
 import dev.ide.ui.backend.ModuleService
 import dev.ide.ui.backend.SigningService
 import dev.ide.ui.backend.PreviewService
@@ -99,6 +100,12 @@ class IdeServicesBackend(
      * `true` (desktop / tests, where it's not gated); the on-device host injects the live check.
      */
     private val notificationsAllowed: () -> Boolean = { true },
+    /**
+     * The bundled Material-icon catalog backing the Canvas Icon Manager. The Android host unwraps its `icons.zip`
+     * asset and passes the result here; hosts without a bundle leave the [IconService.Unsupported] default so
+     * the picker shows an empty state. See [IdeBackend.icons].
+     */
+    private val iconCatalog: IconService = IconService.Unsupported,
 ) : IdeBackend, LayoutPreviewBackend, BackendContext {
 
     /** Opt-in usage analytics, resolved from the application service container (the on-device host registers a
@@ -328,6 +335,7 @@ class IdeServicesBackend(
     override val sdk: SdkService = SdkBackend(this)
     override val settings: SettingsService = SettingsBackend(this)
     override val customize: dev.ide.ui.backend.CustomizationService = CustomizationBackend(this)
+    override val icons: IconService = iconCatalog
     override val actions: ActionService = ActionBackend(this)
     // The AI agent is a disablable, non-essential plugin ([AgentPlugin.ID]). When the user turns it off in
     // Settings > Plugins the plugin isn't loaded, so we hand the UI the no-op service — the chat panel, the

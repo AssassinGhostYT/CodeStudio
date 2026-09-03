@@ -105,6 +105,7 @@ object AndroidIde {
             notificationsAllowed = {
                 NotificationManagerCompat.from(appContext).areNotificationsEnabled()
             },
+            iconCatalog = dev.ide.android.icons.AssetIconCatalog.build(appContext),
         )
         // Process-wide uncaught-exception handler: report app_crash + surface the non-fatal dialog + keep the
         // app alive (the MainActivity main-thread guard handles the UI looper). See IdeServicesBackend.

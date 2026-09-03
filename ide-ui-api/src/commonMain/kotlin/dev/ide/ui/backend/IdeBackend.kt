@@ -78,6 +78,10 @@ interface IdeBackend {
      *  Optional — a backend that wires no store inherits [CustomizationService.Unsupported]. */
     val customize: CustomizationService get() = CustomizationService.Unsupported
 
+    /** The bundled Material-icon catalog (for the Canvas Icon Manager). Optional — a backend that ships no
+     *  icon bundle inherits [IconService.Unsupported] (the picker shows an empty state). */
+    val icons: IconService get() = IconService.Unsupported
+
     /**
      * The Compose UI facets (tool windows, actions, screens) contributed by the currently-ENABLED plugins. The
      * shell registers these into `UiPluginHost` at startup — a plugin's UI is thus governed by the same
