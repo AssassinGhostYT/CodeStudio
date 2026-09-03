@@ -43,7 +43,12 @@ android {
         // builds all three; we mirror that.
         externalNativeBuild {
             cmake {
-                cppFlags("")
+                // AGP 9.0 removed `cppFlags` from the externalNativeBuild CMake DSL (it now lives in
+                // CMakeLists.txt via `add_compile_options()` or `target_compile_options()`). The
+                // ReTerminal upstream `cppFlags("")` line survives in their build because the IDE
+                // uses an older AGP; ours is pinned to 9.2.1, which rejects it. Passing flags is
+                // not needed — proot is plain C with the standard library headers, so leave the
+                // CMAKE_C_FLAGS that CMakeLists.txt already sets (`-Wall -Wextra -O2`) untouched.
                 arguments("-DANDROID_STL=none")
             }
         }
