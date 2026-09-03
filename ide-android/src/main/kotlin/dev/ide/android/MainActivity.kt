@@ -240,7 +240,14 @@ class MainActivity : ComponentActivity() {
                     // the app installed.
                     onOpenTerminal = {
                         val terminalTag = "CodeTermux"
-                        Log.i(terminalTag, "tap fired; activity=${this@MainActivity.javaClass.simpleName}")
+                        // TerminalPanel is now installed (ReTerminal-pattern proot+Alpine shell,
+                        // see AndroidIde.bootstrap). `state.openTerminal` is wired by EditorCenter.kt
+                        // through `state.toggleRightPanel(TERMINAL_TOOL_WINDOW_ID)` when the panel
+                        // exists — so this host lambda is only called when the panel failed to register
+                        // (debug builds without TerminalPlugin, future regressions). In that case we
+                        // fall back to launching the real Termux Activity, same as the user originally
+                        // had before eb90bcd regressed it with a misleading "necesitás root" Toast.
+                        Log.i(terminalTag, "tap fired; in-IDE panel absent → falling back to Termux Intent; activity=${this@MainActivity.javaClass.simpleName}")
                         try {
                             // Resolve the class explicitly so a missing-class failure (e.g. :termux:application
                             // not bundled in a future build) shows up in logcat instead of dying silently

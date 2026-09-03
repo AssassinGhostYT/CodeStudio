@@ -83,12 +83,12 @@ object AndroidIde {
         val appContext = context.applicationContext
         // The terminal on Android is an in-IDE proot-based panel (TerminalEngine + TerminalPanel), installed
         // as a RIGHT-anchored tool window by TerminalPlugin. The editor toolbar's Terminal button toggles it
-        // via state.toggleRightPanel(TERMINAL_TOOL_WINDOW_ID). It runs the Termux userland bootstrap
-        // (same rootfs Termux the app installs) under PRoot, which works without root because PRoot
-        // translates syscalls in userspace via ptrace (the SELinux `untrusted_app` cannot-exec-on-
-        // app_data_file restriction does not apply to its child processes). The visual surface is a
-        // docked Compose panel with the same keyboard bar Termux uses; the userland inside is the
-        // full Termux bootstrap (`pkg install`, `$PREFIX/bin`, etc.).
+        // via state.toggleRightPanel(TERMINAL_TOOL_WINDOW_ID). It runs an Alpine minirootfs under PRoot, which
+        // works without root because PRoot translates syscalls in userspace via ptrace (the SELinux
+        // `untrusted_app` cannot-exec-on-app_data_file restriction does not apply to its child processes).
+        // The first process is /system/bin/sh — Android bionic, resolves natively; only then proot takes
+        // over with the linker-namespace bind mounts Android 11+ requires. See TerminalEngine for the
+        // full orchestration rationale.
         // Analytics is an application-scoped host service now; register it before the backend resolves it.
         manager.applicationContainer.registerServiceIfAbsent(ANALYTICS_SERVICE) { analytics }
         val backend = IdeServicesBackend(
@@ -109,14 +109,20 @@ object AndroidIde {
         // Process-wide uncaught-exception handler: report app_crash + surface the non-fatal dialog + keep the
         // app alive (the MainActivity main-thread guard handles the UI looper). See IdeServicesBackend.
         backend.installCrashReporting()
-        // We deliberately DO NOT install the in-IDE proot terminal panel here. proot stalls at
-        // "Waiting for shell.." on a lot of devices (kernel/SELinux/`/proc` restrictions on Android
-        // 11+ — Termux the app itself works fine, so the device is capable, but proot as a library
-        // launched by an untrusted_app is not). Instead the toolbar's Terminal button falls through
-        // to MainActivity.onOpenTerminal which launches com.termux.app.TermuxActivity (bundled here
-        // via :termux:application, exported via its manifest) — exactly what eb90bcd regressed by
-        // replacing with a misleading "necesitás root" Toast. See MainActivity.promptInstallTermux()
-        // for the friendly install-Termux dialog when no Termux is available.
+        // In-IDE proot terminal panel — ReTerminal pattern (https://github.com/RohitKushvaha01/ReTerminal,
+        // MIT). The first shell is /system/bin/sh (Android bionic, not Termux-built, so it resolves
+        // natively under the scoped-linker namespaces that Android 11+ enforces via SELinux) which
+        // then exec's init-host.sh — init-host.sh assembles the proot argv with the bind mounts that
+        // Android 11+ requires (/apex, /linkerconfig/ld.config.txt, /dev/urandom:/dev/random, the
+        // /proc/self/fd/0,1,2 → /dev/std{in,out,err} mappings) and launches proot against the Alpine
+        // minirootfs shipped under assets/alpine/. proot then runs Alpine's busybox ash — no Termux-
+        // built libs, no `libreadline.so.8`/`libiconv.so` linker stall. The previous Termux-built
+        // bootstrap stalled at "Waiting for shell.." on this device because proot couldn't ptrace-
+        // execve Termux's bash (whose NEEDED entries are all Termux-built and unresolvable). The
+        // Toolbar's Terminal button now toggles this panel directly; if it ever stalls again, the
+        // fallback in MainActivity.onOpenTerminal still launches com.termux.app.TermuxActivity via
+        // Intent (the real, known-working shell from F-Droid/Play).
+        dev.ide.android.Terminal.TerminalPlugin.install(appContext)
         // cold_start: time the whole on-device bootstrap (asset copy + project load + engine init). Emitted
         // once per launch for users who consented; no-op otherwise. Also serves as the per-launch anchor.
         if (backend.diagnostics.analyticsConsent() == true) {

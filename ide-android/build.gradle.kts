@@ -549,11 +549,15 @@ android {
             useLegacyPackaging = true
             keepDebugSymbols += setOf(
                 "**/libaapt2.so",
-                // proot (dynamic Android ELF) + its static host loader + ptywrapper static bridge: all
-                // exec'd by the app, so they must reach nativeLibraryDir un-stripped and with exec bits.
+                // proot (dynamic Android ELF, MIT-licensed ReTerminal fork) + its static host loaders,
+                // all exec'd by the app: they must reach nativeLibraryDir un-stripped and with exec
+                // bits. See :terminal-proot for the source. libproot.so is also stripped at the C
+                // level by the upstream CMakeLists POST_BUILD command, but `keepDebugSymbols` still
+                // applies on top so AGP's NDK strip pass leaves them alone.
                 "**/libproot.so",
-                "**/libproot_loader.so",
-                "**/libptywrap.so",
+                "**/libloader.so",
+                "**/libloader32.so",
+                "**/libtalloc.so",
             )
         }
     }
@@ -736,10 +740,65 @@ val fetchAndroidBuildTools = tasks.register("fetchAndroidBuildTools") {
     }
 }
 
+// Alpine rootfs bundle for the in-IDE proot terminal. ReTerminal publishes the assets as
+// `alpine-<abi>.tar.gz.rootfs` (the `.rootfs` suffix is just the in-APK packaging convention — the
+// contents are plain gzipped tarballs of an Alpine minirootfs). The user-side terminal panel
+// (`TerminalEngine.kt` reading from `assets/alpine/`) needs all three ABIs to be on disk before
+// AGP runs the asset-merge task; bundling them via Git LFS was rejected because the repo doesn't
+// have LFS configured and 10 MB of binary blobs would balloon the git history. The download is
+// idempotent (file-size match + marker file → skip) so offline builds work after the first fetch.
+//
+// The ReTerminal MIT license applies (https://github.com/RohitKushvaha01/ReTerminal/blob/main/LICENSE);
+// the Alpine rootfs itself is MIT-style per https://alpinelinux.org/about/ — combined, this is fine
+// to redistribute in a closed-source APK as long as the NOTICE credits the upstream sources.
+val alpineRootfsTag = "v1.0" // bump to force a re-fetch when ReTerminal publishes new rootfs
+val alpineRootfsSource = "reterminal-$alpineRootfsTag"
+val alpineRootfsAbis = listOf(
+    "arm64-v8a" to "alpine-aarch64",
+    "armeabi-v7a" to "alpine-armhf",
+    "x86_64" to "alpine-x86_64",
+)
+val fetchAlpineRootfs = tasks.register("fetchAlpineRootfs") {
+    description = "Download the ReTerminal Alpine rootfs tarballs into src/main/assets/alpine/."
+    group = "build setup"
+    val assetsDir = layout.projectDirectory.dir("src/main/assets/alpine").asFile
+    val source = alpineRootfsSource
+    val abis = alpineRootfsAbis
+    doLast {
+        for ((abi, upstream) in abis) {
+            assetsDir.mkdirs()
+            val target = File(assetsDir, "$upstream.tar.gz.rootfs")
+            val marker = File(assetsDir, ".alpine-source")
+            val upToDate = target.exists() && target.length() > 0L &&
+                marker.takeIf { it.exists() }?.readText()?.trim() == source
+            if (upToDate) continue
+            // ReTerminal's raw.githubusercontent URL serves the file as-is (no LFS redirect on this
+            // path; it's already committed without LFS at the upstream). The file is a gzipped tar —
+            // the magic header is 0x1F 0x8B. A wrong-content 404 page from GitHub fails that check
+            // and surfaces a build error instead of silently bundling HTML as a tarball.
+            val url = "https://raw.githubusercontent.com/RohitKushvaha01/ReTerminal/main/core/main/src/main/assets/$upstream.tar.gz.rootfs"
+            logger.lifecycle("Fetching Alpine rootfs ($abi) from $url")
+            val tmp = File.createTempFile("alpine-$abi", ".rootfs")
+            try {
+                URL(url).openStream().use { input -> tmp.outputStream().use { input.copyTo(it) } }
+                val magic = tmp.inputStream().use { it.readNBytes(2) }
+                val isGzip = magic.size == 2 && magic[0] == 0x1F.toByte() && magic[1] == 0x8B.toByte()
+                if (!isGzip || tmp.length() < 1_000_000L) {
+                    throw GradleException("Downloaded Alpine rootfs ($abi) is not a valid gzipped tar (${tmp.length()} bytes from $url) — upstream layout changed?")
+                }
+                tmp.copyTo(target, overwrite = true)
+                marker.writeText(source)
+            } finally {
+                tmp.delete()
+            }
+        }
+    }
+}
+
 // Run before anything AGP does, so the freshly-fetched lib*.so are on disk when the native-lib merge runs,
 // and the staged kotlin-stdlib.jar asset is present when the asset merge runs.
 tasks.named("preBuild").configure {
-    dependsOn(fetchAndroidBuildTools, bundleKotlinStdlibAsset, bundleKotlincResourcesAsset, bundleComposeRuntimeAsset, bundleComposeFontsAsset, bundleComposeStringAsset, bundleAgentUiComposeStringAsset, bundleComposeDrawablesAsset, bundleR8DexAsset, bundleAppLogRuntimeAsset, bundleVmSpikeComposeRuntimeAsset, bundleVmSpikeMaterial3Asset, bundleVmStackAsset, bundleMoshiLibsAsset, bundleAwtFixtureAsset)
+    dependsOn(fetchAndroidBuildTools, fetchAlpineRootfs, bundleKotlinStdlibAsset, bundleKotlincResourcesAsset, bundleComposeRuntimeAsset, bundleComposeFontsAsset, bundleComposeStringAsset, bundleAgentUiComposeStringAsset, bundleComposeDrawablesAsset, bundleR8DexAsset, bundleAppLogRuntimeAsset, bundleVmSpikeComposeRuntimeAsset, bundleVmSpikeMaterial3Asset, bundleVmStackAsset, bundleMoshiLibsAsset, bundleAwtFixtureAsset)
 }
 
 // Same Android packaging gap as the fonts above, for the i18n string resources. :ide-ui's
@@ -857,6 +916,11 @@ dependencies {
     // list it here directly. Adding the transitive modules alongside causes AAPT to merge resources twice and
     // fail with "Duplicate key Theme_AppCompat_Light_Dialog" (defined in :termux:shared/styles.xml).
     implementation(project(":termux:application"))
+    // In-IDE proot engine (libproot.so + libloader.so + libtalloc.so compiled from ReTerminal's MIT-licensed
+    // source via NDK/CMake). The module exposes no Java/Kotlin API — `:ide-android` consumes its jniLibs
+    // via the AAR merge and TerminalEngine.kt reads `applicationInfo.nativeLibraryDir` at runtime. See
+    // `ide-android/terminal-proot/README.md` for the upstream + license details.
+    implementation(project(":terminal-proot"))
     // Opt-in usage analytics engine: DefaultAnalyticsService + the Supabase sink + the crash reporter. The
     // analytics-api types reach here transitively via :ide-core (which exposes them as `api`).
     implementation(project(":analytics-impl"))

@@ -127,6 +127,7 @@ if (System.getenv("CI_CORE_ONLY") != "true") {
         ":ide-desktop",
         ":ide-android",
         ":core:common", // IDE helper classes (BaseIDEActivity, Environment, …) — vendored Termux sources reference them
+        ":terminal-proot", // in-IDE proot+Alpine shell engine — compiled from ReTerminal's MIT-licensed proot source via NDK/CMake
         ":termux:view",
         ":termux:emulator",
         ":termux:shared",

@@ -1,6 +1,7 @@
 package dev.ide.android.Terminal
 
 import android.content.Context
+import android.os.Build
 import android.system.Os
 import android.util.Log
 import com.termux.terminal.TerminalSession
@@ -9,36 +10,56 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
-import java.io.BufferedOutputStream
+import java.io.BufferedInputStream
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.zip.ZipInputStream
+import java.util.zip.GZIPInputStream
 
+/**
+ * In-IDE proot engine — ReTerminal pattern (https://github.com/RohitKushvaha01/ReTerminal, MIT).
+ *
+ * The previous Termux-bootstrap approach stalled at "Waiting for shell.." on Android 11+ non-rooted
+ * devices: bash's NEEDED entries (`libc`, `libdl`, `libreadline.so.8`, `libiconv.so`, `libandroid-support.so`)
+ * are all Termux-built, and the system linker can't resolve them under the scoped-linker namespaces
+ * (`/apex/com.android.runtime`, `/linkerconfig/ld.config.txt`) that Android 11+ enforces via SELinux
+ * — proot's ptrace-execve returns silently and `TerminalSession` sits on the empty FD forever.
+ *
+ * ReTerminal sidesteps that with a 3-step orchestration:
+ *
+ *   1. The *first* shell to run is `/system/bin/sh -c <init-host.sh>` — Android's bionic `sh`,
+ *      which resolves natively and never goes through proot. This is the crucial difference vs
+ *      the old approach, which called `proot … /bin/bash -l` directly and lost bash at execve.
+ *
+ *   2. `init-host.sh` (bundled as an APK asset, copied to `<filesDir>/local/bin/` on first run)
+ *      then assembles the proot argv with all the bind mounts that Android 11+ requires
+ *      (`/apex`, `/product`, `/system_ext`, `/vendor`, `/linkerconfig/ld.config.txt`,
+ *      `/property_contexts`, `/dev/urandom:/dev/random`, `/proc/self/fd/{0,1,2}:/dev/{stdin,stdout,stderr}`),
+ *      extracts the Alpine rootfs to `<filesDir>/local/alpine/` if not yet present, and `exec`s
+ *      `$PROOT $ARGS sh <init>` — Alpine's busybox `ash`, which has no Termux-built deps and
+ *      resolves cleanly through the linker.
+ *
+ *   3. `<init>` (also a bundled asset) sets PATH/PS1/HOME/TERM and execs `/bin/ash` interactively.
+ *
+ * No `libaxs.so` needed (unlike Acode's pattern): the bionic sh hand-off IS the loader alternative.
+ * No `LD_PRELOAD=libtermux-exec.so` either — Alpine's libs resolve natively.
+ *
+ * API surface (unchanged from the previous Termux version — `TerminalPanel.kt` and
+ * `TerminalPlugin.kt` keep working without edits):
+ *   - `init(context)` — registers the application context (idempotent).
+ *   - `ensureReady(onProgress)` — extracts the rootfs on first run, sets up scripts, signals
+ *     `SetupState.Ready`. Skipped if already Ready.
+ *   - `setup: StateFlow<SetupState>` — observed by the panel for status display.
+ *   - `running: StateFlow<Boolean>` — true while a session is alive.
+ *   - `session: TerminalSession?` — the vendored `:termux:emulator`'s `TerminalSession` driving the view.
+ *   - `startSession(cols, rows)` — wires up the session after Ready.
+ *   - `writeCommand(line)`, `stopSession()` — convenience.
+ */
 object TerminalEngine : TerminalSessionClient {
 
     private const val TAG = "TerminalEngine"
 
-    private val TOOLKIT_ASSETS = listOf("libtalloc.so.2","liblzma.so.5","libandroid-shmem.so")
-    // Termux userland bootstrap — same rootfs Termux the app installs, so `pkg`, `$PREFIX/bin`,
-    // and `/etc/profile` conventions all match. Pinned to a specific release (the version stamp in
-    // the path is updated periodically by Termux; bump here when Termux bumps it). The bootstrap
-    // zip is ~30 MB vs Ubuntu's ~76 MB and runs entirely under proot, so the SELinux `untrusted_app`
-    // cannot-exec-on-app_data_file restriction never applies to its child processes.
-    // The Termux bootstrap zip is published under the name `bootstrap-aarch64.zip` (not `arm64-v8a`).
-    // Wrong name → 404, the engine sits on "Downloading…" forever. Version stamp is updated whenever
-    // Termux rebuilds; bump both URL and ROOTFS_VERSION together when that happens.
-    private const val ROOTFS_VERSION = "bootstrap-2026.08.30-r1%2Bapt.android-7"
-    private const val ROOTFS_URL = "https://github.com/termux/termux-packages/releases/download/$ROOTFS_VERSION/bootstrap-aarch64.zip"
-    private const val ROOTFS_FILE = "bootstrap-aarch64.zip"
-    // Marker written under the rootfs after a successful extract. Re-runs skip re-downloading when
-    // the marker + the bash sentinel both exist. Versioned so a future Termux bootstrap layout change
-    // (e.g. $PREFIX moves) invalidates the cache without manual cleanup. Bumped to v2 when we added
-    // the libtermux-exec.so copy + LD_PRELOAD step (devices that extracted v1 have a rootfs without
-    // libtermux-exec.so and would stall at "Waiting for shell.." without a fresh extract).
-    private const val ROOTFS_MARKER = ".cs-termux-exec-v2"
-
+    // Public API names that `TerminalPanel.kt` switches over — keep stable across rewrites.
     sealed interface SetupState {
         data object Idle : SetupState
         data class Downloading(val label: String) : SetupState
@@ -51,130 +72,339 @@ object TerminalEngine : TerminalSessionClient {
     val setup: StateFlow<SetupState> = _setup
     private val _running = MutableStateFlow(false)
     val running: StateFlow<Boolean> = _running
-    private val _output = MutableStateFlow("")
-    val output: StateFlow<String> = _output
 
     private var filesDir: File? = null
     private var appContext: Context? = null
+    private var nativeLibDir: String? = null
     var session: TerminalSession? = null
         private set
 
     fun init(context: Context) {
         appContext = context.applicationContext
         filesDir = context.applicationContext.filesDir
+        nativeLibDir = context.applicationInfo.nativeLibraryDir
+        Log.i(TAG, "init; nativeLibDir=$nativeLibDir filesDir=${filesDir?.absolutePath}")
     }
 
-    private fun supportDir() = File(filesDir!!, "support").apply { mkdirs() }
-    private fun rootfsDir() = File(filesDir!!, "rootfs")
-    private fun prootExec() = appContext?.let { File(it.applicationInfo.nativeLibraryDir, "libproot.so") } ?: File(supportDir(), "proot")
-    private fun nativeDir(name: String) = appContext?.let { File(it.applicationInfo.nativeLibraryDir, name) } ?: File("")
+    // Filesystem layout under `<filesDir>/`, all relative to the app's private storage:
+    //   local/                     (mirror of Termux's $PREFIX — what init-host.sh expects)
+    //     bin/                     init-host.sh, init.sh, rm-wrapper.sh (copied from assets, chmod +x)
+    //     lib/                     symlinks: libtalloc.so.2 -> $NATIVE_LIB_DIR/libtalloc.so
+    //     alpine/                  extracted Alpine rootfs (bin/, etc/, lib/, usr/, …)
+    //       root/                  user home inside the chroot
+    //       tmp/                   1777 /tmp, bind-mounted as /dev/shm for proot
+    //     stat, vmstat             tiny POSIX shims that procps in Alpine can't synthesize
+    //
+    // $PREFIX used by init-host.sh = `<filesDir>/parent` (i.e. the directory *above* `files/`),
+    // matching ReTerminal MkSession.kt:99 ("PREFIX=${filesDir.parentFile!!.path}"). proot sees
+    // `<filesDir>/local/alpine` as `/alpine` once `-r $PREFIX/local/alpine` runs.
+    private fun prefixDir() = File(filesDir!!.parentFile!!)
+    private fun localDir() = File(filesDir!!, "local")
+    private fun localBinDir() = File(localDir(), "bin")
+    private fun localLibDir() = File(localDir(), "lib")
+    private fun alpineDir() = File(localDir(), "alpine")
+    private fun alpineTmpDir() = File(alpineDir(), "tmp").apply { mkdirs() }
+    private fun alpineRootDir() = File(alpineDir(), "root").apply { mkdirs() }
+    private fun tmpDir() = File(filesDir!!, "tmp").apply { mkdirs() }
+
+    // Native binaries — ReTerminal's CMakeLists builds:
+    //   libproot.so        the proot executable itself (renamed via set_target_properties OUTPUT_NAME "proot" + PREFIX "lib")
+    //   libloader.so       64-bit host loader (build_loader("64", …) → OUTPUT_NAME "loader" + PREFIX "lib")
+    //   libloader32.so     optional 32-bit loader (only if HAS_LOADER_32BIT, which depends on the cross target support)
+    private fun prootExec() = File(nativeLibDir!!, "libproot.so")
+    private fun prootLoader() = File(nativeLibDir!!, "libloader.so")
+    private fun prootLoader32() = File(nativeLibDir!!, "libloader32.so").takeIf { it.exists() }
+    private fun tallocLib() = File(nativeLibDir!!, "libtalloc.so").takeIf { it.exists() }
+
+    // Choose the right rootfs asset for the running ABI. `Build.SUPPORTED_ABIS[0]` is the device's
+    // preferred ABI in priority order; emulator installs typically report only `x86_64`. Falls back
+    // to `arm64-v8a` if the runtime reports something exotic — the worst case is a wrong-arch extract
+    // (visible immediately as "Exec format error" in the terminal) rather than a silent failure.
+    private fun rootfsAssetForDevice(): Pair<String, String> {
+        val abi = Build.SUPPORTED_ABIS.firstOrNull { it in setOf("arm64-v8a", "armeabi-v7a", "x86_64") }
+            ?: "arm64-v8a"
+        return when (abi) {
+            "arm64-v8a" -> "arm64-v8a" to "alpine-aarch64"
+            "armeabi-v7a" -> "armeabi-v7a" to "alpine-armhf"
+            else -> "x86_64" to "alpine-x86_64"
+        }
+    }
+
+    // Marker written under <filesDir>/local/alpine/ after a successful extract. Versioned so a
+    // future ReTerminal asset layout change (different /etc/profile defaults, different package
+    // set) invalidates the cache without manual cleanup. Bumped to v2 from v1 (the previous
+    // Termux-bootstrap version) so devices that extracted a Termux rootfs don't get a stale
+    // "Ready" with the wrong binaries in place.
+    private const val ROOTFS_MARKER = ".cs-reterminal-v2"
 
     suspend fun ensureReady(onProgress: (String) -> Unit = {}) = withContext(Dispatchers.IO) {
         if (_setup.value is SetupState.Ready) return@withContext
         if (_setup.value is SetupState.Downloading || _setup.value is SetupState.Extracting) return@withContext
         try {
-            val rootfs = rootfsDir()
-            ensureToolkit()
-            val report: (String) -> Unit = { msg ->
-                if (msg.startsWith("Downloading ") && msg.contains('%')) _setup.value = SetupState.Downloading(msg)
-                onProgress(msg)
+            val (abiName, rootfsBaseName) = rootfsAssetForDevice()
+            val ctx = appContext ?: throw IllegalStateException("TerminalEngine.init(context) not called")
+            val alpine = alpineDir()
+            _setup.value = SetupState.Extracting
+            onProgress("Preparing Alpine rootfs for $abiName…")
+
+            // 1. Install the init scripts into <filesDir>/local/bin/ from assets if missing.
+            //    ReTerminal only writes them once per install — the assets are the source of truth,
+            //    and the per-device copies get chmod +x so proot can exec them as part of its argv.
+            localBinDir().mkdirs()
+            for (script in listOf("init-host.sh", "init.sh", "rm-wrapper.sh")) {
+                installAssetOnce(ctx, script, File(localBinDir(), script))
             }
-            if (!File(rootfs, "bin/bash").exists() || !File(rootfs, ROOTFS_MARKER).exists()) {
-                _setup.value = SetupState.Downloading("Downloading Termux bootstrap (~30 MB)…")
-                report("Downloading Termux bootstrap…")
-                val archive = downloadToCache(ROOTFS_URL, ROOTFS_FILE, report)
-                _setup.value = SetupState.Extracting
-                report("Extracting Termux bootstrap…")
-                if (rootfs.exists()) rootfs.deleteRecursively()
-                rootfs.mkdirs()
-                extractZip(archive, rootfs)
-                // The bootstrap ships the underlying variant libs (`lib/libtermux-exec-direct-ld-preload.so`
-                // and `lib/libtermux-exec-linker-ld-preload.so`) but does NOT install the symlink/copy that
-                // `$LD_PRELOAD` is supposed to point at — that step lives in the termux-exec package's
-                // `postinst` script (`termux-exec-ld-preload-lib setup`), which pkg/apt runs at install
-                // time. We don't have a package manager here, so we replicate the postinst by copying
-                // the direct variant to `$PREFIX/lib/libtermux-exec.so`. The direct variant supports all
-                // Android versions we care about (the linker variant requires Android's scoped linker).
-                val termuxExecSrc = File(rootfs, "lib/libtermux-exec-direct-ld-preload.so")
-                val termuxExecDst = File(rootfs, "lib/libtermux-exec.so")
-                if (termuxExecSrc.exists() && !termuxExecDst.exists()) {
-                    termuxExecSrc.copyTo(termuxExecDst, overwrite = false)
+
+            // 2. Extract the Alpine rootfs the first time. Idempotent: if the marker file exists and
+            //    `bin/ash` is in place, skip the extract. The marker name is versioned (see above).
+            if (File(alpine, ROOTFS_MARKER).exists() && File(alpine, "bin/ash").exists()) {
+                onProgress("Reusing extracted Alpine rootfs")
+            } else {
+                _setup.value = SetupState.Downloading("Extracting Alpine rootfs (~${AssetSizes.rootfs(abiName)} MB)…")
+                onProgress("Extracting Alpine rootfs…")
+                alpine.deleteRecursively()
+                alpine.mkdirs()
+                // ReTerminal keeps the extraction under `$PREFIX/local/alpine`, but the rootfs tarball
+                // expands to `bin/`, `etc/`, `lib/`, `usr/`, … at the archive root. `tar -xf` with `-C
+                // <dest>` is what `init-host.sh` uses, so we mirror that path: open the gzipped tar
+                // and stream entries one by one — no shell-out to /system/bin/tar (which would defeat
+                // the point of doing this in Kotlin and lock us into whatever busybox Android ships).
+                extractGzipTarFromAsset(ctx, "alpine/$rootfsBaseName.tar.gz.rootfs", alpine)
+                // Marker written LAST so a crashed extraction doesn't leave a half-state that looks
+                // Ready on next launch.
+                File(alpine, ROOTFS_MARKER).writeText("ok\n")
+                // init-host.sh line 39: it unconditionally removes $PREFIX/libtalloc.so.2 before
+                // symlinking — without that link, the system linker can't find talloc when Alpine's
+                // dynamically-linked binaries load. The link target is the .so that the ReTerminal
+                // CMake build ships inside libproot.so via target_link_libraries; we expose it as
+                // a separate file via the consumer-rules path used by Android packaging.
+                localLibDir().mkdirs()
+                val talloc = tallocLib()
+                if (talloc != null) {
+                    val link = File(localLibDir(), "libtalloc.so.2")
+                    if (!link.exists()) {
+                        runCatching { Os.symlink(talloc.absolutePath, link.absolutePath) }
+                            .onFailure { link.writeBytes(talloc.readBytes()) }
+                    }
                 }
-                File(rootfs, ROOTFS_MARKER).writeText("ok\n")
-                archive.delete()
+                alpineTmpDir()
+                alpineRootDir()
             }
-            val bad = TOOLKIT_ASSETS.mapNotNull { ensureExecutable(File(supportDir(), it)) }
-            _setup.value = if (bad.isEmpty()) SetupState.Ready else SetupState.Failed(bad.joinToString("; "))
+
+            // 3. Mark Ready. Set exec bits on the proot chain — Android sometimes drops them at
+            //    install time even with useLegacyPackaging=true (the same issue we hit with
+            //    libproot_loader.so before). Idempotent.
+            ensureExecutable(prootExec())
+            ensureExecutable(prootLoader())
+            prootLoader32()?.let { ensureExecutable(it) }
+            tmpDir() // ensure $PROOT_TMP_DIR exists before proot queries it
+            _setup.value = SetupState.Ready
+            Log.i(TAG, "ReTerminal-pattern ready; rootfs at ${alpine.absolutePath}")
         } catch (e: Exception) {
-            _setup.value = SetupState.Failed(e.message ?: "failed")
+            Log.e(TAG, "ensureReady failed", e)
+            _setup.value = SetupState.Failed(e.message ?: "setup failed")
         }
     }
 
-    private fun ensureToolkit() {
-        val ctx = appContext ?: return
-        val support = supportDir()
-        if (TOOLKIT_ASSETS.all { File(support, it).exists() && File(support, it).length() > 0 }) return
-        _setup.value = SetupState.Extracting
-        for (name in TOOLKIT_ASSETS) {
-            val t = File(support, name)
-            if (t.exists() && t.length() > 0) continue
-            ctx.assets.open("terminal/$name").use { inp -> t.outputStream().use { inp.copyTo(it) } }
+    /**
+     * Copy an asset to `<filesDir>/local/bin/<name>` once. Re-running does not overwrite — this is
+     * deliberate so a user's local edits (or a future runtime customization) survive across app
+     * restarts. The chmod +x happens unconditionally because Android's package installer sometimes
+     * strips exec bits on file extraction into filesDir (we hit this with libproot_loader.so before).
+     */
+    private fun installAssetOnce(ctx: Context, assetName: String, dest: File) {
+        if (!dest.exists()) {
+            dest.parentFile?.mkdirs()
+            ctx.assets.open(assetName).use { input ->
+                FileOutputStream(dest).use { input.copyTo(it) }
+            }
         }
+        try { Os.chmod(dest.absolutePath, 0x1ED) } catch (_: Exception) { dest.setExecutable(true, false) }
+    }
+
+    /**
+     * Stream-extract a gzipped tarball from APK assets into [dest]. We can't rely on Apache
+     * Commons Compress being on the classpath (it isn't — `ide-android` doesn't declare it), and
+     * Android's `java.util.zip.GZIPInputStream` + a tiny tar parser is enough: Alpine minirootfs
+     * tarballs use GNU/USTAR with no pax extensions, no sparse files, no long-link names.
+     *
+     * Tar header layout (per POSIX 1003.1-1988 USTAR): 512-byte header, name in [0..100), mode in
+     * [100..108), size in [124..136) as a zero-padded octal ASCII string, typeflag at [156], data
+     * padded to 512-byte blocks. We only need the mode bits (to preserve the +x on bin/ash,
+     * busybox, etc.) and the data; ownership and timestamps are dropped (uid/gid/mtime default to
+     * the current process's values, which is what the tar format means by an unrecorded field).
+     */
+    private fun extractGzipTarFromAsset(ctx: Context, assetName: String, dest: File) {
+        val buf = ByteArray(64 * 1024)
+        val header = ByteArray(512)
+        ctx.assets.open(assetName).use { raw ->
+            GZIPInputStream(BufferedInputStream(raw)).use { gz ->
+                while (true) {
+                    var got = 0
+                    while (got < 512) {
+                        val n = gz.read(header, got, 512 - got)
+                        if (n < 0) return@use  // EOF — tar terminator is two zero blocks; this is the first
+                        got += n
+                    }
+                    if (header.all { it == 0.toByte() }) return@use
+                    val name = readCString(header, 0, 100).takeIf { it.isNotEmpty() } ?: continue
+                    val mode = readOctal(header, 100, 8)
+                    val size = readOctal(header, 124, 12)
+                    val typeFlag = header[156].toInt().toChar()
+                    if (typeFlag == 'L' || typeFlag == 'K') {
+                        // PAX long-link extensions — should not appear in Alpine minirootfs but skip
+                        // gracefully if they do (skip the data block too).
+                        skipBytes(gz, size)
+                        continue
+                    }
+                    if (typeFlag == '5' || name.endsWith("/")) {
+                        File(dest, name).mkdirs()
+                        skipBytes(gz, size)
+                        continue
+                    }
+                    val out = File(dest, name)
+                    out.parentFile?.mkdirs()
+                    FileOutputStream(out).use { fos ->
+                        var remaining = size
+                        while (remaining > 0L) {
+                            val chunk = minOf(remaining, buf.size.toLong()).toInt()
+                            val n = gz.read(buf, 0, chunk)
+                            if (n < 0) break
+                            fos.write(buf, 0, n)
+                            remaining -= n
+                        }
+                    }
+                    // Mode bits: only the lower 9 (rwx for owner/group/other) are meaningful; tar
+                    // records more (setuid/setgid/sticky) but Android's storage layer doesn't honor
+                    // them anyway. AND with 0o777 then apply.
+                    val execBits = (mode.toInt() and 0o777)
+                    if (execBits != 0) {
+                        try { Os.chmod(out.absolutePath, execBits) } catch (_: Exception) { out.setExecutable(true, false) }
+                    }
+                    // Round up to a 512-byte block boundary — tar always pads data records.
+                    val padded = ((size + 511) / 512) * 512
+                    skipBytes(gz, padded - size)
+                }
+            }
+        }
+    }
+
+    private fun readCString(buf: ByteArray, offset: Int, maxLen: Int): String {
+        val end = (offset until offset + maxLen).firstOrNull { buf[it] == 0.toByte() } ?: (offset + maxLen)
+        return String(buf, offset, end - offset, Charsets.US_ASCII).trim()
+    }
+
+    private fun readOctal(buf: ByteArray, offset: Int, len: Int): Long {
+        var result = 0L
+        for (i in 0 until len) {
+            val c = buf[offset + i].toInt().toChar()
+            if (c == ' ' || c == ' ') continue
+            if (c !in '0'..'7') break
+            result = result * 8 + (c - '0')
+        }
+        return result
+    }
+
+    private fun skipBytes(gz: java.io.InputStream, count: Long) {
+        var remaining = count
+        val sink = ByteArray(4096)
+        while (remaining > 0L) {
+            val want = minOf(remaining, sink.size.toLong()).toInt()
+            val n = gz.read(sink, 0, want)
+            if (n < 0) break
+            remaining -= n
+        }
+    }
+
+    private fun ensureExecutable(file: File) {
+        if (!file.exists()) return
+        try { Os.chmod(file.absolutePath, 0x1ED) } catch (_: Exception) { file.setExecutable(true, false) }
     }
 
     fun startSession(cols: Int = 80, rows: Int = 24) {
         if (session != null) return
-        val rootfs = rootfsDir()
-        val support = supportDir()
+        if (_setup.value !is SetupState.Ready) {
+            Log.w(TAG, "startSession called before Ready; ignoring")
+            return
+        }
         val proot = prootExec()
-        try { Os.chmod(proot.absolutePath, 0x1ED) } catch (_: Exception) { proot.setExecutable(true) }
-        val loader = nativeDir("libproot_loader.so")
-        try { Os.chmod(loader.absolutePath, 0x1ED) } catch (_: Exception) { loader.setExecutable(true) }
-        val hostTmp = File(filesDir!!, "tmp").apply { mkdirs() }
-        val homeDir = File(filesDir!!, "home").apply { mkdirs() }
-        // Termux's bootstrap zip has a FLAT layout — `bin/`, `lib/`, `etc/`, `share/` sit at the
-        // root of the zip, NOT under `usr/`. PREFIX therefore IS the rootfs directory, the same
-        // way it is in real Termux (`/data/data/com.termux/files/usr`).
-        val prootPath = proot.absolutePath
-        // Proot argv: see https://github.com/termux/proot for the option set. `--link2symlink` is
-        // mandatory on Android (no real symlink support across the bind mounts); `-L` follows
-        // absolute symlinks; `-p` pretends to be root inside the chroot; `--kill-on-exit` cleans up
-        // the child if proot dies. We exec Termux's bash directly (`/bin/bash -l`) rather than
-        // `/usr/bin/login` so the env we pass below is the only env the shell sees.
-        val args = arrayOf(prootPath,"--kill-on-exit","--link2symlink","-L","-p","-r",rootfs.absolutePath,"-b","/storage/emulated/0:/sdcard","-b","/proc","-b","/sys","-b","/dev","/bin/bash","-l")
-        // Termux-style env: PREFIX points at the rootfs itself; PATH starts with $PREFIX/bin so
-        // `bash`, `pkg`, `apt-get` etc. resolve; we then expose Android's `/system/bin` so `am`,
-        // `pm`, `cmd` are reachable from inside the shell. HOME is a per-app `home/` that proot
-        // sees as `/home` once the rootfs has been chrooted into.
-        val env = arrayOf(
-            "HOME=${homeDir.absolutePath}",
-            "PREFIX=${rootfs.absolutePath}",
-            "TERM=xterm-256color",
-            "PATH=${rootfs.absolutePath}/bin:/system/bin",
-            "LD_LIBRARY_PATH=${support.absolutePath}",
-            // libtermux-exec.so is the heart of Termux's on-Android execution: it LD_PRELOADs into
-            // every child and substitutes Termux-built libc/libdl/libreadline/libiconv (which the
-            // system's bionic linker won't find in /system/lib) for the right Termux equivalents.
-            // Without this, bash fails to resolve `libreadline.so.8` and `libiconv.so` and exits
-            // silently before printing a prompt — TerminalSession then sits at "Waiting for shell.."
-            // forever. The bootstrap zip ships the underlying variant libs but not this file (it's
-            // created by the termux-exec package's postinst); ensureReady() copies the direct variant
-            // to $PREFIX/lib/libtermux-exec.so before we get here.
-            "LD_PRELOAD=${rootfs.absolutePath}/lib/libtermux-exec.so",
-            "PROOT_TMP_DIR=${hostTmp.absolutePath}",
-            "TMPDIR=${hostTmp.absolutePath}",
-            "PROOT_LOADER=${loader.absolutePath}",
-        )
-        val s = TerminalSession(prootPath, rootfs.absolutePath, args, env, 5000, this)
+        val loader = prootLoader()
+        val loader32 = prootLoader32()
+        val initHost = File(localBinDir(), "init-host.sh")
+        val alpineRoot = alpineDir()
+
+        // /system/bin/sh is the *first* process — Android bionic, not Termux-built, resolves
+        // natively under scoped-linker namespaces. proot is launched by init-host.sh, not here.
+        // ReTerminal MkSession.kt:151 calls TerminalSession with shell="/system/bin/sh" args=
+        // arrayOf("-c", initHost.absolutePath) — the exact pattern we mirror below.
+        val shell = "/system/bin/sh"
+        val args = arrayOf("-c", initHost.absolutePath)
+
+        // Env block — matches ReTerminal MkSession.kt:80-110. PROOT and PROOT_LOADER are the
+        // absolute paths init-host.sh expects; LINKER lets it pick linker64 vs linker for the
+        // alpine rootfs's init shell if it ever needs to re-exec; LD_LIBRARY_PATH makes
+        // libtalloc.so.2 (symlinked in $PREFIX/local/lib/) resolvable.
+        val env = mutableListOf<String>().apply {
+            add("ANDROID_ART_ROOT=${System.getenv("ANDROID_ART_ROOT") ?: ""}")
+            add("ANDROID_DATA=${System.getenv("ANDROID_DATA") ?: ""}")
+            add("ANDROID_I18N_ROOT=${System.getenv("ANDROID_I18N_ROOT") ?: ""}")
+            add("ANDROID_ROOT=${System.getenv("ANDROID_ROOT") ?: ""}")
+            add("ANDROID_RUNTIME_ROOT=${System.getenv("ANDROID_RUNTIME_ROOT") ?: ""}")
+            add("ANDROID_TZDATA_ROOT=${System.getenv("ANDROID_TZDATA_ROOT") ?: ""}")
+            add("BOOTCLASSPATH=${System.getenv("BOOTCLASSPATH") ?: ""}")
+            add("DEX2OATBOOTCLASSPATH=${System.getenv("DEX2OATBOOTCLASSPATH") ?: ""}")
+            add("EXTERNAL_STORAGE=${System.getenv("EXTERNAL_STORAGE") ?: ""}")
+            // PREFIX is the *parent* of filesDir, matching ReTerminal MkSession.kt:99 — init-host.sh
+            // uses $PREFIX/local/alpine as the chroot root and $PREFIX/local/bin/init as the
+            // post-proot entry point.
+            add("PREFIX=${prefixDir().absolutePath}")
+            add("BIN=${localBinDir().absolutePath}")
+            add("NATIVE_LIB_DIR=${nativeLibDir!!}")
+            add("PROOT=${proot.absolutePath}")
+            add("PROOT_LOADER=${loader.absolutePath}")
+            loader32?.let { add("PROOT_LOADER_32=${it.absolutePath}") }
+            // /system/bin/linker64 on 64-bit ABIs, /system/bin/linker on 32-bit. init-host.sh does
+            // not consume this directly, but exposing it lets Alpine's initrc probe the right
+            // dynamic linker if the user runs `ldd` inside the shell.
+            add("LINKER=${if (File("/system/bin/linker64").exists()) "/system/bin/linker64" else "/system/bin/linker"}")
+            add("PATH=${System.getenv("PATH")}:/sbin:${localBinDir().absolutePath}")
+            add("HOME=${alpineRoot.absolutePath}/root")
+            add("PUBLIC_HOME=${appContext?.getExternalFilesDir(null)?.absolutePath ?: ""}")
+            add("COLORTERM=truecolor")
+            add("TERM=xterm-256color")
+            add("LANG=C.UTF-8")
+            add("LD_LIBRARY_PATH=${localLibDir().absolutePath}")
+            add("TMPDIR=${tmpDir().absolutePath}")
+            add("PROOT_TMP_DIR=${tmpDir().absolutePath}")
+            add("PKG=${appContext!!.packageName}")
+            add("PKG_PATH=${appContext!!.applicationInfo.sourceDir}")
+            // init-host.sh honors FDROID=true to extract the native libs from $PREFIX instead of
+            // $NATIVE_LIB_DIR (legacy path from Termux's F-Droid-only build). We're not on F-Droid,
+            // but exposing the var means a future Play-Store/F-Droid split can flip it without
+            // touching init-host.sh.
+            add("FDROID=false")
+        }
+
+        val s = TerminalSession(shell, alpineRoot.absolutePath, args, env.toTypedArray(), rows, this)
         session = s
         s.updateSize(cols, rows)
         _running.value = true
-        Log.i(TAG, "termux session started")
+        Log.i(TAG, "ReTerminal session started: shell=$shell args=$args rootfs=${alpineRoot.absolutePath}")
     }
 
-    fun stopSession() { session?.finishIfRunning(); session = null; _running.value = false }
-    fun writeCommand(line: String) { session?.write(line + "\n") }
+    fun stopSession() {
+        session?.finishIfRunning()
+        session = null
+        _running.value = false
+    }
 
+    fun writeCommand(line: String) {
+        session?.write(line + "\n")
+    }
+
+    // TerminalSessionClient — minimal; the vendored Termux session emits callbacks we don't need
+    // to act on for the panel UI. Errors get logged so stalls in "Waiting for shell.." are visible
+    // in `adb logcat -s TerminalEngine:*` instead of being silently swallowed by the view.
     override fun onTextChanged(c: TerminalSession) {}
     override fun onTitleChanged(c: TerminalSession) {}
     override fun onSessionFinished(f: TerminalSession) { _running.value = false; session = null }
@@ -185,141 +415,20 @@ object TerminalEngine : TerminalSessionClient {
     override fun onTerminalCursorStateChange(b: Boolean) {}
     override fun setTerminalShellPid(s: TerminalSession, pid: Int) { Log.i(TAG, "shell pid $pid") }
     override fun getTerminalCursorStyle(): Int? = null
-    override fun logError(t: String, m: String) { Log.e(TAG, m) }
-    override fun logWarn(t: String, m: String) { Log.w(TAG, m) }
-    override fun logInfo(t: String, m: String) { Log.i(TAG, m) }
-    override fun logDebug(t: String, m: String) { Log.d(TAG, m) }
-    override fun logVerbose(t: String, m: String) { Log.v(TAG, m) }
+    override fun logError(t: String, m: String) { Log.e(TAG, "$t: $m") }
+    override fun logWarn(t: String, m: String) { Log.w(TAG, "$t: $m") }
+    override fun logInfo(t: String, m: String) { Log.i(TAG, "$t: $m") }
+    override fun logDebug(t: String, m: String) { Log.d(TAG, "$t: $m") }
+    override fun logVerbose(t: String, m: String) { Log.v(TAG, "$t: $m") }
     override fun logStackTraceWithMessage(t: String, m: String, e: Exception) { Log.e(t, m, e) }
     override fun logStackTrace(t: String, e: Exception) { Log.e(t, "", e) }
 
-    private fun ensureExecutable(file: File): String? {
-        if (!file.exists()) return "${file.name}: missing"
-        try { Os.chmod(file.absolutePath, 0x1ED) } catch (_: Exception) { file.setExecutable(true, false) }
-        if (file.canExecute()) return null
-        try {
-            val ctx = appContext; val n = file.name; file.parentFile?.mkdirs()
-            if (ctx != null) ctx.assets.open("terminal/$n").use { inp -> file.outputStream().use { inp.copyTo(it) } }
-            try { Os.chmod(file.absolutePath, 0x1ED) } catch (_: Exception) { file.setExecutable(true, false) }
-        } catch (_: Exception) {}
-        return if (file.canExecute()) null else "${file.name}: not executable"
-    }
-
-    private fun downloadToCache(url: String, name: String, onProgress: (String) -> Unit): File {
-        val cache = File(filesDir!!, "cache").apply { mkdirs() }
-        val target = File(cache, name)
-        if (target.exists() && target.length() > 0) return target
-        val part = File(cache, "$name.part")
-        try {
-            streamTo(url, part, onProgress)
-            if (!part.renameTo(target)) part.copyTo(target, overwrite = true).also { part.delete() }
-            return target
-        } finally { part.delete() }
-    }
-
-    private fun streamTo(url: String, target: File, onProgress: (String) -> Unit) {
-        if (target.exists() && target.length() > 0) return
-        target.parentFile?.mkdirs()
-        val c = URL(url).openConnection() as HttpURLConnection
-        c.instanceFollowRedirects = true; c.connectTimeout = 15000; c.readTimeout = 60000
-        c.setRequestProperty("User-Agent", "CodeStudio-Terminal/1.0")
-        val tot = c.contentLengthLong
-        c.inputStream.use { inp -> BufferedOutputStream(FileOutputStream(target)).use { out ->
-            val buf = ByteArray(64*1024); var d = 0L
-            while (true) { val n = inp.read(buf); if (n<0) break; out.write(buf,0,n); d+=n; if (tot>0) onProgress("Downloading ${d*100/tot}%") }
-        }}
-    }
-
-    /**
-     * Pure-JDK extractor for the Termux bootstrap zip (no commons-compress on the classpath).
-     * The zip has a FLAT layout — `bin/`, `lib/`, `etc/`, `share/`, `var/`, `include/` sit at the
-     * root of the zip (NOT under `usr/`). proot refuses to run a binary whose exec bit got lost
-     * in flight.
-     *
-     * Android's `java.util.zip.ZipEntry` stub jar hides `getExternalAttributes()` (real Android
-     * also strips it at runtime on API levels <26), so we can't read the zip's recorded mode bits.
-     * Instead we chmod +x everything under `bin/`, `lib/`, and `libexec/` — these are the only
-     * paths the Termux bootstrap ships executables in. Everything else (config, docs, share data)
-     * is left without +x, matching the upstream zip's intent.
-     *
-     * Symlinks are NOT stored as zip symlink entries in the Termux bootstrap — instead the zip
-     * ships a top-level `SYMLINKS.txt` manifest (one entry per line, `<target>←<source>`
-     * separated by U+2190). We process it once at the end so e.g. `bin/pkg` resolves through
-     * its SONAME-style `pkg←./bin/termux-tools` link chain, and `libssl.so.3` finds `libssl.so`.
-     * Lines starting with `/data/data/com.termux/...` are absolute Termux-app paths and have
-     * nothing to do with our chroot — skip them.
-     */
-    private fun extractZip(archive: File, dest: File) {
-        ZipInputStream(archive.inputStream().buffered()).use { zis ->
-            val buf = ByteArray(64 * 1024)
-            var entry = zis.nextEntry
-            var symlinksManifest: ByteArray? = null
-            while (entry != null) {
-                if (entry.name == "SYMLINKS.txt") {
-                    val baos = java.io.ByteArrayOutputStream()
-                    while (true) { val n = zis.read(buf); if (n < 0) break; baos.write(buf, 0, n) }
-                    symlinksManifest = baos.toByteArray()
-                } else if (!entry.isDirectory) {
-                    val out = File(dest, entry.name)
-                    out.parentFile?.mkdirs()
-                    FileOutputStream(out).use { fos ->
-                        while (true) {
-                            val n = zis.read(buf)
-                            if (n < 0) break
-                            fos.write(buf, 0, n)
-                        }
-                    }
-                    if (entry.name.startsWith("bin/") || entry.name.startsWith("lib/") || entry.name.startsWith("libexec/")) {
-                        try { Os.chmod(out.absolutePath, 0x1ED) } catch (_: Exception) { out.setExecutable(true, false) }
-                    }
-                }
-                entry = zis.nextEntry
-            }
-            symlinksManifest?.let { applySymlinksManifest(it, dest) }
+    /** Approximate sizes for the user-facing "Extracting… ~N MB" status line. */
+    private object AssetSizes {
+        fun rootfs(abi: String): Int = when (abi) {
+            "arm64-v8a" -> 4
+            "armeabi-v7a" -> 3
+            else -> 3
         }
-    }
-
-    /**
-     * Parse Termux's `SYMLINKS.txt` (UTF-8, one `<target>←<source>` per line, U+2190 separator)
-     * and create each relative symlink under [dest]. Lines whose target starts with `/data/data/`
-     * (real Termux app paths) are skipped — they don't apply to our chroot. A missing source is
-     * skipped, not fatal: termux-keyring links reference files outside the bootstrap.
-     *
-     * Android's `java.io.File` stub jar does NOT include `isSymbolicLink()` (it's only on the
-     * real filesystem at runtime, not on the compile-time stubs). Instead of pre-checking, we
-     * unconditionally `Files.deleteIfExists` the target before calling `createSymbolicLink` —
-     * `deleteIfExists` is in `java.nio.file` which IS stubbed on Android, so it compiles cleanly.
-     */
-    private fun applySymlinksManifest(bytes: ByteArray, dest: File) {
-        val sep = "←".toByteArray(Charsets.UTF_8)
-        val text = String(bytes, Charsets.UTF_8)
-        for (raw in text.lineSequence()) {
-            val line = raw.trim()
-            if (line.isEmpty()) continue
-            val arrowIdx = indexOfUtf8(line, sep)
-            if (arrowIdx < 0) continue
-            val target = line.substring(0, arrowIdx).trim()
-            val source = line.substring(arrowIdx + sep.size).trim()
-            if (target.startsWith("/data/data/") || target.startsWith("/")) continue
-            val linkFile = File(dest, target)
-            val relSource = File(source)
-            val resolvedSource = if (relSource.isAbsolute) relSource else File(linkFile.parentFile ?: dest, relSource.path)
-            if (!resolvedSource.exists()) continue
-            linkFile.parentFile?.mkdirs()
-            try {
-                java.nio.file.Files.deleteIfExists(linkFile.toPath())
-                java.nio.file.Files.createSymbolicLink(linkFile.toPath(), resolvedSource.toPath())
-            } catch (_: Exception) { /* UnsupportedOperationException on filesystems that disallow symlinks — fall through. */ }
-        }
-    }
-
-    /** UTF-8 byte index of [needle] in [haystack], or -1 if absent. Cheaper than `String.indexOf` on a CharSequence because we don't decode. */
-    private fun indexOfUtf8(haystack: String, needle: ByteArray): Int {
-        val h = haystack.toByteArray(Charsets.UTF_8)
-        outer@ for (i in 0..(h.size - needle.size)) {
-            for (j in needle.indices) if (h[i + j] != needle[j]) continue@outer
-            return i
-        }
-        return -1
     }
 }
