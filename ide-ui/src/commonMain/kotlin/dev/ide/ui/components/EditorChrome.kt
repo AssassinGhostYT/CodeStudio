@@ -88,6 +88,7 @@ import dev.ide.ui.generated.resources.Res
 import dev.ide.ui.generated.resources.close
 import dev.ide.ui.generated.resources.edchrome_build_console
 import dev.ide.ui.generated.resources.edchrome_build_variant
+import dev.ide.ui.generated.resources.edchrome_canvas
 import dev.ide.ui.generated.resources.edchrome_command_palette
 import dev.ide.ui.generated.resources.edchrome_compose_preview
 import dev.ide.ui.generated.resources.edchrome_find_replace
