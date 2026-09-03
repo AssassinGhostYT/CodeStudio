@@ -945,6 +945,7 @@ Nunca coletamos seu código, nomes de arquivos ou projetos, quais recursos você
 
     <!-- shared common labels -->
     <string name="save">Salvar</string>
+    <string name="edchrome_canvas">Tela</string>
     <string name="close">Fechar</string>
     <string name="clear">Limpar</string>
     <string name="back">Voltar</string>

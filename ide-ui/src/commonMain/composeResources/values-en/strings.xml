@@ -373,6 +373,7 @@ We never collect your code, file or project names, which features you use, or an
     <string name="breadcrumb_preview">Preview</string>
     <string name="breadcrumb_split">Split</string>
     <string name="breadcrumb_canvas">Canvas</string>
+    <string name="edchrome_canvas">Canvas</string>
     <string name="edchrome_files">Files</string>
     <string name="edchrome_source">Source</string>
     <string name="edchrome_more">More</string>

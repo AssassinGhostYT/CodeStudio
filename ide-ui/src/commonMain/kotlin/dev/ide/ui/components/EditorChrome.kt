@@ -166,6 +166,9 @@ fun EditorTopBar(
     onSave: () -> Unit = {},
     hasUnsavedChanges: Boolean = false,
     hasActiveFile: Boolean = false,
+    /** Toggles the Visual Canvas view mode on the active file. Accent-tinted while [canvasActive]. */
+    onToggleCanvas: () -> Unit = {},
+    canvasActive: Boolean = false,
     canUndo: Boolean = false,
     canRedo: Boolean = false,
     onUndo: () -> Unit = {},
@@ -226,6 +229,16 @@ fun EditorTopBar(
             IndexStatusChip(indexStatus, compact = compact, onClick = onIndexClick)
             // Accent-tinted while there are unsaved changes; saves the active tab (Cmd/Ctrl-S also works).
             IconButtonCa(CaIcons.save, stringResource(Res.string.save), onSave, active = hasUnsavedChanges)
+            // Visual Canvas toggle — sits right next to Save so phone users reach the visual editor in one
+            // tap. Accent-tinted when the active file is already in Canvas mode (matches the Save pattern).
+            if (hasActiveFile) {
+                IconButtonCa(
+                    CaIcons.grid,
+                    stringResource(Res.string.edchrome_canvas),
+                    onToggleCanvas,
+                    active = canvasActive,
+                )
+            }
             if (compact) {
                 // Save · Undo · Redo · Run are the prioritized inline actions even on a phone — one tap away,
                 // never buried. Everything else (find, reformat, palette, inlay hints, console, preview, the AI

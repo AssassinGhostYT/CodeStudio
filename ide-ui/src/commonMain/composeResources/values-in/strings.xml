@@ -906,6 +906,7 @@ Kami tidak pernah mengumpulkan kode, nama file atau proyek Anda, fitur apa yang 
     <string name="codestyle_wrap_if_long">Jika panjang</string>
     <string name="codestyle_wrap_one_per_line">Satu per baris</string>
     <string name="save">Simpan</string>
+    <string name="edchrome_canvas">Kanvas</string>
     <string name="close">Tutup</string>
     <string name="clear">Bersihkan</string>
     <string name="back">Kembali</string>
