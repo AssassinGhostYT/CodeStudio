@@ -150,9 +150,19 @@ object TerminalEngine : TerminalSessionClient {
             // 1. Install the init scripts into <filesDir>/local/bin/ from assets if missing.
             //    ReTerminal only writes them once per install — the assets are the source of truth,
             //    and the per-device copies get chmod +x so proot can exec them as part of its argv.
+            //
+            //    The init-host.sh asset invokes the post-proot entry as `sh $PREFIX/local/bin/init`
+            //    (no `.sh` suffix — see init-host.sh line 72), so the asset for the second script is
+            //    named `init` in the AAR's per-device copy, even though the asset FILE in the APK
+            //    is `init.sh` for clarity. We map asset-name → destination-name explicitly so the
+            //    one-to-one mapping in `init-host.sh` works as written.
             localBinDir().mkdirs()
-            for (script in listOf("init-host.sh", "init.sh", "rm-wrapper.sh")) {
-                installAssetOnce(ctx, script, File(localBinDir(), script))
+            for ((assetName, destName) in listOf(
+                "init-host.sh" to "init-host.sh",
+                "init.sh" to "init",
+                "rm-wrapper.sh" to "rm-wrapper.sh",
+            )) {
+                installAssetOnce(ctx, assetName, File(localBinDir(), destName))
             }
 
             // 2. Extract the Alpine rootfs the first time. Idempotent: if the marker file exists and
