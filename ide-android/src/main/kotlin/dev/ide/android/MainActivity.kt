@@ -1,5 +1,6 @@
 package dev.ide.android
 
+import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
@@ -229,16 +230,48 @@ class MainActivity : ComponentActivity() {
                     // instance is stable across project switches (it swaps services internally), so one host suffices.
                     composePreviewHost = (b as? IdeServicesBackend)?.let { AndroidComposePreviewHost(it) },
                     importPackagePath = importPackagePath,
-                    // In-IDE proot-based terminal as a RIGHT-anchored tool window (registered by
-                    // TerminalPlugin.install() in AndroidIde.bootstrap()). The toolbar's Terminal button
-                    // toggles the panel via state.toggleRightPanel(TERMINAL_TOOL_WINDOW_ID); we just log
-                    // the tap here so `adb logcat -s CodeTermux:*` still confirms the wiring reaches
-                    // MainActivity (regression coverage of the lambda plumbing).
+                    // Real Termux terminal as an Activity. The class is com.termux.app.TermuxActivity,
+                    // declared in :termux:application's manifest with exported=true; the IDE's toolbar
+                    // button launches it the same way Termux:Tasker / any third-party launcher does.
+                    // Resolution goes to the locally-bundled TermuxActivity first; if that ever stops
+                    // shipping, the Intent falls through to Termux from Google Play if installed, then
+                    // to a friendly install dialog. The previous "necesitás root" Toast (eb90bcd) was
+                    // both misleading AND a regression — Termux runs fine without root, you just need
+                    // the app installed.
                     onOpenTerminal = {
-                        Log.i(
-                            "CodeTermux",
-                            "tap fired; routed to in-IDE terminal panel (id=terminal)",
-                        )
+                        val terminalTag = "CodeTermux"
+                        Log.i(terminalTag, "tap fired; activity=${this@MainActivity.javaClass.simpleName}")
+                        try {
+                            // Resolve the class explicitly so a missing-class failure (e.g. :termux:application
+                            // not bundled in a future build) shows up in logcat instead of dying silently
+                            // before resolveActivity.
+                            val activityClass = Class.forName("com.termux.app.TermuxActivity")
+                            Log.i(terminalTag, "loaded ${activityClass.name}")
+                            val intent = Intent(this, activityClass)
+                            val resolved = packageManager.resolveActivity(intent, 0)
+                            if (resolved != null) {
+                                Log.i(terminalTag, "resolveActivity hit ${resolved.activityInfo.name}; launching")
+                                startActivity(intent)
+                                Log.i(terminalTag, "startActivity returned")
+                                Toast.makeText(this@MainActivity, "✓ Lanzando Termux…", Toast.LENGTH_LONG).show()
+                            } else {
+                                Log.w(terminalTag, "resolveActivity returned null; Termux activity not registered in this build")
+                                promptInstallTermux()
+                            }
+                        } catch (e: ClassNotFoundException) {
+                            Log.e(terminalTag, "TermuxActivity class not in this APK — falling back to install prompt", e)
+                            promptInstallTermux()
+                        } catch (e: android.content.ActivityNotFoundException) {
+                            Log.e(terminalTag, "ActivityNotFoundException — Termux not installed", e)
+                            promptInstallTermux()
+                        } catch (e: Throwable) {
+                            Log.e(terminalTag, "launch failed", e)
+                            Toast.makeText(
+                                this@MainActivity,
+                                "❌ Terminal launch failed: ${e.javaClass.simpleName}: ${e.message}",
+                                Toast.LENGTH_LONG,
+                            ).show()
+                        }
                     },
                 )
 
@@ -264,5 +297,38 @@ class MainActivity : ComponentActivity() {
         Intent.ACTION_VIEW -> intent.data
         Intent.ACTION_SEND -> @Suppress("DEPRECATION") (intent.getParcelableExtra(Intent.EXTRA_STREAM) as? Uri)
         else -> null
+    }
+
+    /**
+     * Friendly install-Termux dialog. Replaces the misleading "necesitás root" Toast that eb90bcd
+     * introduced — Termux does NOT need root to run, the user just needs the app installed. Opens
+     * the F-Droid listing (open-source distribution, no Play Services required) with one tap.
+     */
+    private fun promptInstallTermux() {
+        AlertDialog.Builder(this)
+            .setTitle("Terminal no disponible")
+            .setMessage(
+                "Para usar la terminal necesitás instalar Termux, que provee un shell real " +
+                "(bash, pkg/apt, sin root requerido).\n\n" +
+                "Tocá \"Instalar Termux\" para abrir F-Droid — es la fuente open-source de Termux, " +
+                "no requiere Google Play Services.",
+            )
+            .setPositiveButton("Instalar Termux (F-Droid)") { _, _ ->
+                try {
+                    startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse("https://f-droid.org/packages/com.termux/"))
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                } catch (e: Throwable) {
+                    Log.e("CodeTermux", "couldn't open F-Droid", e)
+                    Toast.makeText(
+                        this,
+                        "No browser available — buscá 'Termux F-Droid' desde otra app",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 }

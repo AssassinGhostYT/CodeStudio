@@ -109,10 +109,14 @@ object AndroidIde {
         // Process-wide uncaught-exception handler: report app_crash + surface the non-fatal dialog + keep the
         // app alive (the MainActivity main-thread guard handles the UI looper). See IdeServicesBackend.
         backend.installCrashReporting()
-        // Install the in-IDE terminal as a RIGHT-anchored tool window (idempotent — AtomicBoolean guard
-        // inside TerminalPlugin). Must run after the IDE plugin registries are observable, so the toolbar's
-        // Terminal button can resolve TERMINAL_TOOL_WINDOW_ID via ToolWindowRegistry.forAnchor.
-        dev.ide.android.Terminal.TerminalPlugin.install(appContext)
+        // We deliberately DO NOT install the in-IDE proot terminal panel here. proot stalls at
+        // "Waiting for shell.." on a lot of devices (kernel/SELinux/`/proc` restrictions on Android
+        // 11+ — Termux the app itself works fine, so the device is capable, but proot as a library
+        // launched by an untrusted_app is not). Instead the toolbar's Terminal button falls through
+        // to MainActivity.onOpenTerminal which launches com.termux.app.TermuxActivity (bundled here
+        // via :termux:application, exported via its manifest) — exactly what eb90bcd regressed by
+        // replacing with a misleading "necesitás root" Toast. See MainActivity.promptInstallTermux()
+        // for the friendly install-Termux dialog when no Termux is available.
         // cold_start: time the whole on-device bootstrap (asset copy + project load + engine init). Emitted
         // once per launch for users who consented; no-op otherwise. Also serves as the per-launch anchor.
         if (backend.diagnostics.analyticsConsent() == true) {
