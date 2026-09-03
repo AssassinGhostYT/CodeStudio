@@ -292,11 +292,6 @@ object TerminalEngine : TerminalSessionClient {
 
     /** UTF-8 byte index of [needle] in [haystack], or -1 if absent. Cheaper than `String.indexOf` on a CharSequence because we don't decode. */
     private fun indexOfUtf8(haystack: String, needle: ByteArray): Int {
-        }
-    }
-
-    /** UTF-8 byte index of [needle] in [haystack], or -1 if absent. Cheaper than `String.indexOf` on a CharSequence because we don't decode. */
-    private fun indexOfUtf8(haystack: String, needle: ByteArray): Int {
         val h = haystack.toByteArray(Charsets.UTF_8)
         outer@ for (i in 0..(h.size - needle.size)) {
             for (j in needle.indices) if (h[i + j] != needle[j]) continue@outer
