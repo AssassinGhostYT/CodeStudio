@@ -10,10 +10,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import java.io.BufferedOutputStream
-import java.io.BufferedReader
 import java.io.File
 import java.io.FileOutputStream
-import java.io.FileReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.zip.ZipInputStream
@@ -28,8 +26,12 @@ object TerminalEngine : TerminalSessionClient {
     // the path is updated periodically by Termux; bump here when Termux bumps it). The bootstrap
     // zip is ~30 MB vs Ubuntu's ~76 MB and runs entirely under proot, so the SELinux `untrusted_app`
     // cannot-exec-on-app_data_file restriction never applies to its child processes.
-    private const val ROOTFS_URL = "https://github.com/termux/termux-packages/releases/download/bootstrap-2026.08.30-r1%2Bapt.android-7/bootstrap-arm64-v8a.zip"
-    private const val ROOTFS_FILE = "bootstrap-arm64-v8a.zip"
+    // The Termux bootstrap zip is published under the name `bootstrap-aarch64.zip` (not `arm64-v8a`).
+    // Wrong name → 404, the engine sits on "Downloading…" forever. Version stamp is updated whenever
+    // Termux rebuilds; bump both URL and ROOTFS_VERSION together when that happens.
+    private const val ROOTFS_VERSION = "bootstrap-2026.08.30-r1%2Bapt.android-7"
+    private const val ROOTFS_URL = "https://github.com/termux/termux-packages/releases/download/$ROOTFS_VERSION/bootstrap-aarch64.zip"
+    private const val ROOTFS_FILE = "bootstrap-aarch64.zip"
     // Marker written under the rootfs after a successful extract. Re-runs skip re-downloading when
     // the marker + the bash sentinel both exist. Versioned so a future Termux bootstrap layout change
     // (e.g. $PREFIX moves) invalidates the cache without manual cleanup.
@@ -75,7 +77,7 @@ object TerminalEngine : TerminalSessionClient {
                 if (msg.startsWith("Downloading ") && msg.contains('%')) _setup.value = SetupState.Downloading(msg)
                 onProgress(msg)
             }
-            if (!File(rootfs, "usr/bin/bash").exists() || !File(rootfs, ROOTFS_MARKER).exists()) {
+            if (!File(rootfs, "bin/bash").exists() || !File(rootfs, ROOTFS_MARKER).exists()) {
                 _setup.value = SetupState.Downloading("Downloading Termux bootstrap (~30 MB)…")
                 report("Downloading Termux bootstrap…")
                 val archive = downloadToCache(ROOTFS_URL, ROOTFS_FILE, report)
@@ -116,23 +118,25 @@ object TerminalEngine : TerminalSessionClient {
         try { Os.chmod(loader.absolutePath, 0x1ED) } catch (_: Exception) { loader.setExecutable(true) }
         val hostTmp = File(filesDir!!, "tmp").apply { mkdirs() }
         val homeDir = File(filesDir!!, "home").apply { mkdirs() }
-        val prefixDir = File(rootfs, "usr")
+        // Termux's bootstrap zip has a FLAT layout — `bin/`, `lib/`, `etc/`, `share/` sit at the
+        // root of the zip, NOT under `usr/`. PREFIX therefore IS the rootfs directory, the same
+        // way it is in real Termux (`/data/data/com.termux/files/usr`).
         val prootPath = proot.absolutePath
         // Proot argv: see https://github.com/termux/proot for the option set. `--link2symlink` is
         // mandatory on Android (no real symlink support across the bind mounts); `-L` follows
         // absolute symlinks; `-p` pretends to be root inside the chroot; `--kill-on-exit` cleans up
-        // the child if proot dies. We exec Termux's bash directly (`/usr/bin/bash -l`) rather than
+        // the child if proot dies. We exec Termux's bash directly (`/bin/bash -l`) rather than
         // `/usr/bin/login` so the env we pass below is the only env the shell sees.
-        val args = arrayOf(prootPath,"--kill-on-exit","--link2symlink","-L","-p","-r",rootfs.absolutePath,"-b","/storage/emulated/0:/sdcard","-b","/proc","-b","/sys","-b","/dev","/usr/bin/bash","-l")
-        // Termux-style env: PREFIX points at the rootfs' `usr/`, PATH includes Termux's
-        // $PREFIX/bin + $PREFIX/bin/applets + Android's /system/bin (so Android's `am`, `pm`,
-        // `cmd` are reachable from inside the shell). HOME is a per-app `home/` that proot sees
-        // as `/home` once the rootfs has been chrooted into.
+        val args = arrayOf(prootPath,"--kill-on-exit","--link2symlink","-L","-p","-r",rootfs.absolutePath,"-b","/storage/emulated/0:/sdcard","-b","/proc","-b","/sys","-b","/dev","/bin/bash","-l")
+        // Termux-style env: PREFIX points at the rootfs itself; PATH starts with $PREFIX/bin so
+        // `bash`, `pkg`, `apt-get` etc. resolve; we then expose Android's `/system/bin` so `am`,
+        // `pm`, `cmd` are reachable from inside the shell. HOME is a per-app `home/` that proot
+        // sees as `/home` once the rootfs has been chrooted into.
         val env = arrayOf(
             "HOME=${homeDir.absolutePath}",
-            "PREFIX=${prefixDir.absolutePath}",
+            "PREFIX=${rootfs.absolutePath}",
             "TERM=xterm-256color",
-            "PATH=${prefixDir.absolutePath}/bin:${prefixDir.absolutePath}/bin/applets:${prefixDir.absolutePath}/cmd:/system/bin",
+            "PATH=${rootfs.absolutePath}/bin:/system/bin",
             "LD_LIBRARY_PATH=${support.absolutePath}",
             "PROOT_TMP_DIR=${hostTmp.absolutePath}",
             "TMPDIR=${hostTmp.absolutePath}",
@@ -205,35 +209,89 @@ object TerminalEngine : TerminalSessionClient {
 
     /**
      * Pure-JDK extractor for the Termux bootstrap zip (no commons-compress on the classpath).
-     * The Termux zip has flat entries like `usr/`, `usr/bin/bash`, `usr/lib/libfoo.so` — no
-     * directory entries that need a `+x` bit, only files. We preserve the executable bit from
-     * the zip's external attributes (Unix mode bits live in the upper 16 bits, mask 0x49 picks
-     * owner/group/other +x). proot refuses to run a binary whose exec bit got lost in flight.
+     * The zip has a FLAT layout — `bin/`, `lib/`, `etc/`, `share/`, `var/`, `include/` sit at the
+     * root of the zip (NOT under `usr/`). proot refuses to run a binary whose exec bit got lost
+     * in flight, so we restore the executable bit from each entry's external attributes (Unix
+     * mode bits live in the upper 16 bits; mask `0x49` picks owner/group/other +x).
+     *
+     * Symlinks are NOT stored as zip symlink entries in the Termux bootstrap — instead the zip
+     * ships a top-level `SYMLINKS.txt` manifest (one entry per line, `<target>←<source>`
+     * separated by U+2190). We process it once at the end so e.g. `bin/pkg` resolves through
+     * its SONAME-style `pkg←./bin/termux-tools` link chain, and `libssl.so.3` finds `libssl.so`.
+     * Lines starting with `/data/data/com.termux/...` are absolute Termux-app paths and have
+     * nothing to do with our chroot — skip them.
      */
     private fun extractZip(archive: File, dest: File) {
         ZipInputStream(archive.inputStream().buffered()).use { zis ->
             val buf = ByteArray(64 * 1024)
             var entry = zis.nextEntry
+            var symlinksManifest: ByteArray? = null
             while (entry != null) {
-                val out = File(dest, entry.name)
-                if (entry.isDirectory) {
-                    out.mkdirs()
+                if (entry.name == "SYMLINKS.txt") {
+                    val baos = java.io.ByteArrayOutputStream()
+                    while (true) { val n = zis.read(buf); if (n < 0) break; baos.write(buf, 0, n) }
+                    symlinksManifest = baos.toByteArray()
                 } else {
-                    out.parentFile?.mkdirs()
-                    FileOutputStream(out).use { fos ->
-                        while (true) {
-                            val n = zis.read(buf)
-                            if (n < 0) break
-                            fos.write(buf, 0, n)
+                    val out = File(dest, entry.name)
+                    if (entry.isDirectory) {
+                        out.mkdirs()
+                    } else {
+                        out.parentFile?.mkdirs()
+                        FileOutputStream(out).use { fos ->
+                            while (true) {
+                                val n = zis.read(buf)
+                                if (n < 0) break
+                                fos.write(buf, 0, n)
+                            }
                         }
-                    }
-                    val unixMode = (entry.externalAttributes.toInt() shr 16) and 0xFFFF
-                    if (unixMode and 0x49 != 0) {
-                        try { Os.chmod(out.absolutePath, 0x1ED) } catch (_: Exception) { out.setExecutable(true, false) }
+                        val unixMode = (entry.externalAttributes.toInt() shr 16) and 0xFFFF
+                        if (unixMode and 0x49 != 0) {
+                            try { Os.chmod(out.absolutePath, 0x1ED) } catch (_: Exception) { out.setExecutable(true, false) }
+                        }
                     }
                 }
                 entry = zis.nextEntry
             }
+            symlinksManifest?.let { applySymlinksManifest(it, dest) }
         }
+    }
+
+    /**
+     * Parse Termux's `SYMLINKS.txt` (UTF-8, one `<target>←<source>` per line, U+2190 separator)
+     * and create each relative symlink under [dest]. Lines whose target starts with `/data/data/`
+     * (real Termux app paths) are skipped — they don't apply to our chroot. A missing source is
+     * logged and skipped, not fatal: termux-keyring links reference files outside the bootstrap.
+     */
+    private fun applySymlinksManifest(bytes: ByteArray, dest: File) {
+        val sep = "←".toByteArray(Charsets.UTF_8)
+        val text = String(bytes, Charsets.UTF_8)
+        for (raw in text.lineSequence()) {
+            val line = raw.trim()
+            if (line.isEmpty()) continue
+            val arrowIdx = indexOfUtf8(line, sep)
+            if (arrowIdx < 0) continue
+            val target = line.substring(0, arrowIdx).trim()
+            val source = line.substring(arrowIdx + sep.size).trim()
+            if (target.startsWith("/data/data/") || target.startsWith("/")) continue
+            val linkFile = File(dest, target)
+            val relSource = File(source)
+            val resolvedSource = if (relSource.isAbsolute) relSource else File(linkFile.parentFile ?: dest, relSource.path)
+            if (!resolvedSource.exists()) continue
+            linkFile.parentFile?.mkdirs()
+            try {
+                if (linkFile.exists() || linkFile.isSymbolicLink()) linkFile.delete()
+                java.nio.file.Files.createSymbolicLink(linkFile.toPath(), resolvedSource.toPath())
+            } catch (_: Exception) { /* UnsupportedOperationException on filesystems that disallow symlinks — fall through. */ }
+        }
+    }
+
+    /** UTF-8 byte index of [needle] in [haystack], or -1 if absent. Cheaper than `String.indexOf` on a CharSequence because we don't decode. */
+    private fun indexOfUtf8(haystack: String, needle: ByteArray): Int {
+        val h = haystack.toByteArray(Charsets.UTF_8)
+        outer@ for (i in 0..(h.size - needle.size)) {
+            for (j in needle.indices) if (h[i + j] != needle[j]) continue@outer
+            return i
+        }
+        return -1
     }
 }
