@@ -127,10 +127,14 @@ if (System.getenv("CI_CORE_ONLY") != "true") {
         ":ide-desktop",
         ":ide-android",
         ":core:common", // IDE helper classes (BaseIDEActivity, Environment, …) — vendored Termux sources reference them
-        ":terminal-proot", // in-IDE proot+Alpine shell engine — compiled from ReTerminal's MIT-licensed proot source via NDK/CMake
         ":termux:view",
         ":termux:emulator",
         ":termux:shared",
         ":termux:application",
     )
+    // :terminal-proot lives under ide-android/terminal-proot/ (sibling of the :ide-android module
+    // it serves), not at the conventional `<root>/terminal-proot/`. Gradle's include() infers the
+    // projectDir by splitting the path on `:`, so ":terminal-proot" would resolve to `<root>/terminal-proot/`
+    // — which doesn't exist. Set projectDir explicitly so the build finds it.
+    include(":terminal-proot") { projectDir = file("ide-android/terminal-proot") }
 }
