@@ -98,7 +98,7 @@ object TerminalEngine : TerminalSessionClient {
     // $PREFIX used by init-host.sh = `<filesDir>/parent` (i.e. the directory *above* `files/`),
     // matching ReTerminal MkSession.kt:99 ("PREFIX=${filesDir.parentFile!!.path}"). proot sees
     // `<filesDir>/local/alpine` as `/alpine` once `-r $PREFIX/local/alpine` runs.
-    private fun prefixDir() = File(filesDir!!.parentFile!!)
+    private fun prefixDir() = filesDir!!.parentFile!!
     private fun localDir() = File(filesDir!!, "local")
     private fun localBinDir() = File(localDir(), "bin")
     private fun localLibDir() = File(localDir(), "lib")
@@ -286,8 +286,8 @@ object TerminalEngine : TerminalSessionClient {
                     }
                     // Mode bits: only the lower 9 (rwx for owner/group/other) are meaningful; tar
                     // records more (setuid/setgid/sticky) but Android's storage layer doesn't honor
-                    // them anyway. AND with 0o777 then apply.
-                    val execBits = (mode.toInt() and 0o777)
+                    // them anyway. AND with 0x1FF (rwx for owner/group/other = 0777) then apply.
+                    val execBits = (mode.toInt() and 511)
                     if (execBits != 0) {
                         try { Os.chmod(out.absolutePath, execBits) } catch (_: Exception) { out.setExecutable(true, false) }
                     }
