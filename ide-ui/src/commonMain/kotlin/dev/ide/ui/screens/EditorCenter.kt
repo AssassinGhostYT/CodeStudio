@@ -31,6 +31,7 @@ import dev.ide.ui.components.NoOpenFilesView
 import dev.ide.ui.components.TabsStrip
 import dev.ide.ui.editor.BlockEditor
 import dev.ide.ui.editor.CodeEditor
+import dev.ide.ui.editor.VisualCanvas
 import dev.ide.ui.editor.engine.DaemonPass
 import dev.ide.ui.editor.core.isLarge
 import dev.ide.ui.editor.engine.EditorEngineDaemon
@@ -335,6 +336,14 @@ internal fun EditorCenter(
                         stacked = compact,
                         editor = codeSurface,
                         preview = { previewSurface(it, true) },
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                    )
+
+                    // Visual canvas: phone-shape surface where components are placed via FAB → ModalBottomSheet.
+                    // Each tap creates a small XML stub under `.platform/canvas/` and registers it in the
+                    // layout; removal deletes the file. Phase 1 keeps state in memory (no layout persistence).
+                    EditorViewMode.Canvas -> VisualCanvas(
+                        backend = state.backend,
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                     )
 
