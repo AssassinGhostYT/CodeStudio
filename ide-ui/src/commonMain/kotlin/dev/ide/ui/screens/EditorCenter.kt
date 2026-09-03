@@ -152,6 +152,15 @@ internal fun EditorCenter(
                 onSave = { state.saveActive() },
                 hasUnsavedChanges = active?.modified == true,
                 hasActiveFile = active != null,
+                // Toggle the Visual Canvas view on the active file. The icon sits next to Save and is
+                // accent-tinted while the file is in Canvas mode, so a tap is the natural way to jump back
+                // to text editing (matches the toolbar's pattern of one-tap view switches).
+                onToggleCanvas = {
+                    active?.let { f ->
+                        f.viewMode = if (f.viewMode == EditorViewMode.Canvas) EditorViewMode.Text else EditorViewMode.Canvas
+                    }
+                },
+                canvasActive = active?.viewMode == EditorViewMode.Canvas,
                 canUndo = active?.session?.canUndo == true,
                 canRedo = active?.session?.canRedo == true,
                 onUndo = { active?.session?.undo() },

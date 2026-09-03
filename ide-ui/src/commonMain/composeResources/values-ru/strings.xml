@@ -861,6 +861,7 @@
     <string name="codestyle_wrap_if_long">Если длинная</string>
     <string name="codestyle_wrap_one_per_line">По одному на строку</string>
     <string name="save">Сохранить</string>
+    <string name="edchrome_canvas">Холст</string>
     <string name="close">Закрыть</string>
     <string name="clear">Очистить</string>
     <string name="back">Назад</string>

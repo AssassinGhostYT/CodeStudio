@@ -1036,6 +1036,7 @@
 
     <!-- Common actions -->
     <string name="save">حفظ</string>
+    <string name="edchrome_canvas">قماش</string>
     <string name="close">إغلاق</string>
     <string name="clear">مسح</string>
     <string name="back">رجوع</string>

@@ -1092,6 +1092,7 @@
 
     <!-- shared common labels (reused across screens) -->
     <string name="save">保存</string>
+    <string name="edchrome_canvas">画布</string>
     <string name="close">关闭</string>
     <string name="clear">清除</string>
     <string name="back">返回</string>

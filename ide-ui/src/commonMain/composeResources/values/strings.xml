@@ -373,6 +373,7 @@ Nunca recopilamos su código, nombres de archivos o proyectos, qué funciones us
     <string name="breadcrumb_preview">Vista previa</string>
     <string name="breadcrumb_split">Dividido</string>
     <string name="breadcrumb_canvas">Lienzo</string>
+    <string name="edchrome_canvas">Lienzo</string>
     <string name="edchrome_files">Archivos</string>
     <string name="edchrome_source">Fuente</string>
     <string name="edchrome_more">Más</string>
