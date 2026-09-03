@@ -34,8 +34,10 @@ object TerminalEngine : TerminalSessionClient {
     private const val ROOTFS_FILE = "bootstrap-aarch64.zip"
     // Marker written under the rootfs after a successful extract. Re-runs skip re-downloading when
     // the marker + the bash sentinel both exist. Versioned so a future Termux bootstrap layout change
-    // (e.g. $PREFIX moves) invalidates the cache without manual cleanup.
-    private const val ROOTFS_MARKER = ".cs-termux-exec-v1"
+    // (e.g. $PREFIX moves) invalidates the cache without manual cleanup. Bumped to v2 when we added
+    // the libtermux-exec.so copy + LD_PRELOAD step (devices that extracted v1 have a rootfs without
+    // libtermux-exec.so and would stall at "Waiting for shell.." without a fresh extract).
+    private const val ROOTFS_MARKER = ".cs-termux-exec-v2"
 
     sealed interface SetupState {
         data object Idle : SetupState
@@ -86,6 +88,18 @@ object TerminalEngine : TerminalSessionClient {
                 if (rootfs.exists()) rootfs.deleteRecursively()
                 rootfs.mkdirs()
                 extractZip(archive, rootfs)
+                // The bootstrap ships the underlying variant libs (`lib/libtermux-exec-direct-ld-preload.so`
+                // and `lib/libtermux-exec-linker-ld-preload.so`) but does NOT install the symlink/copy that
+                // `$LD_PRELOAD` is supposed to point at — that step lives in the termux-exec package's
+                // `postinst` script (`termux-exec-ld-preload-lib setup`), which pkg/apt runs at install
+                // time. We don't have a package manager here, so we replicate the postinst by copying
+                // the direct variant to `$PREFIX/lib/libtermux-exec.so`. The direct variant supports all
+                // Android versions we care about (the linker variant requires Android's scoped linker).
+                val termuxExecSrc = File(rootfs, "lib/libtermux-exec-direct-ld-preload.so")
+                val termuxExecDst = File(rootfs, "lib/libtermux-exec.so")
+                if (termuxExecSrc.exists() && !termuxExecDst.exists()) {
+                    termuxExecSrc.copyTo(termuxExecDst, overwrite = false)
+                }
                 File(rootfs, ROOTFS_MARKER).writeText("ok\n")
                 archive.delete()
             }
@@ -138,6 +152,15 @@ object TerminalEngine : TerminalSessionClient {
             "TERM=xterm-256color",
             "PATH=${rootfs.absolutePath}/bin:/system/bin",
             "LD_LIBRARY_PATH=${support.absolutePath}",
+            // libtermux-exec.so is the heart of Termux's on-Android execution: it LD_PRELOADs into
+            // every child and substitutes Termux-built libc/libdl/libreadline/libiconv (which the
+            // system's bionic linker won't find in /system/lib) for the right Termux equivalents.
+            // Without this, bash fails to resolve `libreadline.so.8` and `libiconv.so` and exits
+            // silently before printing a prompt — TerminalSession then sits at "Waiting for shell.."
+            // forever. The bootstrap zip ships the underlying variant libs but not this file (it's
+            // created by the termux-exec package's postinst); ensureReady() copies the direct variant
+            // to $PREFIX/lib/libtermux-exec.so before we get here.
+            "LD_PRELOAD=${rootfs.absolutePath}/lib/libtermux-exec.so",
             "PROOT_TMP_DIR=${hostTmp.absolutePath}",
             "TMPDIR=${hostTmp.absolutePath}",
             "PROOT_LOADER=${loader.absolutePath}",
