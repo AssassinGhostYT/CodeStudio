@@ -68,6 +68,9 @@ import kotlinx.coroutines.launch
 
 private const val CANVAS_DIR = ".platform/canvas"
 private const val MANIFEST = "canvas.json"
+private const val ACTIVITY_MAIN = "activity_main"
+private const val MAIN_ACTIVITY = "MainActivity.kt"
+private val XML_HEADER = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
 
 private data class CanvasItem(
     val id: String,
@@ -345,8 +348,10 @@ private fun persist(items: List<CanvasItem>, backend: IdeBackend) {
         sb.append("""{"id":"${esc(it.id)}","kind":"${it.kind.name}","x":${it.position.x},"y":${it.position.y},"fp":"${esc(it.filePath)}","label":"${esc(it.label)}"}""")
     }
     sb.append("]")
-    // Use saveFile (overwrite) not createFile (which silently refuses to update existing files).
     runCatching { backend.files.saveFile("$CANVAS_DIR/$MANIFEST", sb.toString()) }
+    // Regenerate activity_main.xml + MainActivity.kt whenever the canvas state changes, so the
+    // compiled APK reflects the current visual layout (like FlutterFlow/Builder.io).
+    generateMainFiles(items, backend)
 }
 
 private fun loadPersisted(items: MutableList<CanvasItem>, backend: IdeBackend) {
@@ -392,3 +397,116 @@ private fun attr(s: String, name: String): String {
 }
 
 private fun esc(s: String): String = s.replace("\\", "\\\\").replace("\"", "\\\"")
+
+// ---------------------------------------------------------------------------
+// Android code generation — mirrors what a visual editor (FlutterFlow, Builder.io)
+// produces: activity_main.xml (layout) + MainActivity.kt (logic). Every time the
+// canvas state changes (place / move / delete), these files are regenerated so the
+// user's APK reflects the current visual layout when they compile.
+// ---------------------------------------------------------------------------
+
+private fun generateMainFiles(items: List<CanvasItem>, backend: IdeBackend) {
+    runCatching {
+        val layout = resolveLayoutDir(backend)
+        if (layout.isNotBlank()) {
+            backend.files.saveFile(
+                "$layout/$ACTIVITY_MAIN.xml",
+                buildActivityMainXml(items),
+            )
+            // Only write MainActivity.kt if it does NOT already exist — never overwrite user-written code.
+            val existing = runCatching { backend.files.readFile("$CANVAS_DIR/$MAIN_ACTIVITY") }.getOrNull()
+            if (existing.isNullOrBlank()) {
+                backend.files.saveFile(
+                    "$CANVAS_DIR/$MAIN_ACTIVITY",
+                    buildMainActivityKt(items),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Resolve the `res/layout/` directory in the user's project, or `null` if the project doesn't follow
+ * the standard Android structure.
+ */
+private fun resolveLayoutDir(backend: IdeBackend): String {
+    val res = resolveResDir(backend)
+    return if (res != CANVAS_DIR) "$res/layout" else ""
+}
+
+/** Generate `activity_main.xml` with all canvas items positioned at their exact dp offsets. */
+private fun buildActivityMainXml(items: List<CanvasItem>): String = buildString {
+    append(XML_HEADER)
+    append("<FrameLayout xmlns:android=\"http://schemas.android.com/apk/res/android\"\n")
+    append("    xmlns:tools=\"http://schemas.android.com/tools\"\n")
+    append("    android:id=\"@+id/canvas_root\"\n")
+    append("    android:layout_width=\"match_parent\"\n")
+    append("    android:layout_height=\"match_parent\"\n")
+    append("    tools:context=\".MainActivity\">\n\n")
+    if (items.isEmpty()) {
+        append("    <!-- Canvas empty — drag components here in the Canvas tab -->\n\n")
+    } else {
+        for (item in items) {
+            val id = item.label.replace("[^a-zA-Z0-9_]".toRegex(), "_").lowercase()
+            val x = item.position.x.toInt()
+            val y = item.position.y.toInt()
+            when (item.kind) {
+                CanvasComponentKind.Button -> {
+                    append("    <Button\n")
+                    append("        android:id=\"@+id/$id\"\n")
+                    append("        android:layout_width=\"wrap_content\"\n")
+                    append("        android:layout_height=\"wrap_content\"\n")
+                    append("        android:layout_marginStart=\"${x}dp\"\n")
+                    append("        android:layout_marginTop=\"${y}dp\"\n")
+                    append("        android:text=\"${item.label}\" />\n\n")
+                }
+                CanvasComponentKind.TextField -> {
+                    append("    <EditText\n")
+                    append("        android:id=\"@+id/$id\"\n")
+                    append("        android:layout_width=\"match_parent\"\n")
+                    append("        android:layout_height=\"wrap_content\"\n")
+                    append("        android:layout_marginStart=\"${x}dp\"\n")
+                    append("        android:layout_marginTop=\"${y}dp\"\n")
+                    append("        android:hint=\"${item.label}\" />\n\n")
+                }
+                CanvasComponentKind.Image -> {
+                    append("    <ImageView\n")
+                    append("        android:id=\"@+id/$id\"\n")
+                    append("        android:layout_width=\"48dp\"\n")
+                    append("        android:layout_height=\"48dp\"\n")
+                    append("        android:layout_marginStart=\"${x}dp\"\n")
+                    append("        android:layout_marginTop=\"${y}dp\"\n")
+                    append("        android:src=\"@drawable/$id\" />\n\n")
+                }
+            }
+        }
+    }
+    append("</FrameLayout>\n")
+}
+
+/** Generate `MainActivity.kt` wiring up view references + button click handlers. */
+private fun buildMainActivityKt(items: List<CanvasItem>): String = buildString {
+    append("package com.example.app\n\n")
+    append("import android.os.Bundle\n")
+    append("import android.widget.Toast\n")
+    append("import androidx.appcompat.app.AppCompatActivity\n")
+    append("import android.widget.Button\n\n")
+    append("class MainActivity : AppCompatActivity() {\n\n")
+    append("    override fun onCreate(savedInstanceState: Bundle?) {\n")
+    append("        super.onCreate(savedInstanceState)\n")
+    append("        setContentView(R.layout.activity_main)\n\n")
+    for (item in items) {
+        val id = item.label.replace("[^a-zA-Z0-9_]".toRegex(), "_").lowercase()
+        when (item.kind) {
+            CanvasComponentKind.Button -> {
+                append("        findViewById<Button>(R.id.$id).setOnClickListener {\n")
+                append("            Toast.makeText(this, \"${item.label} clicked\", Toast.LENGTH_SHORT).show()\n")
+                append("        }\n\n")
+            }
+            CanvasComponentKind.TextField -> { /* EditText — no extra wiring needed */ }
+            CanvasComponentKind.Image -> { /* ImageView — src set via XML */ }
+        }
+    }
+    append("    }\n")
+    append("}\n")
+}
