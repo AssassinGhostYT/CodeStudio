@@ -195,18 +195,37 @@ fun VisualCanvas(
                 resolveDrawableDir = { resolveResDir(backend) },
                 onDismiss = { iconManagerOpen = false },
                 onIconPlaced = { xml, fileName ->
-                    // Add a placed item for the freshly-copied drawable so the user sees it land on the
-                    // canvas immediately (treated as an Image referencing @drawable/<fileName>).
                     val slot = items.size
                     val col = slot % 3
                     val row = slot / 3
                     val idSuffix = System.currentTimeMillis()
                     val drawableName = fileName.removeSuffix(".xml")
+                    // Generate real Android code, not just a drawable side-effect: write a layout XML that
+                    // references @drawable/<drawableName> (mirrors CodeAssist's component insertion).
+                    val res = resolveResDir(backend)
+                    var fp = ""
+                    if (res != CANVAS_DIR) {
+                        val layoutXml = buildString {
+                            append("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n")
+                            append("<androidx.appcompat.widget.AppCompatImageView\n")
+                            append("    xmlns:android=\"http://schemas.android.com/apk/res/android\"\n")
+                            append("    android:layout_width=\"48dp\"\n")
+                            append("    android:layout_height=\"48dp\"\n")
+                            append("    android:src=\"@drawable/$drawableName\" />\n")
+                        }
+                        val layoutPath = "$res/layout"
+                        runCatching {
+                            backend.files.createFile(dirPath = layoutPath, fileName = "$drawableName.xml", content = layoutXml)
+                            fp = "$layoutPath/$drawableName.xml"
+                        }
+                    }
+                    // Add a placed item for the freshly-generated ImageView so the user sees it land on the
+                    // canvas immediately, at a slot they can then drag into place with their finger.
                     val item = CanvasItem(
                         id = "canvas_icon_${idSuffix}",
                         kind = CanvasComponentKind.Image,
                         position = Offset(x = (12f + col * 84f), y = (12f + row * 44f)),
-                        filePath = "",
+                        filePath = fp,
                         label = drawableName,
                     )
                     items.add(item)
