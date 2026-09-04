@@ -345,8 +345,8 @@ private fun persist(items: List<CanvasItem>, backend: IdeBackend) {
         sb.append("""{"id":"${esc(it.id)}","kind":"${it.kind.name}","x":${it.position.x},"y":${it.position.y},"fp":"${esc(it.filePath)}","label":"${esc(it.label)}"}""")
     }
     sb.append("]")
-    val dir = CANVAS_DIR
-    runCatching { backend.files.createFile(dirPath = dir, fileName = MANIFEST, content = sb.toString()) }
+    // Use saveFile (overwrite) not createFile (which silently refuses to update existing files).
+    runCatching { backend.files.saveFile("$CANVAS_DIR/$MANIFEST", sb.toString()) }
 }
 
 private fun loadPersisted(items: MutableList<CanvasItem>, backend: IdeBackend) {

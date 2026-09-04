@@ -216,7 +216,8 @@ private fun RenameIconDialog(
                 val sub = if (useMipmap) "mipmap" else "drawable"
                 scope.launch {
                     runCatching {
-                        backend.files.createFile(dirPath = "$dir/$sub", fileName = "$safe.xml", content = icon.xml)
+                        // Use saveFile (overwrite) so re-placing/updating an icon doesn't silently fail.
+                        backend.files.saveFile("$dir/$sub/$safe.xml", icon.xml)
                     }
                     onCopied("$safe.xml") {
                         onDismiss()
