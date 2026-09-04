@@ -217,7 +217,7 @@ private fun RenameIconDialog(
                 scope.launch {
                     runCatching {
                         // Use saveFile (overwrite) so re-placing/updating an icon doesn't silently fail.
-                        backend.files.saveFile("$dir/$sub/$safe.xml", icon.xml)
+                        backend.editor.saveFile("$dir/$sub/$safe.xml", icon.xml)
                     }
                     onCopied("$safe.xml") {
                         onDismiss()

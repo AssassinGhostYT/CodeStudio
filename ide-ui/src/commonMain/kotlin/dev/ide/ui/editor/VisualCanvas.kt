@@ -165,14 +165,14 @@ private fun persist(state: CanvasState, backend: IdeBackend) {
             sb.append("]}")
         }
         sb.append("]")
-        backend.files.saveFile("$CANVAS_DIR/$MANIFEST", sb.toString())
+        backend.editor.saveFile("$CANVAS_DIR/$MANIFEST", sb.toString())
         val cons = StringBuilder("[")
         state.connections.forEachIndexed { i, c ->
             if (i > 0) cons.append(",")
             cons.append("""{"fs":"${esc(c.fromScreenId)}","fi":"${esc(c.fromItemId)}","ts":"${esc(c.toScreenId)}"}""")
         }
         cons.append("]")
-        backend.files.saveFile("$CANVAS_DIR/connections.json", cons.toString())
+        backend.editor.saveFile("$CANVAS_DIR/connections.json", cons.toString())
         generateMainFiles(state, backend)
     }
 }
@@ -616,14 +616,14 @@ private fun generateMainFiles(state: CanvasState, backend: IdeBackend) {
         val layoutDir = resolveLayoutDir(backend)
         if (layoutDir.isBlank()) return@runCatching
         for (screen in state.screens) {
-            backend.files.saveFile(
+            backend.editor.saveFile(
                 "$layoutDir/activity_${screenName(screen.name)}.xml",
                 buildActivityXml(screen),
             )
         }
         val existing = runCatching { backend.files.readFile("$CANVAS_DIR/$MAIN_ACTIVITY") }.getOrNull()
         if (existing.isNullOrBlank()) {
-            backend.files.saveFile("$CANVAS_DIR/$MAIN_ACTIVITY", buildMainActivityKt(state))
+            backend.editor.saveFile("$CANVAS_DIR/$MAIN_ACTIVITY", buildMainActivityKt(state))
         }
     }
 }
