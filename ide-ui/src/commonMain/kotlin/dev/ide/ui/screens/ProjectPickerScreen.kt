@@ -68,6 +68,7 @@ import dev.ide.ui.generated.resources.Res
 import dev.ide.ui.generated.resources.backup
 import dev.ide.ui.generated.resources.backup_complete
 import dev.ide.ui.generated.resources.backup_failed
+import dev.ide.ui.generated.resources.brand_logo
 import dev.ide.ui.generated.resources.cancel
 import dev.ide.ui.generated.resources.coming_soon
 import dev.ide.ui.generated.resources.compatibility
@@ -109,6 +110,7 @@ import dev.ide.ui.theme.Ca
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.pluralStringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -386,7 +388,11 @@ private fun BrandHeader(onBackup: (() -> Unit)?, onOpenHub: (() -> Unit)?) {
             Modifier.size(40.dp).background(Ide.colors.success.copy(alpha = 0.18f), RoundedCornerShape(Ca.radius.md)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(CaIcons.box, null, Modifier.size(22.dp), tint = Ide.colors.success)
+            Image(
+                painter = painterResource(Res.drawable.brand_logo),
+                contentDescription = null,
+                modifier = Modifier.size(36.dp),
+            )
         }
         Spacer(Modifier.size(12.dp))
         Column(Modifier.weight(1f)) {
