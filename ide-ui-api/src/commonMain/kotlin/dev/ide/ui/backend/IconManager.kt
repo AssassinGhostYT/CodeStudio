@@ -339,7 +339,7 @@ interface IconService {
         emptyList()
 
     companion object {
-        fun unsupportedImport() =
+        private fun unsupportedImport() =
             UiIconImportResult(ok = false, message = "Importing icons is not available in this project")
 
         /** A backend with no icon support at all. */
