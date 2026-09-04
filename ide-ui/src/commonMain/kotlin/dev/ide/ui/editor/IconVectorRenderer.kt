@@ -62,15 +62,24 @@ internal fun parseVectorXml(xml: String): UvIcon? {
 
 /** Extract the value of `name="…"` from a tag string, tolerant of `android:` prefixes. */
 private fun attrOf(tag: String, name: String): String? {
-    val regex = Regex("(?:[a-zA-Z0-9_:.]*\\.)?$name\\s*=\\s*\"([^\"]*)\"")
+    val regex = Regex("(?:[a-zA-Z0-9_:.]*[:.])$name\\s*=\\s*\"([^\"]*)\"")
     return regex.find(tag)?.groupValues?.get(1)
 }
 
-private fun parseArgb(v: String): Color {
-    var hex = v.removePrefix("#")
+private fun parseArgb(v: String): Color? {
+    if (v.isBlank()) return null
+    // Handle @android:color/white, @color/foo, etc — resolve to a sensible default.
+    if (v.startsWith("@")) {
+        if (v.contains("white", ignoreCase = true)) return Color(0xFFFFFFFF.toInt())
+        if (v.contains("black", ignoreCase = true)) return Color(0xFF000000.toInt())
+        return null // let caller use tint fallback
+    }
+    // Handle ?attr/... theme references — resolve to white (common Material icon default).
+    if (v.startsWith("?")) return null
+    val hex = v.removePrefix("#")
     if (hex.length == 3) {
-        // 3-digit shorthand #rgb → #aarrggbb
-        hex = hex.map { "$it$it" }.joinToString("")
+        val expanded = hex.map { "$it$it" }.joinToString("")
+        return Color(("FF$expanded").toLongOrNull(16)?.toInt() ?: 0xFFFFFFFF.toInt())
     }
     val argb = when (hex.length) {
         8 -> hex.toLongOrNull(16)
@@ -95,7 +104,9 @@ internal fun DrawScope.drawUvIcon(icon: UvIcon, tint: Color, size: Size) {
         scale(scaleF, scaleF, pivot = Offset.Zero) {
             for (p in icon.paths) {
                 val path = AndroidPathParser.parse(p.data)
-                drawPath(path, p.fill ?: tint, style = Fill)
+                // Material icons are monochrome (white fill + android:tint). Honor the caller's [tint] so the
+                // grid shows one consistent color regardless of each icon's white/@ref fill color.
+                drawPath(path, tint, style = Fill)
             }
         }
     }
