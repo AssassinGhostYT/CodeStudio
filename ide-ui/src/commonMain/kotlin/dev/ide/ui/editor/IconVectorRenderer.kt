@@ -12,7 +12,7 @@ import dev.ide.ui.editor.preview.AndroidPathParser
 import kotlin.math.min
 
 /** A single parsed `<path>` inside a Material vector icon. */
-internal data class UvPath(val data: String, val fill: Color?)
+internal class UvPath(val path: Path, val fill: Color?)
 
 /** The result of parsing a bundled `<vector>` icon's XML. */
 internal data class UvIcon(
@@ -39,6 +39,8 @@ internal fun parseVectorXml(xml: String): UvIcon? {
     val vectorTag = xml.substringAfter("<vector").substringBefore(">")
     attrOf(vectorTag, "viewportWidth")?.toFloatOrNull()?.let { viewportWidth = it }
     attrOf(vectorTag, "viewportHeight")?.toFloatOrNull()?.let { viewportHeight = it }
+    // Material icons use non-zero winding by default; honor fillType="evenOdd" when present.
+    val evenOdd = attrOf(vectorTag, "fillType") == "evenOdd"
 
     // Grab each self-contained <path … /> block (Material icons are self-closing).
     var i = 0
@@ -50,8 +52,9 @@ internal fun parseVectorXml(xml: String): UvIcon? {
         val block = xml.substring(open, close + 2)
         val data = attrOf(block, "pathData")
         val fill = attrOf(block, "fillColor")
+        // Parse once up-front so the icon grid never re-parses path strings per frame.
         if (!data.isNullOrBlank()) {
-            paths.add(UvPath(data, fill?.let { parseArgb(it) }))
+            paths.add(UvPath(AndroidPathParser.parse(data, evenOdd), fill?.let { parseArgb(it) }))
         }
         i = close + 2
     }
@@ -103,10 +106,8 @@ internal fun DrawScope.drawUvIcon(icon: UvIcon, tint: Color, size: Size) {
     translate(ox, oy) {
         scale(scaleF, scaleF, pivot = Offset.Zero) {
             for (p in icon.paths) {
-                val path = AndroidPathParser.parse(p.data)
-                // Material icons are monochrome (white fill + android:tint). Honor the caller's [tint] so the
-                // grid shows one consistent color regardless of each icon's white/@ref fill color.
-                drawPath(path, tint, style = Fill)
+                // Paths are pre-parsed once in parseVectorXml; draw them directly here.
+                drawPath(p.path, tint, style = Fill)
             }
         }
     }
