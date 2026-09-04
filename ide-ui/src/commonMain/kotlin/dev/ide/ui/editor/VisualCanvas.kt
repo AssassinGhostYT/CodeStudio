@@ -13,21 +13,28 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -84,6 +91,11 @@ private data class CanvasItem(
     val kind: CanvasComponentKind,
     val position: Offset = Offset.Zero,
     val label: String = "",
+    val widthDp: Float = 0f,
+    val heightDp: Float = 0f,
+    val bgColor: String = "",
+    val textColor: String = "",
+    val textSizeSp: Float = 0f,
 )
 
 private data class CanvasConnection(
@@ -148,7 +160,7 @@ private fun persist(state: CanvasState, backend: IdeBackend) {
             sb.append("""{"id":"${esc(screen.id)}","name":"${esc(screen.name)}","items":[""")
             screen.items.forEachIndexed { ii, item ->
                 if (ii > 0) sb.append(",")
-                sb.append("""{"id":"${esc(item.id)}","kind":"${item.kind.name}","x":${item.position.x},"y":${item.position.y},"label":"${esc(item.label)}"}""")
+                sb.append("""{"id":"${esc(item.id)}","kind":"${item.kind.name}","x":${item.position.x},"y":${item.position.y},"label":"${esc(item.label)}","w":${item.widthDp},"h":${item.heightDp},"bg":"${esc(item.bgColor)}","tc":"${esc(item.textColor)}","ts":${item.textSizeSp}}""")
             }
             sb.append("]}")
         }
@@ -229,6 +241,7 @@ private fun esc(s: String): String = s.replace("\\", "\\\\").replace("\"", "\\\"
 fun VisualCanvas(backend: IdeBackend, modifier: Modifier = Modifier) {
     val canvasState = remember { CanvasState() }
     var iconManagerOpen by remember { mutableStateOf(false) }
+    var pickerOpen by remember { mutableStateOf(false) }
     var selectedId by remember { mutableStateOf<String?>(null) }
     var frameSizePx by remember { mutableStateOf(IntOffset.Zero) }
     var connectingFrom by remember { mutableStateOf<Pair<String, String>?>(null) }
@@ -427,12 +440,36 @@ fun VisualCanvas(backend: IdeBackend, modifier: Modifier = Modifier) {
             Spacer(Modifier.height(52.dp))
         }
 
-        // ── FAB (Icon Manager) ──
+        // ── FAB (Component Picker) ──
         FloatingActionButton(
-            onClick = { iconManagerOpen = true },
+            onClick = { pickerOpen = true },
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
         ) {
-            Icon(CaIcons.plus, contentDescription = "Iconos / añadir")
+            Icon(CaIcons.plus, contentDescription = "Añadir componente")
+        }
+
+        if (pickerOpen) {
+            val screen = selectedScreen()
+            if (screen != null) {
+                ComponentPickerSheet(
+                    backend = backend,
+                    onDismiss = { pickerOpen = false },
+                    onComponentPlaced = { kind, label ->
+                        val idSuffix = System.currentTimeMillis()
+                        val item = CanvasItem(
+                            id = "canvas_item_$idSuffix",
+                            kind = kind,
+                            position = Offset(24f, 24f + (screen.items.size * 60f)),
+                            label = label,
+                        )
+                        screen.items.add(item)
+                        selectedId = item.id
+                        persist(canvasState, backend)
+                        pickerOpen = false
+                    },
+                    onIconManagerOpen = { iconManagerOpen = true },
+                )
+            }
         }
 
         if (iconManagerOpen) {
@@ -685,3 +722,240 @@ private fun buildMainActivityKt(state: CanvasState): String = buildString {
 
 private fun screenName(raw: String): String =
     raw.trim().replace("[^a-zA-Z0-9_]".toRegex(), "_").lowercase().ifBlank { "screen" }
+
+// ── Component Picker Sheet (FAB menu) ─────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ComponentPickerSheet(
+    backend: IdeBackend,
+    onDismiss: () -> Unit,
+    onComponentPlaced: (CanvasComponentKind, String) -> Unit,
+    onIconManagerOpen: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 520.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp),
+        ) {
+            // ── Header ──
+            Text(
+                "Añadir al canvas",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 16.dp),
+            )
+
+            // ── Components section ──
+            SectionHeader("Componentes")
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                ComponentCard(
+                    modifier = Modifier.weight(1f),
+                    label = "Botón",
+                    icon = "BTN",
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    onClick = { onComponentPlaced(CanvasComponentKind.Button, "Button") },
+                )
+                ComponentCard(
+                    modifier = Modifier.weight(1f),
+                    label = "Texto",
+                    icon = "TXT",
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    onClick = { onComponentPlaced(CanvasComponentKind.TextField, "TextField") },
+                )
+                ComponentCard(
+                    modifier = Modifier.weight(1f),
+                    label = "Imagen",
+                    icon = "IMG",
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    onClick = { onComponentPlaced(CanvasComponentKind.Image, "Image") },
+                )
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // ── Icons section ──
+            SectionHeader("Iconos M3")
+            Spacer(Modifier.height(8.dp))
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onDismiss(); onIconManagerOpen() },
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                        modifier = Modifier.size(40.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(CaIcons.plus, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Iconos M3", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "6800+ Material Design icons",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Text("→", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            // ── Libraries section ──
+            SectionHeader("Librerías")
+            Spacer(Modifier.height(8.dp))
+            LibraryItem(
+                name = "Material Design 3",
+                coordinate = "com.google.android.material:material:1.12.0",
+                description = "Componentes M3: Button, Card, FAB, TopAppBar, BottomNavigation…",
+                backend = backend,
+            )
+            Spacer(Modifier.height(6.dp))
+            LibraryItem(
+                name = "AppCompat",
+                coordinate = "androidx.appcompat:appcompat:1.7.0",
+                description = "Backward-compatible Activity, ActionBar, Theme.AppCompat",
+                backend = backend,
+            )
+            Spacer(Modifier.height(6.dp))
+            LibraryItem(
+                name = "ConstraintLayout",
+                coordinate = "androidx.constraintlayout:constraintlayout:2.2.1",
+                description = "Layout flexible con constraints y guidelines",
+                backend = backend,
+            )
+            Spacer(Modifier.height(6.dp))
+            LibraryItem(
+                name = "RecyclerView",
+                coordinate = "androidx.recyclerview:recyclerview:1.4.0",
+                description = "Listas eficientes con ViewHolder pattern",
+                backend = backend,
+            )
+            Spacer(Modifier.height(6.dp))
+            LibraryItem(
+                name = "Glide",
+                coordinate = "com.github.bumptech.glide:glide:4.16.0",
+                description = "Carga y cache de imágenes",
+                backend = backend,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        title,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun ComponentCard(
+    modifier: Modifier = Modifier,
+    label: String,
+    icon: String,
+    color: Color,
+    onClick: () -> Unit,
+) {
+    Surface(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(12.dp),
+        color = color,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)),
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                modifier = Modifier.size(36.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(icon, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                }
+            }
+            Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+@Composable
+private fun LibraryItem(
+    name: String,
+    coordinate: String,
+    description: String,
+    backend: IdeBackend,
+) {
+    var added by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(description, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (added) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable {
+                    if (!added) {
+                        scope.launch {
+                            runCatching {
+                                backend.deps.addDependency("app", coordinate, "implementation")
+                                added = true
+                            }
+                        }
+                    }
+                },
+            ) {
+                Text(
+                    if (added) "✓" else "+",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (added) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimary,
+                )
+            }
+        }
+    }
+}
