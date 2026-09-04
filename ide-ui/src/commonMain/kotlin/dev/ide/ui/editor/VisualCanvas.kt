@@ -735,9 +735,18 @@ private fun parseColor(hex: String): Color? {
     if (h.length != 6 && h.length != 8) return null
     val v = h.toLongOrNull(16) ?: return null
     return if (h.length == 8) {
-        Color((v ushr 24) and 0xFF, (v ushr 16) and 0xFF, (v ushr 8) and 0xFF, v and 0xFF)
+        Color(
+            ((v ushr 24) and 0xFF).toInt(),
+            ((v ushr 16) and 0xFF).toInt(),
+            ((v ushr 8) and 0xFF).toInt(),
+            (v and 0xFF).toInt(),
+        )
     } else {
-        Color((v ushr 16) and 0xFF, (v ushr 8) and 0xFF, v and 0xFF)
+        Color(
+            ((v ushr 16) and 0xFF).toInt(),
+            ((v ushr 8) and 0xFF).toInt(),
+            (v and 0xFF).toInt(),
+        )
     }
 }
 
@@ -997,7 +1006,8 @@ private fun LibrariesContent(
             Spacer(Modifier.height(4.dp))
             LazyVerticalGrid(
                 columns = GridCells.Fixed(5),
-                modifier = Modifier.fillMaxWidth().height((group.icons.size / 5 + 1) * 72.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
                     .heightIn(max = 220.dp),
                 contentPadding = PaddingValues(4.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
