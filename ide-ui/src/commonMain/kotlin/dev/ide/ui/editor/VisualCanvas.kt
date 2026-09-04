@@ -4,6 +4,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,13 +17,17 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,12 +41,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.ide.ui.backend.IdeBackend
 import dev.ide.ui.backend.NodeKind
 import dev.ide.ui.backend.TreeNode
@@ -49,142 +58,376 @@ import dev.ide.ui.theme.Ide
 import kotlinx.coroutines.launch
 
 /**
- * Visual Canvas — Phase 2 adapted for the Icon Manager.
+ * Visual Canvas — Multi-screen visual editor with Action Flow navigation.
  *
- * A phone-shape surface that replaces the editor when the active tab is in [dev.ide.ui.EditorViewMode.Canvas].
- * The lone FAB opens the **Material Icon Manager** (a searchable grid of bundled vector icons from `icons.zip`);
- * tapping one lets the user rename it and copies the `<vector>` XML into the project's `res/drawable/`, so it
- * becomes a project drawable resource immediately.
+ * Each screen is a phone-frame with components positioned at user-chosen dp coordinates.
+ * Screen tabs appear at the top. The FAB opens the Material Icon Manager.
  *
- * Placed items are drawn inside the phone-frame: a long-press drag repositions them (clamping to the frame),
- * a single tap selects one (highlight border + a small X that appears **at the bottom** of the card, never
- * beside it and never enlarging the card). Position + label are persisted to a JSON manifest under the canvas
- * directory so items survive switching to code/preview and back — the code each item materialised is already
- * on disk (the stub XML), so "going to code" shows real content.
+ * Connector icon (→) on each button lets the user visually link it to another screen.
+ * A small arrow indicator shows which buttons have existing connections.
  *
- * Drag does NOT scale the card up (the old scale-on-drag made it look broken); selection is conveyed only by
- * the border and the bottom X row.
+ * Generates real Android code:
+ *  - `activity_<screen>.xml` per screen (FrameLayout with positioned components)
+ *  - `MainActivity.kt` with navigation intents for each connection
  */
 
+// ── Constants ──────────────────────────────────────────────────────────────────
 private const val CANVAS_DIR = ".platform/canvas"
 private const val MANIFEST = "canvas.json"
-private const val ACTIVITY_MAIN = "activity_main"
 private const val MAIN_ACTIVITY = "MainActivity.kt"
 private val XML_HEADER = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n"
+
+// ── Data model ─────────────────────────────────────────────────────────────────
 
 private data class CanvasItem(
     val id: String,
     val kind: CanvasComponentKind,
-    /** Top-left of the item inside the canvas frame, in dp. Clamped to the frame on every drag end. */
     val position: Offset = Offset.Zero,
-    /** Workspace-relative path of the XML stub the item materializes to on disk. Captured at add-time so
-     *  delete is exact (the layout dir might not exist when removing — Phase 1's CANVAS_DIR is the fallback). */
-    val filePath: String,
-    /** User-editable display name; defaults to the component kind. */
     val label: String = "",
 )
 
-private enum class CanvasComponentKind(
-    val displayName: String,
-    val xmlStub: String,
+private data class CanvasConnection(
+    val fromScreenId: String,
+    val fromItemId: String,
+    val toScreenId: String,
+)
+
+private data class Screen(
+    val id: String,
+    var name: String,
+    val items: MutableList<CanvasItem> = mutableStateListOf(),
+)
+
+private data class CanvasState(
+    val screens: MutableList<Screen> = mutableStateListOf(Screen(id = "main", name = "Main")),
+    var activeScreenId: String = "main",
+    val connections: MutableList<CanvasConnection> = mutableStateListOf(),
 ) {
-    Button(
-        "Button",
-        "<Button\n    android:id=\"@+id/canvas_button\"\n    android:layout_width=\"wrap_content\"\n" +
-            "    android:layout_height=\"wrap_content\"\n    android:text=\"@string/canvas_button\" />",
-    ),
-    TextField(
-        "TextField",
-        "<EditText\n    android:id=\"@+id/canvas_text\"\n    android:layout_width=\"match_parent\"\n" +
-            "    android:layout_height=\"wrap_content\"\n    android:hint=\"@string/canvas_text_hint\" />",
-    ),
-    Image(
-        "Image",
-        "<ImageView\n    android:id=\"@+id/canvas_image\"\n    android:layout_width=\"100dp\"\n" +
-            "    android:layout_height=\"100dp\"\n    android:src=\"@android:drawable/ic_menu_gallery\" />",
-    ),
-    Container(
-        "Container",
-        "<LinearLayout\n    android:id=\"@+id/canvas_container\"\n    android:layout_width=\"match_parent\"\n" +
-            "    android:layout_height=\"wrap_content\"\n    android:orientation=\"vertical\" />",
-    ),
+    val activeScreen: Screen? get() = screens.find { it.id == activeScreenId }
+
+    fun addScreen(): Screen {
+        val n = screens.size + 1
+        val s = Screen(id = "screen_$n", name = "Screen $n")
+        screens.add(s)
+        return s
+    }
+
+    fun removeScreen(id: String) {
+        if (screens.size <= 1) return
+        screens.removeAll { it.id == id }
+        connections.removeAll { it.fromScreenId == id || it.toScreenId == id }
+        if (activeScreenId == id) activeScreenId = screens.firstOrNull()?.id ?: "main"
+    }
+
+    fun addConnection(fromScreenId: String, fromItemId: String, toScreenId: String) {
+        connections.removeAll { it.fromScreenId == fromScreenId && it.fromItemId == fromItemId }
+        connections.add(CanvasConnection(fromScreenId, fromItemId, toScreenId))
+    }
+
+    fun removeConnection(fromScreenId: String, fromItemId: String) {
+        connections.removeAll { it.fromScreenId == fromScreenId && it.fromItemId == fromItemId }
+    }
+
+    fun findConnection(fromScreenId: String, fromItemId: String): CanvasConnection? =
+        connections.find { it.fromScreenId == fromScreenId && it.fromItemId == fromItemId }
 }
 
+private enum class CanvasComponentKind(val displayName: String) {
+    Button("Button"),
+    TextField("TextField"),
+    Image("Image"),
+}
+
+// ── Persistence ────────────────────────────────────────────────────────────────
+
+private fun persist(state: CanvasState, backend: IdeBackend) {
+    runCatching {
+        val sb = StringBuilder("[")
+        state.screens.forEachIndexed { si, screen ->
+            if (si > 0) sb.append(",\n")
+            sb.append("""{"id":"${esc(screen.id)}","name":"${esc(screen.name)}","items":[""")
+            screen.items.forEachIndexed { ii, item ->
+                if (ii > 0) sb.append(",")
+                sb.append("""{"id":"${esc(item.id)}","kind":"${item.kind.name}","x":${item.position.x},"y":${item.position.y},"label":"${esc(item.label)}"}""")
+            }
+            sb.append("]}")
+        }
+        sb.append("]")
+        backend.files.saveFile("$CANVAS_DIR/$MANIFEST", sb.toString())
+        val cons = StringBuilder("[")
+        state.connections.forEachIndexed { i, c ->
+            if (i > 0) cons.append(",")
+            cons.append("""{"fs":"${esc(c.fromScreenId)}","fi":"${esc(c.fromItemId)}","ts":"${esc(c.toScreenId)}"}""")
+        }
+        cons.append("]")
+        backend.files.saveFile("$CANVAS_DIR/connections.json", cons.toString())
+        generateMainFiles(state, backend)
+    }
+}
+
+private fun loadPersisted(state: CanvasState, backend: IdeBackend) {
+    runCatching {
+        val text = backend.files.readFile("$CANVAS_DIR/$MANIFEST")
+        if (text.isBlank()) return
+        val entryRe = Regex("""\{[^{}]*\}""")
+        val screenRe = Regex(""""items"\s*:\s*\[([^\]]*)]""")
+        state.screens.clear()
+        for (m in entryRe.findAll(text)) {
+            val s = m.value
+            val id = manifestStr(s, "id")
+            val name = manifestStr(s, "name")
+            val screen = Screen(id = id, name = name)
+            val itemsMatch = screenRe.find(s)
+            if (itemsMatch != null) {
+                for (im in entryRe.findAll(itemsMatch.groupValues[1])) {
+                    val is_ = im.value
+                    val kind = runCatching { CanvasComponentKind.valueOf(manifestStr(is_, "kind")) }.getOrElse { CanvasComponentKind.Button }
+                    screen.items.add(
+                        CanvasItem(
+                            id = manifestStr(is_, "id"),
+                            kind = kind,
+                            position = Offset(manifestFloat(is_, "x"), manifestFloat(is_, "y")),
+                            label = manifestStr(is_, "label"),
+                        ),
+                    )
+                }
+            }
+            state.screens.add(screen)
+        }
+        if (state.screens.isEmpty()) state.screens.add(Screen(id = "main", name = "Main"))
+        state.activeScreenId = state.screens.firstOrNull()?.id ?: "main"
+    }
+    runCatching {
+        val text = backend.files.readFile("$CANVAS_DIR/connections.json")
+        if (text.isBlank()) return
+        state.connections.clear()
+        val entryRe = Regex("""\{[^{}]*\}""")
+        for (m in entryRe.findAll(text)) {
+            val s = m.value
+            state.connections.add(
+                CanvasConnection(
+                    fromScreenId = manifestStr(s, "fs"),
+                    fromItemId = manifestStr(s, "fi"),
+                    toScreenId = manifestStr(s, "ts"),
+                ),
+            )
+        }
+    }
+}
+
+private fun manifestStr(s: String, name: String): String =
+    Regex(""""$name"\s*:\s*"([^"]*)"""").find(s)?.groupValues?.get(1) ?: ""
+
+private fun manifestFloat(s: String, name: String): Float =
+    Regex(""""$name"\s*:\s*([0-9.eE+-]+)""").find(s)?.groupValues?.get(1)?.toFloatOrNull() ?: 0f
+
+private fun esc(s: String): String = s.replace("\\", "\\\\").replace("\"", "\\\"")
+
+// ── Composable ─────────────────────────────────────────────────────────────────
+
 @Composable
-fun VisualCanvas(
-    backend: IdeBackend,
-    modifier: Modifier = Modifier,
-) {
-    val items = remember { mutableStateListOf<CanvasItem>() }
+fun VisualCanvas(backend: IdeBackend, modifier: Modifier = Modifier) {
+    val canvasState = remember { CanvasState() }
     var iconManagerOpen by remember { mutableStateOf(false) }
     var selectedId by remember { mutableStateOf<String?>(null) }
-    // Bounds of the inner phone-frame — used to clamp drag destinations. Pixels.
     var frameSizePx by remember { mutableStateOf(IntOffset.Zero) }
+    var connectingFrom by remember { mutableStateOf<Pair<String, String>?>(null) }
+    // Crosshair guide state: set by PlacedCanvasItem during drag, cleared on drag-end.
+    var dragItemId by remember { mutableStateOf<String?>(null) }
+    var dragCenterDp by remember { mutableStateOf(Offset.Zero) }
     val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
 
-    // Persistence: load the manifest when the canvas mounts so items placed earlier (before switching to
-    // code/preview and back) come back. Writing happens on every change via [persistCanvas].
-    LaunchedEffect(backend) {
-        loadPersisted(items, backend)
+    LaunchedEffect(backend) { loadPersisted(canvasState, backend) }
+
+    fun selectedScreen() = canvasState.activeScreen
+    fun updatePosition(itemId: String, delta: Offset) {
+        val items = selectedScreen()?.items ?: return
+        val idx = items.indexOfFirst { it.id == itemId }
+        if (idx >= 0) {
+            val cur = items[idx].position
+            val frameW = with(density) { frameSizePx.x.toDp().value }
+            val frameH = with(density) { frameSizePx.y.toDp().value }
+            val newX = (cur.x + delta.x).coerceIn(0f, frameW)
+            val newY = (cur.y + delta.y).coerceIn(0f, frameH)
+            items[idx] = items[idx].copy(position = Offset(newX, newY))
+            persist(canvasState, backend)
+        }
     }
 
     Box(modifier = modifier.background(Ide.colors.editorBg)) {
-        // Phone-shape frame, centered.
-        Box(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .width(280.dp)
-                .height(560.dp)
-                .clip(RoundedCornerShape(28.dp))
-                .background(Color(0xFF101014))
-                .padding(12.dp),
-        ) {
+        Column(modifier = Modifier.align(Alignment.TopCenter)) {
+            // ── Screen tabs ──
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                canvasState.screens.forEach { screen ->
+                    val isActive = screen.id == canvasState.activeScreenId
+                    val isTarget = connectingFrom != null && connectingFrom!!.first != screen.id
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = when {
+                            isActive -> MaterialTheme.colorScheme.primary
+                            isTarget -> MaterialTheme.colorScheme.tertiary
+                            else -> MaterialTheme.colorScheme.surfaceVariant
+                        },
+                        border = if (isTarget) BorderStroke(2.dp, MaterialTheme.colorScheme.tertiary) else null,
+                        modifier = Modifier
+                            .clickable {
+                                if (connectingFrom != null && connectingFrom!!.first != screen.id) {
+                                    canvasState.addConnection(connectingFrom!!.first, connectingFrom!!.second, screen.id)
+                                    persist(canvasState, backend)
+                                    connectingFrom = null
+                                } else {
+                                    canvasState.activeScreenId = screen.id
+                                    selectedId = null
+                                    connectingFrom = null
+                                }
+                            },
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = screen.name,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                color = if (isActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(end = 4.dp),
+                            )
+                            if (canvasState.screens.size > 1) {
+                                Icon(
+                                    CaIcons.close,
+                                    contentDescription = "Eliminar pantalla",
+                                    modifier = Modifier
+                                        .size(14.dp)
+                                        .clickable { canvasState.removeScreen(screen.id); persist(canvasState, backend) },
+                                    tint = if (isActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.error,
+                                )
+                            }
+                        }
+                    }
+                }
+                // + button to add screen
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.clickable { canvasState.addScreen(); persist(canvasState, backend) },
+                ) {
+                    Icon(
+                        CaIcons.plus,
+                        contentDescription = "Nueva pantalla",
+                        modifier = Modifier.padding(6.dp).size(16.dp),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+            }
+
+            if (connectingFrom != null) {
+                Text(
+                    "Selecciona la pantalla destino…",
+                    color = MaterialTheme.colorScheme.tertiary,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+                )
+            }
+
+            // ── Phone frame ──
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color(0xFF1A1A1F))
-                    .onGloballyPositioned { coords ->
-                        val b = coords.boundsInWindow()
-                        frameSizePx = IntOffset(b.width.toInt(), b.height.toInt())
-                    },
+                    .width(280.dp)
+                    .height(560.dp)
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Color(0xFF101014))
+                    .padding(12.dp),
             ) {
-                if (items.isEmpty()) {
-                    Text(
-                        "Toca + para añadir componentes\nEl icono abre el gestor de iconos",
-                        color = Color(0xFF888888),
-                        style = Ide.type.codeSmall,
-                        modifier = Modifier.align(Alignment.Center).padding(16.dp),
-                    )
-                } else {
-                    // Free-positioned overlay — items absoluteOffset to their own (x, y).
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        items.forEach { item ->
-                            PlacedCanvasItem(
-                                item = item,
-                                selected = selectedId == item.id,
-                                frameSizePx = frameSizePx,
-                                onClick = { selectedId = item.id },
-                                onPositionChange = { newPos ->
-                                    val idx = items.indexOfFirst { it.id == item.id }
-                                    if (idx >= 0) {
-                                        items[idx] = item.copy(position = newPos)
-                                        persist(items, backend)
-                                    }
-                                },
-                                onDelete = {
-                                    items.remove(item)
-                                    if (selectedId == item.id) selectedId = null
-                                    scope.launch { runCatching { backend.files.deletePath(item.filePath) } }
-                                    persist(items, backend)
-                                },
-                            )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFF1A1A1F))
+                        .onGloballyPositioned { val b = it.boundsInWindow(); frameSizePx = IntOffset(b.width.toInt(), b.height.toInt()) },
+                ) {
+                    val items = selectedScreen()?.items
+                    if (items.isNullOrEmpty()) {
+                        Text(
+                            "Toca + para añadir componentes\nToca → en un botón para conectar pantallas",
+                            color = Color(0xFF888888),
+                            style = Ide.type.codeSmall,
+                            modifier = Modifier.align(Alignment.Center).padding(16.dp),
+                        )
+                    } else {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            items.forEach { item ->
+                                val con = canvasState.findConnection(canvasState.activeScreenId, item.id)
+                                PlacedCanvasItem(
+                                    item = item,
+                                    selected = selectedId == item.id,
+                                    hasConnection = con != null,
+                                    connectionTarget = con?.let { c -> canvasState.screens.find { it.id == c.toScreenId }?.name },
+                                    frameSizePx = frameSizePx,
+                                    onClick = { selectedId = item.id },
+                                    onDragStart = { dragItemId = item.id },
+                                    onDragMove = { delta ->
+                                        updatePosition(item.id, delta)
+                                        val idx = items.indexOfFirst { it.id == item.id }
+                                        if (idx >= 0) {
+                                            val it = items[idx]
+                                            dragCenterDp = Offset(it.position.x + 30f, it.position.y + 12f)
+                                        }
+                                    },
+                                    onDragEnd = { dragItemId = null },
+                                    onDelete = {
+                                        items.remove(item)
+                                        canvasState.removeConnection(canvasState.activeScreenId, item.id)
+                                        if (selectedId == item.id) selectedId = null
+                                        dragItemId = null
+                                        persist(canvasState, backend)
+                                    },
+                                    onConnect = {
+                                        connectingFrom = if (connectingFrom?.second == item.id) null
+                                        else canvasState.activeScreenId to item.id
+                                    },
+                                )
+                            }
+                            // ── Crosshair guides (visible while dragging) ──
+                            if (dragItemId != null) {
+                                val guideColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+                                val guideWidth = with(density) { 1.dp.toPx() }
+                                val centerX = with(density) { dragCenterDp.x.toDp().toPx() }
+                                val centerY = with(density) { dragCenterDp.y.toDp().toPx() }
+                                // Vertical guide
+                                Box(
+                                    Modifier
+                                        .matchParentSize()
+                                        .drawBehind {
+                                            drawLine(guideColor, Offset(centerX, 0f), Offset(centerX, size.height), strokeWidth = guideWidth)
+                                        },
+                                )
+                                // Horizontal guide
+                                Box(
+                                    Modifier
+                                        .matchParentSize()
+                                        .drawBehind {
+                                            drawLine(guideColor, Offset(0f, centerY), Offset(size.width, centerY), strokeWidth = guideWidth)
+                                        },
+                                )
+                            }
                         }
                     }
                 }
             }
+
+            Spacer(Modifier.height(52.dp))
         }
 
+        // ── FAB (Icon Manager) ──
         FloatingActionButton(
             onClick = { iconManagerOpen = true },
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
@@ -193,61 +436,46 @@ fun VisualCanvas(
         }
 
         if (iconManagerOpen) {
-            IconManagerSheet(
-                backend = backend,
-                resolveDrawableDir = { resolveResDir(backend) },
-                onDismiss = { iconManagerOpen = false },
-                onIconPlaced = { xml, fileName ->
-                    val slot = items.size
-                    val col = slot % 3
-                    val row = slot / 3
-                    val idSuffix = System.currentTimeMillis()
-                    val drawableName = fileName.removeSuffix(".xml")
-                    // Generate real Android code, not just a drawable side-effect: write a layout XML that
-                    // references @drawable/<drawableName> (mirrors CodeAssist's component insertion).
-                    val res = resolveResDir(backend)
-                    var fp = ""
-                    if (res != CANVAS_DIR) {
-                        val layoutXml = buildString {
-                            append("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n")
-                            append("<androidx.appcompat.widget.AppCompatImageView\n")
-                            append("    xmlns:android=\"http://schemas.android.com/apk/res/android\"\n")
-                            append("    android:layout_width=\"48dp\"\n")
-                            append("    android:layout_height=\"48dp\"\n")
-                            append("    android:src=\"@drawable/$drawableName\" />\n")
-                        }
-                        val layoutPath = "$res/layout"
-                        runCatching {
-                            backend.files.createFile(dirPath = layoutPath, fileName = "$drawableName.xml", content = layoutXml)
-                            fp = "$layoutPath/$drawableName.xml"
-                        }
-                    }
-                    // Add a placed item for the freshly-generated ImageView so the user sees it land on the
-                    // canvas immediately, at a slot they can then drag into place with their finger.
-                    val item = CanvasItem(
-                        id = "canvas_icon_${idSuffix}",
-                        kind = CanvasComponentKind.Image,
-                        position = Offset(x = (12f + col * 84f), y = (12f + row * 44f)),
-                        filePath = fp,
-                        label = drawableName,
-                    )
-                    items.add(item)
-                    selectedId = item.id
-                    persist(items, backend)
-                },
-            )
+            val screen = selectedScreen()
+            if (screen != null) {
+                IconManagerSheet(
+                    backend = backend,
+                    resolveDrawableDir = { resolveResDir(backend) },
+                    onDismiss = { iconManagerOpen = false },
+                    onIconPlaced = { xml, fileName ->
+                        val drawableName = fileName.removeSuffix(".xml")
+                        val idSuffix = System.currentTimeMillis()
+                        val item = CanvasItem(
+                            id = "canvas_icon_$idSuffix",
+                            kind = CanvasComponentKind.Image,
+                            position = Offset(24f, 24f + (screen.items.size * 60f)),
+                            label = drawableName,
+                        )
+                        screen.items.add(item)
+                        selectedId = item.id
+                        persist(canvasState, backend)
+                    },
+                )
+            }
         }
     }
 }
+
+// ── Placed canvas item ─────────────────────────────────────────────────────────
 
 @Composable
 private fun PlacedCanvasItem(
     item: CanvasItem,
     selected: Boolean,
+    hasConnection: Boolean,
+    connectionTarget: String?,
     frameSizePx: IntOffset,
     onClick: () -> Unit,
-    onPositionChange: (Offset) -> Unit,
+    onDragStart: () -> Unit,
+    onDragMove: (Offset) -> Unit,
+    onDragEnd: () -> Unit,
     onDelete: () -> Unit,
+    onConnect: () -> Unit,
 ) {
     val border = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent
     var dragging by remember { mutableStateOf(false) }
@@ -264,22 +492,14 @@ private fun PlacedCanvasItem(
             .offset { IntOffset(item.position.x.toInt(), item.position.y.toInt()) }
             .pointerInput(item.id, frameSizePx) {
                 detectDragGesturesAfterLongPress(
-                    onDragStart = { dragging = true },
-                    onDragEnd = { dragging = false },
-                    onDragCancel = { dragging = false },
+                    onDragStart = { dragging = true; onDragStart() },
+                    onDragEnd = { dragging = false; onDragEnd() },
+                    onDragCancel = { dragging = false; onDragEnd() },
                     onDrag = { change, dragAmount ->
                         change.consume()
                         val dxDp = with(density) { dragAmount.x.toDp().value }
                         val dyDp = with(density) { dragAmount.y.toDp().value }
-                        val next = item.position + Offset(dxDp, dyDp)
-                        val maxX = (frameWidthDp.value - itemWidthDp.value).coerceAtLeast(0f)
-                        val maxY = (frameHeightDp.value - itemHeightDp.value).coerceAtLeast(0f)
-                        onPositionChange(
-                            Offset(
-                                x = next.x.coerceIn(0f, maxX),
-                                y = next.y.coerceIn(0f, maxY),
-                            )
-                        )
+                        onDragMove(Offset(dxDp, dyDp))
                     },
                 )
             }
@@ -292,37 +512,50 @@ private fun PlacedCanvasItem(
             shadowElevation = if (dragging) 6.dp else 2.dp,
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Text(item.label.ifBlank { item.kind.displayName })
+                Text(
+                    item.label.ifBlank { item.kind.displayName },
+                    style = MaterialTheme.typography.labelSmall,
+                )
+                if (hasConnection) {
+                    Text(
+                        "→ ${connectionTarget ?: "?"}",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 9.sp,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                }
+                if (item.kind == CanvasComponentKind.Button) {
+                    Icon(
+                        CaIcons.plus,
+                        contentDescription = "Conectar a pantalla",
+                        modifier = Modifier
+                            .size(16.dp)
+                            .clickable(onClick = onConnect),
+                        tint = if (hasConnection) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
-
-        // The X (delete) affordance lives BELOW the card — never beside it and never enlarging the card.
-        // Show only an icon chip so the card stays compact.
         if (selected) {
             Box(
-                Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(top = 4.dp)
-                    .size(20.dp)
-                    .clip(CircleShape)
+                Modifier.align(Alignment.CenterHorizontally).padding(top = 3.dp)
+                    .size(18.dp).clip(CircleShape)
                     .background(MaterialTheme.colorScheme.error)
                     .clickable(onClick = onDelete),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(CaIcons.close, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.onError, modifier = Modifier.size(12.dp))
+                Icon(CaIcons.close, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.onError, modifier = Modifier.size(11.dp))
             }
         }
     }
 }
 
-/**
- * Resolve the Android `res/` root (the directory that contains `drawable`/`layout`/`mipmap`). Returns the
- * workspace-relative path whose child `drawable/` a copied icon lands in, or [CANVAS_DIR] on non-Android
- * projects. Mirrors CodeAssist's `IconCopier` (writes `app/src/main/res/drawable/<name>.xml`).
- */
+// ── Android resource dir helpers ───────────────────────────────────────────────
+
 private fun resolveResDir(backend: IdeBackend): String {
     val root = runCatching { backend.files.fileTree() }.getOrNull() ?: return CANVAS_DIR
     return findResDir(root)?.resDirPath ?: CANVAS_DIR
@@ -330,112 +563,35 @@ private fun resolveResDir(backend: IdeBackend): String {
 
 private fun findResDir(node: TreeNode): TreeNode? {
     if (node.kind == NodeKind.Folder && node.name == "res" && node.resDirPath != null) return node
-    node.children.forEach { child ->
-        val found = findResDir(child)
-        if (found != null) return found
-    }
+    node.children.forEach { child -> findResDir(child)?.let { return it } }
     return null
 }
 
-// ---------------------------------------------------------------------------
-// Persistence (JSON manifest under .platform/canvas/)
-// ---------------------------------------------------------------------------
-
-private fun persist(items: List<CanvasItem>, backend: IdeBackend) {
-    val sb = StringBuilder("[")
-    items.forEachIndexed { i, it ->
-        if (i > 0) sb.append(",\n")
-        sb.append("""{"id":"${esc(it.id)}","kind":"${it.kind.name}","x":${it.position.x},"y":${it.position.y},"fp":"${esc(it.filePath)}","label":"${esc(it.label)}"}""")
-    }
-    sb.append("]")
-    runCatching { backend.files.saveFile("$CANVAS_DIR/$MANIFEST", sb.toString()) }
-    // Regenerate activity_main.xml + MainActivity.kt whenever the canvas state changes, so the
-    // compiled APK reflects the current visual layout (like FlutterFlow/Builder.io).
-    generateMainFiles(items, backend)
-}
-
-private fun loadPersisted(items: MutableList<CanvasItem>, backend: IdeBackend) {
-    runCatching {
-        val text = backend.files.readFile("$CANVAS_DIR/$MANIFEST")
-        if (text.isBlank()) return
-        val entries = parseManifest(text)
-        items.clear()
-        entries.forEach { e ->
-            val kind = runCatching { CanvasComponentKind.valueOf(e.kind) }.getOrElse { CanvasComponentKind.Button }
-            items.add(
-                CanvasItem(
-                    id = e.id,
-                    kind = kind,
-                    position = Offset(e.x, e.y),
-                    filePath = e.fp,
-                    label = e.label,
-                )
-            )
-        }
-    }
-}
-
-private data class ManifestEntry(val id: String, val kind: String, val x: Float, val y: Float, val fp: String, val label: String)
-
-private fun parseManifest(text: String): List<ManifestEntry> {
-    val result = mutableListOf<ManifestEntry>()
-    val entryRe = Regex("""\{[^{}]*\}""")
-    for (m in entryRe.findAll(text)) {
-        val s = m.value
-        val id = attr(s, "id"); val kind = attr(s, "kind")
-        val x = attr(s, "x").toFloatOrNull() ?: 0f
-        val y = attr(s, "y").toFloatOrNull() ?: 0f
-        val fp = attr(s, "fp"); val label = attr(s, "label")
-        result.add(ManifestEntry(id, kind, x, y, fp, label))
-    }
-    return result
-}
-
-private fun attr(s: String, name: String): String {
-    val r = Regex("(\"$name\"\\s*:\\s*\")([^\"]*)")
-    return r.find(s)?.groupValues?.get(2) ?: ""
-}
-
-private fun esc(s: String): String = s.replace("\\", "\\\\").replace("\"", "\\\"")
-
-// ---------------------------------------------------------------------------
-// Android code generation — mirrors what a visual editor (FlutterFlow, Builder.io)
-// produces: activity_main.xml (layout) + MainActivity.kt (logic). Every time the
-// canvas state changes (place / move / delete), these files are regenerated so the
-// user's APK reflects the current visual layout when they compile.
-// ---------------------------------------------------------------------------
-
-private fun generateMainFiles(items: List<CanvasItem>, backend: IdeBackend) {
-    runCatching {
-        val layout = resolveLayoutDir(backend)
-        if (layout.isNotBlank()) {
-            backend.files.saveFile(
-                "$layout/$ACTIVITY_MAIN.xml",
-                buildActivityMainXml(items),
-            )
-            // Only write MainActivity.kt if it does NOT already exist — never overwrite user-written code.
-            val existing = runCatching { backend.files.readFile("$CANVAS_DIR/$MAIN_ACTIVITY") }.getOrNull()
-            if (existing.isNullOrBlank()) {
-                backend.files.saveFile(
-                    "$CANVAS_DIR/$MAIN_ACTIVITY",
-                    buildMainActivityKt(items),
-                )
-            }
-        }
-    }
-}
-
-/**
- * Resolve the `res/layout/` directory in the user's project, or `null` if the project doesn't follow
- * the standard Android structure.
- */
 private fun resolveLayoutDir(backend: IdeBackend): String {
     val res = resolveResDir(backend)
     return if (res != CANVAS_DIR) "$res/layout" else ""
 }
 
-/** Generate `activity_main.xml` with all canvas items positioned at their exact dp offsets. */
-private fun buildActivityMainXml(items: List<CanvasItem>): String = buildString {
+// ── Android code generation ────────────────────────────────────────────────────
+
+private fun generateMainFiles(state: CanvasState, backend: IdeBackend) {
+    runCatching {
+        val layoutDir = resolveLayoutDir(backend)
+        if (layoutDir.isBlank()) return@runCatching
+        for (screen in state.screens) {
+            backend.files.saveFile(
+                "$layoutDir/activity_${screenName(screen.name)}.xml",
+                buildActivityXml(screen),
+            )
+        }
+        val existing = runCatching { backend.files.readFile("$CANVAS_DIR/$MAIN_ACTIVITY") }.getOrNull()
+        if (existing.isNullOrBlank()) {
+            backend.files.saveFile("$CANVAS_DIR/$MAIN_ACTIVITY", buildMainActivityKt(state))
+        }
+    }
+}
+
+private fun buildActivityXml(screen: Screen): String = buildString {
     append(XML_HEADER)
     append("<FrameLayout xmlns:android=\"http://schemas.android.com/apk/res/android\"\n")
     append("    xmlns:tools=\"http://schemas.android.com/tools\"\n")
@@ -443,10 +599,10 @@ private fun buildActivityMainXml(items: List<CanvasItem>): String = buildString 
     append("    android:layout_width=\"match_parent\"\n")
     append("    android:layout_height=\"match_parent\"\n")
     append("    tools:context=\".MainActivity\">\n\n")
-    if (items.isEmpty()) {
-        append("    <!-- Canvas empty — drag components here in the Canvas tab -->\n\n")
+    if (screen.items.isEmpty()) {
+        append("    <!-- Canvas empty — add components in the Canvas tab -->\n\n")
     } else {
-        for (item in items) {
+        for (item in screen.items) {
             val id = item.label.replace("[^a-zA-Z0-9_]".toRegex(), "_").lowercase()
             val x = item.position.x.toInt()
             val y = item.position.y.toInt()
@@ -484,9 +640,9 @@ private fun buildActivityMainXml(items: List<CanvasItem>): String = buildString 
     append("</FrameLayout>\n")
 }
 
-/** Generate `MainActivity.kt` wiring up view references + button click handlers. */
-private fun buildMainActivityKt(items: List<CanvasItem>): String = buildString {
+private fun buildMainActivityKt(state: CanvasState): String = buildString {
     append("package com.example.app\n\n")
+    append("import android.content.Intent\n")
     append("import android.os.Bundle\n")
     append("import android.widget.Toast\n")
     append("import androidx.appcompat.app.AppCompatActivity\n")
@@ -494,19 +650,38 @@ private fun buildMainActivityKt(items: List<CanvasItem>): String = buildString {
     append("class MainActivity : AppCompatActivity() {\n\n")
     append("    override fun onCreate(savedInstanceState: Bundle?) {\n")
     append("        super.onCreate(savedInstanceState)\n")
-    append("        setContentView(R.layout.activity_main)\n\n")
-    for (item in items) {
-        val id = item.label.replace("[^a-zA-Z0-9_]".toRegex(), "_").lowercase()
-        when (item.kind) {
-            CanvasComponentKind.Button -> {
-                append("        findViewById<Button>(R.id.$id).setOnClickListener {\n")
-                append("            Toast.makeText(this, \"${item.label} clicked\", Toast.LENGTH_SHORT).show()\n")
-                append("        }\n\n")
+    append("        setContentView(R.layout.activity_${screenName(state.screens.firstOrNull()?.name ?: "main")})\n\n")
+    for (screen in state.screens) {
+        val screenId = screenName(screen.name)
+        for (item in screen.items) {
+            val id = item.label.replace("[^a-zA-Z0-9_]".toRegex(), "_").lowercase()
+            val con = state.findConnection(screen.id, item.id)
+            when (item.kind) {
+                CanvasComponentKind.Button -> {
+                    append("        // ${screen.name} → ${item.label}\n")
+                    append("        findViewById<Button>(R.id.$id).setOnClickListener {\n")
+                    if (con != null) {
+                        val targetScreen = state.screens.find { it.id == con.toScreenId }
+                        if (targetScreen != null) {
+                            append("            startActivity(Intent(this, MainActivity::class.java).apply {\n")
+                            append("                putExtra(\"screen\", \"${screenName(targetScreen.name)}\")\n")
+                            append("            })\n")
+                        } else {
+                            append("            Toast.makeText(this, \"${item.label} → target not set\", Toast.LENGTH_SHORT).show()\n")
+                        }
+                    } else {
+                        append("            Toast.makeText(this, \"${item.label} clicked\", Toast.LENGTH_SHORT).show()\n")
+                    }
+                    append("        }\n\n")
+                }
+                CanvasComponentKind.TextField -> { }
+                CanvasComponentKind.Image -> { }
             }
-            CanvasComponentKind.TextField -> { /* EditText — no extra wiring needed */ }
-            CanvasComponentKind.Image -> { /* ImageView — src set via XML */ }
         }
     }
     append("    }\n")
     append("}\n")
 }
+
+private fun screenName(raw: String): String =
+    raw.trim().replace("[^a-zA-Z0-9_]".toRegex(), "_").lowercase().ifBlank { "screen" }
