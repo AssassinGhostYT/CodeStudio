@@ -129,7 +129,7 @@ internal fun IconManagerSheet(
 }
 
 @Composable
-private fun IconCell(icon: UiCatalogIcon, vec: UvIcon?, onClick: () -> Unit) {
+internal fun IconCell(icon: UiCatalogIcon, vec: UvIcon?, onClick: () -> Unit) {
     val color = MaterialTheme.colorScheme.onSurface
     Column(
         modifier = Modifier
@@ -171,7 +171,7 @@ private fun IconCell(icon: UiCatalogIcon, vec: UvIcon?, onClick: () -> Unit) {
  * "Copy to" flow: a file-name field (pre-filled from the icon name) plus a drawable/mipmap toggle.
  */
 @Composable
-private fun RenameIconDialog(
+internal fun RenameIconDialog(
     icon: UiCatalogIcon,
     backend: IdeBackend,
     resolveDrawableDir: () -> String,
