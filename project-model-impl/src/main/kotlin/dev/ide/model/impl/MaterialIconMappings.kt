@@ -13110,6 +13110,6 @@ object MaterialIconMappings {
         fileNames[fileName]?.let { return it }
         val i = fileName.lastIndexOf('.')
         if (i > 0) fileExtensions[fileName.substring(i + 1)]?.let { return it }
-        return 
+        return ""
     }
 }
