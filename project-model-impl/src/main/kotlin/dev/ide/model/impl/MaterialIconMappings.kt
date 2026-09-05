@@ -7,8 +7,8 @@ package dev.ide.model.impl
  * The icon name resolves to the theme's SVG (see :ide-ui-api MaterialIconThemeData).
  * Triggered from [DefaultFileIconProvider]: a mapped file yields `mat:<iconName>`.
  */
-object MaterialIconMappings {
-    @JvmField val fileExtensions: Map<String, String> = mapOf(
+private object MMExt0 {
+    val m: Map<String, String> = mapOf(
         "60" to "slint",
         "htm" to "html",
         "xhtml" to "html",
@@ -259,6 +259,11 @@ object MaterialIconMappings {
         "ini" to "settings",
         "dlc" to "settings",
         "config" to "settings",
+    )
+}
+
+private object MMExt1 {
+    val m: Map<String, String> = mapOf(
         "conf" to "settings",
         "properties" to "settings",
         "prop" to "settings",
@@ -509,6 +514,11 @@ object MaterialIconMappings {
         "psd1" to "powershell",
         "ps1xml" to "powershell",
         "psc1" to "powershell",
+    )
+}
+
+private object MMExt2 {
+    val m: Map<String, String> = mapOf(
         "pssc" to "powershell",
         "psrc" to "powershell",
         "excalidraw" to "excalidraw",
@@ -759,6 +769,11 @@ object MaterialIconMappings {
         "freezed.dart" to "dart_generated",
         "g.dart" to "dart_generated",
         "as" to "actionscript",
+    )
+}
+
+private object MMExt3 {
+    val m: Map<String, String> = mapOf(
         "mxml" to "mxml",
         "ahk" to "autohotkey",
         "swf" to "flash",
@@ -1009,6 +1024,11 @@ object MaterialIconMappings {
         "vbhtml" to "razor",
         "razor" to "razor",
         "abc" to "abc",
+    )
+}
+
+private object MMExt4 {
+    val m: Map<String, String> = mapOf(
         "ad" to "asciidoc",
         "adoc" to "asciidoc",
         "asciidoc" to "asciidoc",
@@ -1259,6 +1279,11 @@ object MaterialIconMappings {
         "comp.hlsl" to "shader",
         "tess.hlsl" to "shader",
         "wgsl" to "shader",
+    )
+}
+
+private object MMExt5 {
+    val m: Map<String, String> = mapOf(
         "spv" to "shader",
         "slang" to "shader",
         "cginc" to "shader",
@@ -1387,7 +1412,10 @@ object MaterialIconMappings {
         "instruction.md" to "instructions",
         "mrpack" to "mrpack",
     )
-    @JvmField val fileNames: Map<String, String> = mapOf(
+}
+
+private object MMName0 {
+    val m: Map<String, String> = mapOf(
         ".pug-lintrc" to "pug",
         ".pug-lintrc.js" to "pug",
         ".pug-lintrc.json" to "pug",
@@ -1638,6 +1666,11 @@ object MaterialIconMappings {
         "containerfile.staging" to "docker",
         "containerfile.dev" to "docker",
         "containerfile.development" to "docker",
+    )
+}
+
+private object MMName1 {
+    val m: Map<String, String> = mapOf(
         "containerfile.local" to "docker",
         "containerfile.test" to "docker",
         "containerfile.testing" to "docker",
@@ -1888,6 +1921,11 @@ object MaterialIconMappings {
         "project.graphcool" to "graphcool",
         "webpack.base.js" to "webpack",
         "webpack.base.mjs" to "webpack",
+    )
+}
+
+private object MMName2 {
+    val m: Map<String, String> = mapOf(
         "webpack.base.cjs" to "webpack",
         "webpack.base.ts" to "webpack",
         "webpack.base.mts" to "webpack",
@@ -2138,6 +2176,11 @@ object MaterialIconMappings {
         "lynx.config.js" to "lynx",
         "lynx.config.mjs" to "lynx",
         "lynx.config.cjs" to "lynx",
+    )
+}
+
+private object MMName3 {
+    val m: Map<String, String> = mapOf(
         "lynx.config.ts" to "lynx",
         "lynx.config.mts" to "lynx",
         "lynx.config.cts" to "lynx",
@@ -2388,6 +2431,11 @@ object MaterialIconMappings {
         "eslint.config.ts" to "eslint",
         "eslint.config.mts" to "eslint",
         "eslint.config.cts" to "eslint",
+    )
+}
+
+private object MMName4 {
+    val m: Map<String, String> = mapOf(
         ".eslintrc-md.js" to "eslint",
         ".eslintrc-jsdoc.js" to "eslint",
         ".eslintrc.base.json" to "eslint",
@@ -2638,6 +2686,11 @@ object MaterialIconMappings {
         ".config/releaserc.mts" to "semantic-release",
         ".config/releaserc.cts" to "semantic-release",
         "release.config.json" to "semantic-release",
+    )
+}
+
+private object MMName5 {
+    val m: Map<String, String> = mapOf(
         "release.config.jsonc" to "semantic-release",
         "release.config.json5" to "semantic-release",
         "release.config.yaml" to "semantic-release",
@@ -2888,6 +2941,11 @@ object MaterialIconMappings {
         "vitest.e2e.config.mts" to "vitest",
         "vitest.e2e.config.cts" to "vitest",
         "velite.config.js" to "velite",
+    )
+}
+
+private object MMName6 {
+    val m: Map<String, String> = mapOf(
         "velite.config.mjs" to "velite",
         "velite.config.cjs" to "velite",
         "velite.config.ts" to "velite",
@@ -3138,6 +3196,11 @@ object MaterialIconMappings {
         ".config/cracorc.mjs" to "craco",
         ".config/cracorc.cjs" to "craco",
         ".config/cracorc.ts" to "craco",
+    )
+}
+
+private object MMName7 {
+    val m: Map<String, String> = mapOf(
         ".config/cracorc.mts" to "craco",
         ".config/cracorc.cts" to "craco",
         "craco.config.json" to "craco",
@@ -3388,6 +3451,11 @@ object MaterialIconMappings {
         ".lefthook.json" to "lefthook",
         ".lefthook.toml" to "lefthook",
         ".lefthook.yaml" to "lefthook",
+    )
+}
+
+private object MMName8 {
+    val m: Map<String, String> = mapOf(
         ".lefthook.yml" to "lefthook",
         ".lefthookrc" to "lefthook",
         "lefthook-local.json" to "lefthook",
@@ -3524,7 +3592,10 @@ object MaterialIconMappings {
         ".easignore" to "expo",
         "agents.md" to "agent",
     )
-    @JvmField val folderNames: Map<String, String> = mapOf(
+}
+
+private object MMFolder0 {
+    val m: Map<String, String> = mapOf(
         "rust" to "folder-rust",
         ".rust" to "folder-rust",
         "_rust" to "folder-rust",
@@ -3775,6 +3846,11 @@ object MaterialIconMappings {
         "_ico" to "folder-images",
         "-ico" to "folder-images",
         "__ico__" to "folder-images",
+    )
+}
+
+private object MMFolder1 {
+    val m: Map<String, String> = mapOf(
         "figures" to "folder-images",
         ".figures" to "folder-images",
         "_figures" to "folder-images",
@@ -4025,6 +4101,11 @@ object MaterialIconMappings {
         "_jinja2" to "folder-jinja",
         "-jinja2" to "folder-jinja",
         "__jinja2__" to "folder-jinja",
+    )
+}
+
+private object MMFolder2 {
+    val m: Map<String, String> = mapOf(
         "j2" to "folder-jinja",
         ".j2" to "folder-jinja",
         "_j2" to "folder-jinja",
@@ -4275,6 +4356,11 @@ object MaterialIconMappings {
         "_cfgs" to "folder-config",
         "-cfgs" to "folder-config",
         "__cfgs__" to "folder-config",
+    )
+}
+
+private object MMFolder3 {
+    val m: Map<String, String> = mapOf(
         "conf" to "folder-config",
         ".conf" to "folder-config",
         "_conf" to "folder-config",
@@ -4525,6 +4611,11 @@ object MaterialIconMappings {
         "_vendor" to "folder-lib",
         "-vendor" to "folder-lib",
         "__vendor__" to "folder-lib",
+    )
+}
+
+private object MMFolder4 {
+    val m: Map<String, String> = mapOf(
         "vendors" to "folder-lib",
         ".vendors" to "folder-lib",
         "_vendors" to "folder-lib",
@@ -4775,6 +4866,11 @@ object MaterialIconMappings {
         "_logging" to "folder-log",
         "-logging" to "folder-log",
         "__logging__" to "folder-log",
+    )
+}
+
+private object MMFolder5 {
+    val m: Map<String, String> = mapOf(
         "target" to "folder-target",
         ".target" to "folder-target",
         "_target" to "folder-target",
@@ -5025,6 +5121,11 @@ object MaterialIconMappings {
         "_class" to "folder-class",
         "-class" to "folder-class",
         "__class__" to "folder-class",
+    )
+}
+
+private object MMFolder6 {
+    val m: Map<String, String> = mapOf(
         "classes" to "folder-class",
         ".classes" to "folder-class",
         "_classes" to "folder-class",
@@ -5275,6 +5376,11 @@ object MaterialIconMappings {
         "_chats" to "folder-messages",
         "-chats" to "folder-messages",
         "__chats__" to "folder-messages",
+    )
+}
+
+private object MMFolder7 {
+    val m: Map<String, String> = mapOf(
         "conversation" to "folder-messages",
         ".conversation" to "folder-messages",
         "_conversation" to "folder-messages",
@@ -5525,6 +5631,11 @@ object MaterialIconMappings {
         "_provider" to "folder-controller",
         "-provider" to "folder-controller",
         "__provider__" to "folder-controller",
+    )
+}
+
+private object MMFolder8 {
+    val m: Map<String, String> = mapOf(
         "providers" to "folder-controller",
         ".providers" to "folder-controller",
         "_providers" to "folder-controller",
@@ -5775,6 +5886,11 @@ object MaterialIconMappings {
         "_application" to "folder-app",
         "-application" to "folder-app",
         "__application__" to "folder-app",
+    )
+}
+
+private object MMFolder9 {
+    val m: Map<String, String> = mapOf(
         "applications" to "folder-app",
         ".applications" to "folder-app",
         "_applications" to "folder-app",
@@ -6025,6 +6141,11 @@ object MaterialIconMappings {
         "_demo" to "folder-examples",
         "-demo" to "folder-examples",
         "__demo__" to "folder-examples",
+    )
+}
+
+private object MMFolder10 {
+    val m: Map<String, String> = mapOf(
         "demos" to "folder-examples",
         ".demos" to "folder-examples",
         "_demos" to "folder-examples",
@@ -6275,6 +6396,11 @@ object MaterialIconMappings {
         "_mails" to "folder-mail",
         "-mails" to "folder-mail",
         "__mails__" to "folder-mail",
+    )
+}
+
+private object MMFolder11 {
+    val m: Map<String, String> = mapOf(
         "email" to "folder-mail",
         ".email" to "folder-mail",
         "_email" to "folder-mail",
@@ -6525,6 +6651,11 @@ object MaterialIconMappings {
         "_windows11" to "folder-windows",
         "-windows11" to "folder-windows",
         "__windows11__" to "folder-windows",
+    )
+}
+
+private object MMFolder12 {
+    val m: Map<String, String> = mapOf(
         "windows10" to "folder-windows",
         ".windows10" to "folder-windows",
         "_windows10" to "folder-windows",
@@ -6775,6 +6906,11 @@ object MaterialIconMappings {
         "_sketches" to "folder-mock",
         "-sketches" to "folder-mock",
         "__sketches__" to "folder-mock",
+    )
+}
+
+private object MMFolder13 {
+    val m: Map<String, String> = mapOf(
         "syntax" to "folder-syntax",
         ".syntax" to "folder-syntax",
         "_syntax" to "folder-syntax",
@@ -7025,6 +7161,11 @@ object MaterialIconMappings {
         "_mobiles" to "folder-mobile",
         "-mobiles" to "folder-mobile",
         "__mobiles__" to "folder-mobile",
+    )
+}
+
+private object MMFolder14 {
+    val m: Map<String, String> = mapOf(
         "portable" to "folder-mobile",
         ".portable" to "folder-mobile",
         "_portable" to "folder-mobile",
@@ -7275,6 +7416,11 @@ object MaterialIconMappings {
         "_stories" to "folder-storybook",
         "-stories" to "folder-storybook",
         "__stories__" to "folder-storybook",
+    )
+}
+
+private object MMFolder15 {
+    val m: Map<String, String> = mapOf(
         "base" to "folder-base",
         ".base" to "folder-base",
         "_base" to "folder-base",
@@ -7525,6 +7671,11 @@ object MaterialIconMappings {
         "_proto" to "folder-proto",
         "-proto" to "folder-proto",
         "protos" to "folder-proto",
+    )
+}
+
+private object MMFolder16 {
+    val m: Map<String, String> = mapOf(
         ".protos" to "folder-proto",
         "_protos" to "folder-proto",
         "-protos" to "folder-proto",
@@ -7775,6 +7926,11 @@ object MaterialIconMappings {
         "-repositories" to "folder-repository",
         "__repositories__" to "folder-repository",
         "repo" to "folder-repository",
+    )
+}
+
+private object MMFolder17 {
+    val m: Map<String, String> = mapOf(
         ".repo" to "folder-repository",
         "_repo" to "folder-repository",
         "-repo" to "folder-repository",
@@ -8025,6 +8181,11 @@ object MaterialIconMappings {
         "-simulation" to "folder-simulations",
         "__simulation__" to "folder-simulations",
         "sim" to "folder-simulations",
+    )
+}
+
+private object MMFolder18 {
+    val m: Map<String, String> = mapOf(
         ".sim" to "folder-simulations",
         "_sim" to "folder-simulations",
         "-sim" to "folder-simulations",
@@ -8180,7 +8341,10 @@ object MaterialIconMappings {
         "-redislabs" to "folder-redis",
         "__redislabs__" to "folder-redis",
     )
-    @JvmField val folderNamesExpanded: Map<String, String> = mapOf(
+}
+
+private object MMFolderExp0 {
+    val m: Map<String, String> = mapOf(
         "rust" to "folder-rust-open",
         ".rust" to "folder-rust-open",
         "_rust" to "folder-rust-open",
@@ -8431,6 +8595,11 @@ object MaterialIconMappings {
         "_ico" to "folder-images-open",
         "-ico" to "folder-images-open",
         "__ico__" to "folder-images-open",
+    )
+}
+
+private object MMFolderExp1 {
+    val m: Map<String, String> = mapOf(
         "figures" to "folder-images-open",
         ".figures" to "folder-images-open",
         "_figures" to "folder-images-open",
@@ -8681,6 +8850,11 @@ object MaterialIconMappings {
         "_jinja2" to "folder-jinja-open",
         "-jinja2" to "folder-jinja-open",
         "__jinja2__" to "folder-jinja-open",
+    )
+}
+
+private object MMFolderExp2 {
+    val m: Map<String, String> = mapOf(
         "j2" to "folder-jinja-open",
         ".j2" to "folder-jinja-open",
         "_j2" to "folder-jinja-open",
@@ -8931,6 +9105,11 @@ object MaterialIconMappings {
         "_cfgs" to "folder-config-open",
         "-cfgs" to "folder-config-open",
         "__cfgs__" to "folder-config-open",
+    )
+}
+
+private object MMFolderExp3 {
+    val m: Map<String, String> = mapOf(
         "conf" to "folder-config-open",
         ".conf" to "folder-config-open",
         "_conf" to "folder-config-open",
@@ -9181,6 +9360,11 @@ object MaterialIconMappings {
         "_vendor" to "folder-lib-open",
         "-vendor" to "folder-lib-open",
         "__vendor__" to "folder-lib-open",
+    )
+}
+
+private object MMFolderExp4 {
+    val m: Map<String, String> = mapOf(
         "vendors" to "folder-lib-open",
         ".vendors" to "folder-lib-open",
         "_vendors" to "folder-lib-open",
@@ -9431,6 +9615,11 @@ object MaterialIconMappings {
         "_logging" to "folder-log-open",
         "-logging" to "folder-log-open",
         "__logging__" to "folder-log-open",
+    )
+}
+
+private object MMFolderExp5 {
+    val m: Map<String, String> = mapOf(
         "target" to "folder-target-open",
         ".target" to "folder-target-open",
         "_target" to "folder-target-open",
@@ -9681,6 +9870,11 @@ object MaterialIconMappings {
         "_class" to "folder-class-open",
         "-class" to "folder-class-open",
         "__class__" to "folder-class-open",
+    )
+}
+
+private object MMFolderExp6 {
+    val m: Map<String, String> = mapOf(
         "classes" to "folder-class-open",
         ".classes" to "folder-class-open",
         "_classes" to "folder-class-open",
@@ -9931,6 +10125,11 @@ object MaterialIconMappings {
         "_chats" to "folder-messages-open",
         "-chats" to "folder-messages-open",
         "__chats__" to "folder-messages-open",
+    )
+}
+
+private object MMFolderExp7 {
+    val m: Map<String, String> = mapOf(
         "conversation" to "folder-messages-open",
         ".conversation" to "folder-messages-open",
         "_conversation" to "folder-messages-open",
@@ -10181,6 +10380,11 @@ object MaterialIconMappings {
         "_provider" to "folder-controller-open",
         "-provider" to "folder-controller-open",
         "__provider__" to "folder-controller-open",
+    )
+}
+
+private object MMFolderExp8 {
+    val m: Map<String, String> = mapOf(
         "providers" to "folder-controller-open",
         ".providers" to "folder-controller-open",
         "_providers" to "folder-controller-open",
@@ -10431,6 +10635,11 @@ object MaterialIconMappings {
         "_application" to "folder-app-open",
         "-application" to "folder-app-open",
         "__application__" to "folder-app-open",
+    )
+}
+
+private object MMFolderExp9 {
+    val m: Map<String, String> = mapOf(
         "applications" to "folder-app-open",
         ".applications" to "folder-app-open",
         "_applications" to "folder-app-open",
@@ -10681,6 +10890,11 @@ object MaterialIconMappings {
         "_demo" to "folder-examples-open",
         "-demo" to "folder-examples-open",
         "__demo__" to "folder-examples-open",
+    )
+}
+
+private object MMFolderExp10 {
+    val m: Map<String, String> = mapOf(
         "demos" to "folder-examples-open",
         ".demos" to "folder-examples-open",
         "_demos" to "folder-examples-open",
@@ -10931,6 +11145,11 @@ object MaterialIconMappings {
         "_mails" to "folder-mail-open",
         "-mails" to "folder-mail-open",
         "__mails__" to "folder-mail-open",
+    )
+}
+
+private object MMFolderExp11 {
+    val m: Map<String, String> = mapOf(
         "email" to "folder-mail-open",
         ".email" to "folder-mail-open",
         "_email" to "folder-mail-open",
@@ -11181,6 +11400,11 @@ object MaterialIconMappings {
         "_windows11" to "folder-windows-open",
         "-windows11" to "folder-windows-open",
         "__windows11__" to "folder-windows-open",
+    )
+}
+
+private object MMFolderExp12 {
+    val m: Map<String, String> = mapOf(
         "windows10" to "folder-windows-open",
         ".windows10" to "folder-windows-open",
         "_windows10" to "folder-windows-open",
@@ -11431,6 +11655,11 @@ object MaterialIconMappings {
         "_sketches" to "folder-mock-open",
         "-sketches" to "folder-mock-open",
         "__sketches__" to "folder-mock-open",
+    )
+}
+
+private object MMFolderExp13 {
+    val m: Map<String, String> = mapOf(
         "syntax" to "folder-syntax-open",
         ".syntax" to "folder-syntax-open",
         "_syntax" to "folder-syntax-open",
@@ -11681,6 +11910,11 @@ object MaterialIconMappings {
         "_mobiles" to "folder-mobile-open",
         "-mobiles" to "folder-mobile-open",
         "__mobiles__" to "folder-mobile-open",
+    )
+}
+
+private object MMFolderExp14 {
+    val m: Map<String, String> = mapOf(
         "portable" to "folder-mobile-open",
         ".portable" to "folder-mobile-open",
         "_portable" to "folder-mobile-open",
@@ -11931,6 +12165,11 @@ object MaterialIconMappings {
         "_stories" to "folder-storybook-open",
         "-stories" to "folder-storybook-open",
         "__stories__" to "folder-storybook-open",
+    )
+}
+
+private object MMFolderExp15 {
+    val m: Map<String, String> = mapOf(
         "base" to "folder-base-open",
         ".base" to "folder-base-open",
         "_base" to "folder-base-open",
@@ -12181,6 +12420,11 @@ object MaterialIconMappings {
         "_proto" to "folder-proto-open",
         "-proto" to "folder-proto-open",
         "protos" to "folder-proto-open",
+    )
+}
+
+private object MMFolderExp16 {
+    val m: Map<String, String> = mapOf(
         ".protos" to "folder-proto-open",
         "_protos" to "folder-proto-open",
         "-protos" to "folder-proto-open",
@@ -12431,6 +12675,11 @@ object MaterialIconMappings {
         "-repositories" to "folder-repository-open",
         "__repositories__" to "folder-repository-open",
         "repo" to "folder-repository-open",
+    )
+}
+
+private object MMFolderExp17 {
+    val m: Map<String, String> = mapOf(
         ".repo" to "folder-repository-open",
         "_repo" to "folder-repository-open",
         "-repo" to "folder-repository-open",
@@ -12681,6 +12930,11 @@ object MaterialIconMappings {
         "-simulation" to "folder-simulations-open",
         "__simulation__" to "folder-simulations-open",
         "sim" to "folder-simulations-open",
+    )
+}
+
+private object MMFolderExp18 {
+    val m: Map<String, String> = mapOf(
         ".sim" to "folder-simulations-open",
         "_sim" to "folder-simulations-open",
         "-sim" to "folder-simulations-open",
@@ -12836,12 +13090,26 @@ object MaterialIconMappings {
         "-redislabs" to "folder-redis-open",
         "__redislabs__" to "folder-redis-open",
     )
+}
+
+object MaterialIconMappings {
+    private var _fileExtensions: Map<String, String>? = null
+    val fileExtensions: Map<String, String> get() = _fileExtensions ?: (MMExt0.m + MMExt1.m + MMExt2.m + MMExt3.m + MMExt4.m + MMExt5.m).also { _fileExtensions = it }
+
+    private var _fileNames: Map<String, String>? = null
+    val fileNames: Map<String, String> get() = _fileNames ?: (MMName0.m + MMName1.m + MMName2.m + MMName3.m + MMName4.m + MMName5.m + MMName6.m + MMName7.m + MMName8.m).also { _fileNames = it }
+
+    private var _folderNames: Map<String, String>? = null
+    val folderNames: Map<String, String> get() = _folderNames ?: (MMFolder0.m + MMFolder1.m + MMFolder2.m + MMFolder3.m + MMFolder4.m + MMFolder5.m + MMFolder6.m + MMFolder7.m + MMFolder8.m + MMFolder9.m + MMFolder10.m + MMFolder11.m + MMFolder12.m + MMFolder13.m + MMFolder14.m + MMFolder15.m + MMFolder16.m + MMFolder17.m + MMFolder18.m).also { _folderNames = it }
+
+    private var _folderNamesExpanded: Map<String, String>? = null
+    val folderNamesExpanded: Map<String, String> get() = _folderNamesExpanded ?: (MMFolderExp0.m + MMFolderExp1.m + MMFolderExp2.m + MMFolderExp3.m + MMFolderExp4.m + MMFolderExp5.m + MMFolderExp6.m + MMFolderExp7.m + MMFolderExp8.m + MMFolderExp9.m + MMFolderExp10.m + MMFolderExp11.m + MMFolderExp12.m + MMFolderExp13.m + MMFolderExp14.m + MMFolderExp15.m + MMFolderExp16.m + MMFolderExp17.m + MMFolderExp18.m).also { _folderNamesExpanded = it }
 
     /** Material icon name for a file name ('' when unmapped). */
     fun iconFor(fileName: String): String {
         fileNames[fileName]?.let { return it }
         val i = fileName.lastIndexOf('.')
         if (i > 0) fileExtensions[fileName.substring(i + 1)]?.let { return it }
-        return ""
+        return 
     }
 }
