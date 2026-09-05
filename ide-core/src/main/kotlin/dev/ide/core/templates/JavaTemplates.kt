@@ -81,7 +81,7 @@ object JavaLibraryTemplate : ProjectTemplate {
     override val displayName = "Java Library"
     override val description = "A reusable Java library module with no entry point."
     override val category = TemplateCategory.JAVA
-    override val iconId = "module"
+    override val iconId = "java"
 
     override fun parameters(): List<TemplateParameter> = emptyList()
 

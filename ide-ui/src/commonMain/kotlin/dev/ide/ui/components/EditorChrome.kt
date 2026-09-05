@@ -1251,7 +1251,7 @@ private fun TabFileIcon(name: String) {
         is TreeIcon.Glyph -> BrandIcon(ic.image, ic.tint, Modifier.size(15.dp))
         is TreeIcon.Folder -> BrandIcon(ic.closed, ic.tint, Modifier.size(15.dp))
         is TreeIcon.Badge -> LetterBadge(ic.text, ic.color, 15)
-        is TreeIcon.Vector -> Icon(ic.image, null, Modifier.size(15.dp))
+        is TreeIcon.Vector -> Icon(ic.image, null, Modifier.size(15.dp), tint = Color.Unspecified)
     }
 }
 

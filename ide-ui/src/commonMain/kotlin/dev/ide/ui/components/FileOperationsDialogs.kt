@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.ide.ui.backend.NodeKind
@@ -269,7 +270,7 @@ private fun EntryIcon(iconId: String) {
         is TreeIcon.Glyph -> BrandIcon(ic.image, ic.tint, Modifier.size(17.dp))
         is TreeIcon.Folder -> BrandIcon(ic.closed, ic.tint, Modifier.size(17.dp))
         is TreeIcon.Badge -> LetterBadge(ic.text, ic.color, 17)
-        is TreeIcon.Vector -> Icon(ic.image, null, Modifier.size(17.dp))
+        is TreeIcon.Vector -> Icon(ic.image, null, Modifier.size(17.dp), tint = Color.Unspecified)
     }
 }
 

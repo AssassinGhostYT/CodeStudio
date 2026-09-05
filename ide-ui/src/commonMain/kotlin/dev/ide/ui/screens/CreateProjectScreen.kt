@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -353,7 +354,7 @@ private fun TemplateGlyph(iconId: String) {
             is TreeIcon.Glyph -> BrandIcon(ic.image, ic.tint, Modifier.size(24.dp))
             is TreeIcon.Folder -> BrandIcon(ic.closed, ic.tint, Modifier.size(24.dp))
             is TreeIcon.Badge -> Text(ic.text, color = ic.color, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            is TreeIcon.Vector -> Icon(ic.image, null, Modifier.size(24.dp))
+            is TreeIcon.Vector -> Icon(ic.image, null, Modifier.size(24.dp), tint = Color.Unspecified)
         }
     }
 }

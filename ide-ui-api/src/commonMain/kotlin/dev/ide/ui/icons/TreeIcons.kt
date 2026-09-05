@@ -49,12 +49,27 @@ object TreeIcons {
     /** Register (or override) the icon for [iconId]. */
     fun register(iconId: String, icon: TreeIcon) { registry[iconId] = icon }
 
+    /**
+     * Material Icon Theme names that we ship as hand-tuned [BrandIcons] glyphs instead of the
+     * generated `vectorPaths` (the SVG→path converter mangled arcs/relative commands for these).
+     * Backend `mat:<name>` ids must resolve to the same brand glyph the legacy id uses.
+     */
+    private val brandByMaterialName = mapOf(
+        "java" to "java",
+        "kotlin" to "kotlin",
+        "xml" to "xml",
+        "dart" to "dart",
+        "flutter" to "flutter",
+    )
+
     /** The icon for [iconId], or a muted file glyph if none is registered — material icons are built
      *  lazily from the generated theme data (ids `mat:<icon>` and `mat-folder:<name>`). */
     fun resolve(iconId: String): TreeIcon {
         registry[iconId]?.let { return it }
         if (MaterialIcons.isFile(iconId)) {
-            MaterialIcons.file(iconId.removePrefix(MaterialIcons.FILE_PREFIX))?.let { return TreeIcon.Vector(it) }
+            val name = iconId.removePrefix(MaterialIcons.FILE_PREFIX)
+            brandByMaterialName[name]?.let { brandId -> registry[brandId]?.let { return it } }
+            MaterialIcons.file(name)?.let { return TreeIcon.Vector(it) }
         }
         if (MaterialIcons.isFolder(iconId)) {
             val name = iconId.removePrefix(MaterialIcons.FOLDER_PREFIX)
@@ -124,6 +139,8 @@ object TreeIcons {
      * (templates, curated nodes). Unavailable icons keep their existing fallback.
      */
     private fun registerThemeIcons() {
+        // Keep hand-tuned BrandIcons for these ids — do not replace with generated theme vectors.
+        val keepBrand = brandByMaterialName.keys
         for ((iconId, ext) in mapOf(
             "java" to "java", "kotlin" to "kt", "xml" to "xml", "json" to "json", "toml" to "toml",
             "yaml" to "yml", "gradle" to "gradle", "markdown" to "md", "properties" to "properties",
@@ -140,6 +157,7 @@ object TreeIcons {
             "settings" to "ini", "console" to "cmd", "database" to "sql", "jar" to "jar",
             "dll" to "dll", "exe" to "exe", "svg" to "svg", "image" to "png", "android" to "apk",
         )) {
+            if (iconId in keepBrand) continue
             val name = MaterialIconThemeData.fileExtensions[ext] ?: continue
             MaterialIcons.file(name)?.let { register(iconId, TreeIcon.Vector(it)) }
         }

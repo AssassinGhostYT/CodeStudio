@@ -60,7 +60,7 @@ object DartConsoleAppTemplate : ProjectTemplate {
     override val displayName = "Dart Console App"
     override val description = "A runnable command-line Dart application with a main() entry point."
     override val category = TemplateCategory.DART
-    override val iconId = "module"
+    override val iconId = "dart"
 
     override fun parameters(): List<TemplateParameter> = emptyList()
 
@@ -168,7 +168,7 @@ object FlutterAppTemplate : ProjectTemplate {
     override val displayName = "Flutter App"
     override val description = "A modern Flutter application with MaterialApp, Android/iOS configurations and Widget structure."
     override val category = TemplateCategory.DART
-    override val iconId = "module"
+    override val iconId = "flutter"
 
     override fun parameters(): List<TemplateParameter> = emptyList()
 
