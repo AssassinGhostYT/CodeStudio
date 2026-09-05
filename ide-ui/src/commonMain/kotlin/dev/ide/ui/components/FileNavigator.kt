@@ -1015,7 +1015,10 @@ private fun NodeIcon(node: TreeNode, open: Boolean) {
         )
 
         is TreeIcon.Badge -> LetterBadge(ic.text, ic.color, 17)
-        is TreeIcon.Vector -> Icon(ic.image, null, Modifier.size(17.dp))
+        // Vector icons (Material Icon Theme) bake brand colors into each path via SolidColor(p.color).
+        // tint = Color.Unspecified skips the M3 default LocalContentColor tint so the baked colors come
+        // through unchanged. Without this, every theme icon renders in the row's text color.
+        is TreeIcon.Vector -> Icon(ic.image, null, Modifier.size(17.dp), tint = Color.Unspecified)
     }
 }
 

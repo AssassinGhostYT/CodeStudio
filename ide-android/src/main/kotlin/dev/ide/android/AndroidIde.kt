@@ -123,7 +123,10 @@ object AndroidIde {
         // Toolbar's Terminal button now toggles this panel directly; if it ever stalls again, the
         // fallback in MainActivity.onOpenTerminal still launches com.termux.app.TermuxActivity via
         // Intent (the real, known-working shell from F-Droid/Play).
-        dev.ide.android.Terminal.TerminalPlugin.install(appContext)
+        // Ubuntu/proot terminal disabled — the editor toolbar's Terminal button falls back to the Termux
+        // Intent launcher in MainActivity.onOpenTerminal (logs-only when Termux isn't installed). Remove
+        // this comment + the Terminal directory + the Termux deps from build.gradle.kts to fully purge.
+        // dev.ide.android.Terminal.TerminalPlugin.install(appContext)
         // cold_start: time the whole on-device bootstrap (asset copy + project load + engine init). Emitted
         // once per launch for users who consented; no-op otherwise. Also serves as the per-launch anchor.
         if (backend.diagnostics.analyticsConsent() == true) {

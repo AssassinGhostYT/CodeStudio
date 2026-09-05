@@ -36,7 +36,10 @@ object AssetIconCatalog {
                         .removePrefix("baseline_")
                         .removeSuffix("_24")
                         .replace("_", " ")
-                    val xml = zip.bufferedReader().use { it.readText() }
+                    // Read bytes directly: wrapping the ZipInputStream in a Reader (bufferedReader())
+                    // closes the underlying stream when the Reader closes, so nextEntry() returns null
+                    // after the first entry — leaving the catalog empty.
+                    val xml = zip.readBytes().toString(Charsets.UTF_8)
                     if (xml.isNotBlank()) {
                         result.add(UiCatalogIcon(name = cleanName, xml = xml))
                     }
