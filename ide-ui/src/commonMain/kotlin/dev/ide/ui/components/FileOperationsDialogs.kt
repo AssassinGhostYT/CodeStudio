@@ -269,6 +269,7 @@ private fun EntryIcon(iconId: String) {
         is TreeIcon.Glyph -> BrandIcon(ic.image, ic.tint, Modifier.size(17.dp))
         is TreeIcon.Folder -> BrandIcon(ic.closed, ic.tint, Modifier.size(17.dp))
         is TreeIcon.Badge -> LetterBadge(ic.text, ic.color, 17)
+        is TreeIcon.Vector -> Icon(ic.image, null, Modifier.size(17.dp))
     }
 }
 

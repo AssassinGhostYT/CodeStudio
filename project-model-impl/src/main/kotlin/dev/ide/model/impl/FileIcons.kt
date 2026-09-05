@@ -32,24 +32,31 @@ object DefaultFileIconProvider : FileIconProvider {
     override val priority: Int get() = 0
 
     override fun iconFor(target: IconTarget): String = when (target) {
-        is IconTarget.File -> when {
-            // Exact-name matches first (they'd otherwise be caught by an extension rule).
-            target.fileName == ".gitignore" || target.fileName == ".gitattributes" ||
-                target.fileName == ".gitmodules" || target.fileName == ".gitkeep" -> "git"
-            target.fileName == ".editorconfig" -> "editorconfig"
-            target.fileName.endsWith(".java") -> "java"
-            target.fileName.endsWith(".kt") || target.fileName.endsWith(".kts") -> "kotlin"
-            target.fileName.endsWith(".gradle") -> "gradle"
-            target.fileName.endsWith(".xml") -> "xml"
-            target.fileName.endsWith(".json") -> "json"
-            target.fileName.endsWith(".toml") -> "toml"
-            target.fileName.endsWith(".yaml") || target.fileName.endsWith(".yml") -> "yaml"
-            target.fileName.endsWith(".properties") -> "properties"
-            target.fileName.endsWith(".md") || target.fileName.endsWith(".markdown") -> "markdown"
-            target.fileName.endsWith(".txt") || target.fileName.endsWith(".log") -> "text"
-            target.fileName.endsWith(".png") || target.fileName.endsWith(".jpg") || target.fileName.endsWith(".jpeg") ||
-                target.fileName.endsWith(".gif") || target.fileName.endsWith(".webp") || target.fileName.endsWith(".svg") -> "image"
-            else -> "file"
+        is IconTarget.File -> {
+            // The Material Icon Theme (Philipp Kief) maps filenames and extensions to brand icons
+            // (`mat:<iconName>`); the UI resolves those into the theme's vectors. Files the theme
+            // doesn't know fall back to the legacy typed ids.
+            val material = MaterialIconMappings.iconFor(target.fileName)
+            if (material.isNotEmpty()) "mat:$material"
+            else when {
+                // Exact-name matches first (they'd otherwise be caught by an extension rule).
+                target.fileName == ".gitignore" || target.fileName == ".gitattributes" ||
+                    target.fileName == ".gitmodules" || target.fileName == ".gitkeep" -> "git"
+                target.fileName == ".editorconfig" -> "editorconfig"
+                target.fileName.endsWith(".java") -> "java"
+                target.fileName.endsWith(".kt") || target.fileName.endsWith(".kts") -> "kotlin"
+                target.fileName.endsWith(".gradle") -> "gradle"
+                target.fileName.endsWith(".xml") -> "xml"
+                target.fileName.endsWith(".json") -> "json"
+                target.fileName.endsWith(".toml") -> "toml"
+                target.fileName.endsWith(".yaml") || target.fileName.endsWith(".yml") -> "yaml"
+                target.fileName.endsWith(".properties") -> "properties"
+                target.fileName.endsWith(".md") || target.fileName.endsWith(".markdown") -> "markdown"
+                target.fileName.endsWith(".txt") || target.fileName.endsWith(".log") -> "text"
+                target.fileName.endsWith(".png") || target.fileName.endsWith(".jpg") || target.fileName.endsWith(".jpeg") ||
+                    target.fileName.endsWith(".gif") || target.fileName.endsWith(".webp") || target.fileName.endsWith(".svg") -> "image"
+                else -> "file"
+            }
         }
         is IconTarget.SourceRoot -> when {
             ContentRole.GENERATED in target.roles -> "sourceset.generated"
@@ -59,7 +66,10 @@ object DefaultFileIconProvider : FileIconProvider {
             else -> "sourceset.java"
         }
         is IconTarget.PackageDir -> "package"
-        is IconTarget.Directory -> "folder"
+        is IconTarget.Directory ->
+            // The theme's named folder icons (`folder-rust`, `folder-android`, …) beat the generic one.
+            if (target.name.isNotEmpty() && target.name in MaterialIconMappings.folderNames) "mat-folder:${target.name}"
+            else "folder"
         is IconTarget.ModuleNode -> "module"
     }
 }

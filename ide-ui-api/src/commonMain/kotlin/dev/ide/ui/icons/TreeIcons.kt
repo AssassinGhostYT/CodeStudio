@@ -12,6 +12,8 @@ sealed interface TreeIcon {
     data class Folder(val closed: ImageVector, val open: ImageVector, val tint: IconTint = IconTint.Secondary) : TreeIcon
     /** A letter-in-rounded-square badge in a fixed [color] (e.g. "J" for Java). */
     data class Badge(val text: String, val color: Color) : TreeIcon
+    /** A fully-colored vector (a Material Icon Theme icon) — already carries its own brand colors. */
+    data class Vector(val image: ImageVector) : TreeIcon
 }
 
 /**
@@ -27,7 +29,10 @@ sealed interface IconTint {
     object Warning : IconTint
     object Error : IconTint
     object Info : IconTint
+    /** The icon already carries its own brand colors; renderers must not tint it. */
     object Original : IconTint
+    /** Same as [Original] — material theme vectors ship their own brand colors. */
+    object None : IconTint
     data class Fixed(val color: Color) : IconTint
 }
 
@@ -44,8 +49,23 @@ object TreeIcons {
     /** Register (or override) the icon for [iconId]. */
     fun register(iconId: String, icon: TreeIcon) { registry[iconId] = icon }
 
-    /** The icon for [iconId], or a muted file glyph if none is registered. */
-    fun resolve(iconId: String): TreeIcon = registry[iconId] ?: fallback
+    /** The icon for [iconId], or a muted file glyph if none is registered — material icons are built
+     *  lazily from the generated theme data (ids `mat:<icon>` and `mat-folder:<name>`). */
+    fun resolve(iconId: String): TreeIcon {
+        registry[iconId]?.let { return it }
+        if (MaterialIcons.isFile(iconId)) {
+            MaterialIcons.file(iconId.removePrefix(MaterialIcons.FILE_PREFIX))?.let { return TreeIcon.Vector(it) }
+        }
+        if (MaterialIcons.isFolder(iconId)) {
+            val name = iconId.removePrefix(MaterialIcons.FOLDER_PREFIX)
+            MaterialIcons.folder(name, open = false)?.let { closed ->
+                MaterialIcons.folder(name, open = true)?.let { open ->
+                    return TreeIcon.Folder(closed, open, IconTint.None)
+                }
+            }
+        }
+        return fallback
+    }
 
     /** Android brand green — android modules, `res/`, and the manifest. */
     private val androidGreen = Color(0xFF3DDC84)
@@ -93,6 +113,48 @@ object TreeIcons {
         // Groovy Gradle scripts (a `.gradle.kts` shows as Kotlin) + VCS metadata.
         register("gradle", TreeIcon.Badge("G", Color(0xFF6BA84F)))
         register("git", TreeIcon.Glyph(CaIcons.gitBranch, IconTint.Fixed(Color(0xFFDE6E43))))
+        registerThemeIcons()
+    }
+
+    /**
+     * The Material Icon Theme (Philipp Kief) brand icons replace the letter badges/glyphs for every
+     * language this IDE knows — a tree, tab, breadcrumb or template card that resolves a legacy language
+     * id gets the real icon (`kotlin`, `java`, `xml`, `dart`, …). The engine's default provider already
+     * returns `mat:<icon>` ids for arbitrary files; this only upgrades the ids the UI itself still emits
+     * (templates, curated nodes). Unavailable icons keep their existing fallback.
+     */
+    private fun registerThemeIcons() {
+        for ((iconId, ext) in mapOf(
+            "java" to "java", "kotlin" to "kt", "xml" to "xml", "json" to "json", "toml" to "toml",
+            "yaml" to "yml", "gradle" to "gradle", "markdown" to "md", "properties" to "properties",
+            "dart" to "dart", "ai" to "ai", "ts" to "ts", "js" to "js", "html" to "html", "css" to "css",
+            "scss" to "scss", "go" to "go", "rust" to "rs", "python" to "py", "sql" to "sql",
+            "swift" to "swift", "objective-c" to "m", "php" to "php", "sh" to "sh", "bat" to "bat",
+            "zip" to "zip", "apk" to "apk", "dockerfile" to "dockerfile", "c" to "c", "h" to "h",
+            "cpp" to "cpp", "hpp" to "hpp", "csharp" to "cs", "fsharp" to "fs", "r" to "r",
+            "julia" to "julia", "haskell" to "hs", "elixir" to "ex", "erlang" to "erl", "lua" to "lua",
+            "clojure" to "clj", "scala" to "scala", "groovy" to "groovy", "ruby" to "rb",
+            "perl" to "pl", "zig" to "zig", "vim" to "vim", "vue" to "vue", "svelte" to "svelte",
+            "react" to "jsx", "react_ts" to "tsx", "powershell" to "ps1", "terra" to "tf",
+            "hcl" to "hcl", "tex" to "tex", "bib" to "bib", "fortran" to "f", "visualstudio" to "vb",
+            "settings" to "ini", "console" to "cmd", "database" to "sql", "jar" to "jar",
+            "dll" to "dll", "exe" to "exe", "svg" to "svg", "image" to "png", "android" to "apk",
+        )) {
+            val name = MaterialIconThemeData.fileExtensions[ext] ?: continue
+            MaterialIcons.file(name)?.let { register(iconId, TreeIcon.Vector(it)) }
+        }
+        MaterialIconThemeData.fileNames[".editorconfig"]?.let { n ->
+            MaterialIcons.file(n)?.let { register("editorconfig", TreeIcon.Vector(it)) }
+        }
+        MaterialIconThemeData.fileNames[".gitignore"]?.let { n ->
+            MaterialIcons.file(n)?.let { register("git", TreeIcon.Vector(it)) }
+        }
+        MaterialIcons.file("folder")?.let { closed ->
+            MaterialIcons.file("folder-open")?.let { open ->
+                register("folder", TreeIcon.Folder(closed, open, IconTint.None))
+            }
+        }
+        MaterialIcons.file("file")?.let { register("file", TreeIcon.Vector(it)) }
     }
 }
 
@@ -105,24 +167,23 @@ object TreeIcons {
  * through [TreeIcons.resolve].
  */
 fun fileIconId(fileName: String): String = when {
-    // Exact-name matches first (they'd otherwise be caught by an extension rule, e.g. AndroidManifest → xml).
+    // Android brand rules first — they match AndroidFileIconProvider (priority 100) beating the themes below.
     fileName == "AndroidManifest.xml" -> "manifest"
-    fileName == ".gitignore" || fileName == ".gitattributes" || fileName == ".gitmodules" || fileName == ".gitkeep" -> "git"
-    fileName == ".editorconfig" -> "editorconfig"
     fileName.endsWith(".pro") -> "proguard"
-    fileName.endsWith(".java") -> "java"
-    fileName.endsWith(".kt") || fileName.endsWith(".kts") -> "kotlin"
-    fileName.endsWith(".dart") -> "dart"
-    fileName.endsWith(".flutter") -> "flutter"
-    fileName.endsWith(".gradle") -> "gradle"
-    fileName.endsWith(".xml") -> "xml"
-    fileName.endsWith(".json") -> "json"
-    fileName.endsWith(".toml") -> "toml"
-    fileName.endsWith(".yaml") || fileName.endsWith(".yml") -> "yaml"
-    fileName.endsWith(".properties") -> "properties"
-    fileName.endsWith(".md") || fileName.endsWith(".markdown") -> "markdown"
-    fileName.endsWith(".txt") || fileName.endsWith(".log") -> "text"
-    fileName.endsWith(".png") || fileName.endsWith(".jpg") || fileName.endsWith(".jpeg") ||
-        fileName.endsWith(".gif") || fileName.endsWith(".webp") || fileName.endsWith(".svg") -> "image"
-    else -> "file"
+    // The Material Icon Theme wins for everything it maps: exact names (Dockerfile, .gitignore...) first,
+    // then extensions (.kt → kotlin, .dart → dart, .xml → xml, ...), else the legacy typed ids.
+    MaterialIconThemeData.fileNames.containsKey(fileName) -> MaterialIcons.FILE_PREFIX + MaterialIconThemeData.fileNames.getValue(fileName)
+    fileName.lastIndexOf('.') > 0 && MaterialIconThemeData.fileExtensions.containsKey(fileName.substringAfterLast('.')) ->
+        MaterialIcons.FILE_PREFIX + MaterialIconThemeData.fileExtensions.getValue(fileName.substringAfterLast('.'))
+    else -> when {
+        // Legacy fallbacks, only for formats the theme doesn't cover (generic text/binary sorts, flutter).
+        fileName == ".editorconfig" -> "editorconfig"
+        fileName.endsWith(".dart") -> "dart"
+        fileName.endsWith(".flutter") -> "flutter"
+        fileName.endsWith(".gradle") -> "gradle"
+        fileName.endsWith(".txt") || fileName.endsWith(".log") -> "text"
+        fileName.endsWith(".png") || fileName.endsWith(".jpg") || fileName.endsWith(".jpeg") ||
+            fileName.endsWith(".gif") || fileName.endsWith(".webp") || fileName.endsWith(".svg") -> "image"
+        else -> "file"
+    }
 }

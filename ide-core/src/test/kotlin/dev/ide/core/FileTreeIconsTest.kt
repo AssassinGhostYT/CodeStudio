@@ -24,8 +24,8 @@ class FileTreeIconsTest {
             val backend = IdeServicesBackend(ide)
             val nodes = flatten(backend.files.fileTree())
 
-            // (a) a .java file gets the Java badge id.
-            assertEquals("java", nodes.first { it.name == "Greeter.java" }.iconId)
+            // (a) a .java file gets the Material Icon Theme's Java brand icon id.
+            assertEquals("mat:java", nodes.first { it.name == "Greeter.java" }.iconId)
 
             // (b) the main Java source root gets the java source-set id and carries its path (a new-class target).
             val srcRoot = nodes.first { it.kind == NodeKind.SourceRoot && it.name.endsWith("src/main/java") }
@@ -57,8 +57,8 @@ class FileTreeIconsTest {
             // It appears as a direct child of the workspace node (not only under the All-Files view)...
             val readme = root.children.firstOrNull { it.name == "README.md" }
             assertNotNull(readme, "a workspace-root README.md must be visible in the Project tree")
-            // ...with the Markdown icon and an openable file path.
-            assertEquals("markdown", readme.iconId)
+            // ...with the Material Icon Theme's Markdown icon and an openable file path.
+            assertEquals("mat:markdown", readme.iconId)
             assertEquals(NodeKind.File, readme.kind)
             assertNotNull(readme.filePath)
         }

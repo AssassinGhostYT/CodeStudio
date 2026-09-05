@@ -24,6 +24,8 @@ fun resolveTint(tint: IconTint): Color = when (tint) {
     IconTint.Info -> Ca.colors.info
     IconTint.Original -> Color.Unspecified
     is IconTint.Fixed -> tint.color
+    // The icon already carries its own brand colors; Unspecified makes Icon() skip the color filter.
+    IconTint.None -> Color.Unspecified
 }
 
 /**

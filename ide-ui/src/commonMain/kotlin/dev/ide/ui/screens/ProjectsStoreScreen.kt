@@ -537,6 +537,7 @@ private fun StoreGlyph(
                 if (tint != null) Icon(ic.closed, null, Modifier.size(glyph), tint = tint)
                 else BrandIcon(ic.closed, ic.tint, Modifier.size(glyph))
             is TreeIcon.Badge -> Text(ic.text, color = tint ?: ic.color, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            is TreeIcon.Vector -> Icon(ic.image, null, Modifier.size(glyph))
         }
     }
 }

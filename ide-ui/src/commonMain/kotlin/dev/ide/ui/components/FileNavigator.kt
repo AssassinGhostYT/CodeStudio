@@ -1015,6 +1015,7 @@ private fun NodeIcon(node: TreeNode, open: Boolean) {
         )
 
         is TreeIcon.Badge -> LetterBadge(ic.text, ic.color, 17)
+        is TreeIcon.Vector -> Icon(ic.image, null, Modifier.size(17.dp))
     }
 }
 
