@@ -110,7 +110,7 @@ class OpenCodePhase1Test {
     fun `5 - RootFSManager isolates subdirectories under files opencode`() {
         val dirs = RootFSManager.validateAndEnsureIsolatedDirectories(tempDir)
         assertTrue(dirs["staging"]!!.absolutePath.contains("opencode"))
-        assertTrue(dirs["rootfs"]!!.exists())
+        assertTrue(dirs["root"]!!.exists())
     }
 
     @Test
@@ -118,7 +118,8 @@ class OpenCodePhase1Test {
         val spec = AgentLauncher.buildInertProcessSpec(tempDir, "proj_1", 4098)
         assertEquals(4098, spec.targetPort)
         assertEquals("127.0.0.1", spec.commandArgs.last())
-        assertTrue(spec.executable.endsWith("proot"))
+        assertTrue(spec.executable.endsWith("opencode"))
+        assertTrue(spec.bindMounts.isEmpty())
     }
 
     @Test
@@ -135,16 +136,11 @@ class OpenCodePhase1Test {
     }
 
     @Test
-    fun `6c - AgentLauncher binds host resolv-conf when present`() {
-        val resolvConf = File("/etc/resolv.conf")
-        if (!resolvConf.exists()) {
-            return  // host without resolv.conf: nothing to bind, parity with old behaviour
-        }
+    fun `6c - AgentLauncher runs opencode directly without proot sandbox`() {
         val spec = AgentLauncher.buildInertProcessSpec(tempDir, "proj_1", 4098)
-        val bindArgs = spec.commandArgs.indices.filter { spec.commandArgs[it] == "-b" }
-            .map { spec.commandArgs[it + 1] }
-        assertTrue(bindArgs.contains("/etc/resolv.conf"))
-        assertTrue(spec.bindMounts.contains("/etc/resolv.conf"))
+        assertFalse("-r" in spec.commandArgs)
+        assertFalse("-b" in spec.commandArgs)
+        assertTrue(spec.bindMounts.isEmpty())
     }
 
     @Test

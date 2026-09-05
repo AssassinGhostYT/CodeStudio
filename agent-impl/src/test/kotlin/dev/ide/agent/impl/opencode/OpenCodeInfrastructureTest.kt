@@ -195,7 +195,7 @@ class OpenCodeInfrastructureTest {
         val report = OpenCodeRuntimeDiagnostics.runDiagnostic(tempFolder)
         assertTrue(report.architecture.isNotEmpty())
         assertFalse(report.isReadyForManualRuntimeTest, "Empty directory cannot be ready")
-        assertTrue(report.missingComponents.size >= 8)
+        assertTrue(report.missingComponents.size >= 6)
     }
 
     @Test
@@ -213,21 +213,9 @@ class OpenCodeInfrastructureTest {
     // --- NEW PHASE 3B TESTS ---
 
     @Test
-    fun `20 - Diagnostic reports missing proot`() {
-        val report = OpenCodeRuntimeDiagnostics.runDiagnostic(tempFolder)
-        assertTrue(report.missingComponents.contains("runtime/proot"))
-    }
-
-    @Test
     fun `21 - Diagnostic reports missing busybox`() {
         val report = OpenCodeRuntimeDiagnostics.runDiagnostic(tempFolder)
         assertTrue(report.missingComponents.contains("runtime/busybox"))
-    }
-
-    @Test
-    fun `22 - Diagnostic reports missing rootfs`() {
-        val report = OpenCodeRuntimeDiagnostics.runDiagnostic(tempFolder)
-        assertTrue(report.missingComponents.contains("runtime/rootfs"))
     }
 
     @Test
@@ -272,13 +260,13 @@ class OpenCodeInfrastructureTest {
     fun `26 - Diagnostic handles unexecutable file gracefully`() {
         val paths = OpenCodePaths(tempFolder)
         paths.ensureDirectories()
-        val dummyBin = paths.resolveSubPath("runtime/proot")
+        val dummyBin = paths.resolveSubPath("runtime/busybox")
         dummyBin.parentFile.mkdirs()
-        dummyBin.writeText("proot stub")
+        dummyBin.writeText("busybox stub")
         dummyBin.setExecutable(false)
 
         val report = OpenCodeRuntimeDiagnostics.runDiagnostic(tempFolder)
-        val status = report.components.find { it.componentName == "runtime/proot" }
+        val status = report.components.find { it.componentName == "runtime/busybox" }
 
         assertNotNull(status)
         assertTrue(status!!.exists)

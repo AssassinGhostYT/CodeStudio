@@ -48,9 +48,7 @@ object OpenCodeRuntimeDiagnostics {
         val warnings = mutableListOf<String>()
 
         val expectedItems = listOf(
-            "runtime/proot" to false,
             "runtime/busybox" to false,
-            "runtime/rootfs" to true,
             "agents/opencode/1.18.18/opencode" to false,
             "state/projects" to true,
             "logs" to true,

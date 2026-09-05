@@ -21,8 +21,6 @@ object AgentLauncher {
     ): ProcessSpec {
         val paths = OpenCodePaths(baseFilesDir)
         val projectState = paths.projectStateDir(projectId)
-        val prootBin = File(paths.runtimeDir, "proot").absolutePath
-        val rootfsDir = File(paths.runtimeDir, "rootfs").absolutePath
         val agentBin = File(paths.resolveSubPath("agents/opencode/1.18.18"), "opencode").absolutePath
 
         // A fixed, persisted port keeps the opencode web origin (host:port) stable across restarts;
@@ -49,31 +47,14 @@ object AgentLauncher {
         }
         val env = envMutable.toMap()
 
-        // Network bindings the sandbox needs to reach the LLM gateway (opencode.ai/zen/v1):
-        // DNS (resolv.conf/hosts) and the TLS trust store. Bound only when present on the host so a
-        // device without them keeps the previous behaviour instead of failing proot startup.
-        val networkBinds = listOf("/etc/resolv.conf", "/etc/hosts", "/etc/ssl")
-            .filter { File(it).exists() }
-
-        val binds = listOf(
-            "/sys", "/dev", "/proc", "/data", "/mnt"
-        ) + networkBinds
-
-        val args = mutableListOf(
-            "-r", rootfsDir,
-            "-b", "/proc",
-            "-b", "/sys",
-            "-b", "/dev"
-        )
-        networkBinds.forEach { args.addAll(listOf("-b", it)) }
-        args.addAll(listOf(agentBin, "web", "--port", effectivePort.toString(), "--hostname", "127.0.0.1"))
+        val args = mutableListOf(agentBin, "web", "--port", effectivePort.toString(), "--hostname", "127.0.0.1")
 
         return ProcessSpec(
-            executable = prootBin,
+            executable = agentBin,
             commandArgs = args,
             environment = env,
             workingDirectory = paths.tmpDir.absolutePath,
-            bindMounts = binds,
+            bindMounts = emptyList(),
             targetPort = effectivePort
         )
     }

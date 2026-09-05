@@ -21,7 +21,7 @@
             "sourceUrl": "https://github.com/anomalyco/opencode/releases/tag/v1.17.8",
             "verified": true,
             "verificationStatus": "verified",
-            "dependencies": ["glibc", "proot", "ubuntu-aarch64-rootfs"],
+            "dependencies": [],
             "relativePath": "agents/opencode/1.17.8/opencode",
             "cmd": "./opencode",
             "args": ["web"]
