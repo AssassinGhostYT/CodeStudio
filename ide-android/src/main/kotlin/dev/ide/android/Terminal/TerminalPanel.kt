@@ -24,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,35 +43,42 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun TerminalPanel() {
-    val engine = TerminalEngine
+    var termuxMode by rememberSaveable { mutableStateOf(false) }
+    val engine: TerminalRuntime = if (termuxMode) TermuxRuntime else TerminalEngine
     val setup by engine.setup.collectAsState()
     val running by engine.running.collectAsState()
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(termuxMode) {
         scope.launch {
+            // Stop the engine we left before (re)starting the selected one.
+            (if (termuxMode) TerminalEngine else TermuxRuntime).stopSession()
             engine.ensureReady()
-            if (engine.setup.value is TerminalEngine.SetupState.Ready) engine.startSession()
+            if (engine.setup.value is TerminalSetupState.Ready) engine.startSession()
         }
     }
 
     androidx.compose.material3.Surface(color = Color(0xFF0D1117), modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                EngineChip("Alpine", selected = !termuxMode) { termuxMode = false }
+                EngineChip("Termux", selected = termuxMode) { termuxMode = true }
+            }
             when (val s = setup) {
-                TerminalEngine.SetupState.Idle -> StatusLine("Initializing…")
-                is TerminalEngine.SetupState.Downloading -> StatusLine(s.label)
-                TerminalEngine.SetupState.Extracting -> StatusLine("Extracting rootfs…")
-                is TerminalEngine.SetupState.Failed -> {
+                TerminalSetupState.Idle -> StatusLine("Initializing…")
+                is TerminalSetupState.Downloading -> StatusLine(s.label)
+                TerminalSetupState.Extracting -> StatusLine("Extracting rootfs…")
+                is TerminalSetupState.Failed -> {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         StatusLine(s.message, error = true)
-                        IconButton(onClick = { scope.launch { engine.ensureReady() } }) {
+                        IconButton(onClick = { scope.launch { engine.ensureReady(); if (engine.setup.value is TerminalSetupState.Ready) engine.startSession() } }) {
                             Icon(CaIcons.refresh, "Retry", tint = MaterialTheme.colorScheme.error)
                         }
                     }
                 }
-                TerminalEngine.SetupState.Ready -> Unit
+                TerminalSetupState.Ready -> Unit
             }
-            if (setup is TerminalEngine.SetupState.Ready) {
+            if (setup is TerminalSetupState.Ready) {
                 Box(Modifier.weight(1f).fillMaxWidth().background(Color.Black, RoundedCornerShape(8.dp)).border(1.dp, Color(0xFF30363D), RoundedCornerShape(8.dp))) {
                     if (running && engine.session != null) {
                         TermView(engine.session!!)
@@ -137,6 +145,26 @@ private fun TermView(session: TerminalSession) {
 @Composable
 private fun StatusLine(text: String, error: Boolean = false) {
     Text(text, color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 6.dp))
+}
+
+@Composable
+private fun EngineChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (selected) Color(0xFF1F6FEB) else Color(0xFF161B22))
+            .border(1.dp, if (selected) Color(0xFF1F6FEB) else Color(0xFF30363D), RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Text(
+            label,
+            color = if (selected) Color.White else Color(0xFF8B949E),
+            fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace,
+        )
+    }
 }
 
 @Composable

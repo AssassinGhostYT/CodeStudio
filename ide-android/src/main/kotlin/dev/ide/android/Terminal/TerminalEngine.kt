@@ -48,38 +48,29 @@ import java.util.zip.GZIPInputStream
  * `TerminalPlugin.kt` keep working without edits):
  *   - `init(context)` — registers the application context (idempotent).
  *   - `ensureReady(onProgress)` — extracts the rootfs on first run, sets up scripts, signals
- *     `SetupState.Ready`. Skipped if already Ready.
+ *     `TerminalSetupState.Ready`. Skipped if already Ready.
  *   - `setup: StateFlow<SetupState>` — observed by the panel for status display.
  *   - `running: StateFlow<Boolean>` — true while a session is alive.
  *   - `session: TerminalSession?` — the vendored `:termux:emulator`'s `TerminalSession` driving the view.
  *   - `startSession(cols, rows)` — wires up the session after Ready.
  *   - `writeCommand(line)`, `stopSession()` — convenience.
  */
-object TerminalEngine : TerminalSessionClient {
+object TerminalEngine : TerminalSessionClient, TerminalRuntime {
 
     private const val TAG = "TerminalEngine"
 
-    // Public API names that `TerminalPanel.kt` switches over — keep stable across rewrites.
-    sealed interface SetupState {
-        data object Idle : SetupState
-        data class Downloading(val label: String) : SetupState
-        data object Extracting : SetupState
-        data object Ready : SetupState
-        data class Failed(val message: String) : SetupState
-    }
-
-    private val _setup = MutableStateFlow<SetupState>(SetupState.Idle)
-    val setup: StateFlow<SetupState> = _setup
+    private val _setup = MutableStateFlow<TerminalSetupState>(TerminalSetupState.Idle)
+    override val setup: StateFlow<TerminalSetupState> = _setup
     private val _running = MutableStateFlow(false)
-    val running: StateFlow<Boolean> = _running
+    override val running: StateFlow<Boolean> = _running
 
     private var filesDir: File? = null
     private var appContext: Context? = null
     private var nativeLibDir: String? = null
-    var session: TerminalSession? = null
+    override var session: TerminalSession? = null
         private set
 
-    fun init(context: Context) {
+    override fun init(context: Context) {
         appContext = context.applicationContext
         filesDir = context.applicationContext.filesDir
         nativeLibDir = context.applicationInfo.nativeLibraryDir
@@ -137,14 +128,14 @@ object TerminalEngine : TerminalSessionClient {
     // "Ready" with the wrong binaries in place.
     private const val ROOTFS_MARKER = ".cs-reterminal-v2"
 
-    suspend fun ensureReady(onProgress: (String) -> Unit = {}) = withContext(Dispatchers.IO) {
-        if (_setup.value is SetupState.Ready) return@withContext
-        if (_setup.value is SetupState.Downloading || _setup.value is SetupState.Extracting) return@withContext
+    override suspend fun ensureReady(onProgress: (String) -> Unit = {}) = withContext(Dispatchers.IO) {
+        if (_setup.value is TerminalSetupState.Ready) return@withContext
+        if (_setup.value is TerminalSetupState.Downloading || _setup.value is TerminalSetupState.Extracting) return@withContext
         try {
             val (abiName, rootfsBaseName) = rootfsAssetForDevice()
             val ctx = appContext ?: throw IllegalStateException("TerminalEngine.init(context) not called")
             val alpine = alpineDir()
-            _setup.value = SetupState.Extracting
+            _setup.value = TerminalSetupState.Extracting
             onProgress("Preparing Alpine rootfs for $abiName…")
 
             // 1. Install the init scripts into <filesDir>/local/bin/ from assets if missing.
@@ -170,7 +161,7 @@ object TerminalEngine : TerminalSessionClient {
             if (File(alpine, ROOTFS_MARKER).exists() && File(alpine, "bin/ash").exists()) {
                 onProgress("Reusing extracted Alpine rootfs")
             } else {
-                _setup.value = SetupState.Downloading("Extracting Alpine rootfs (~${AssetSizes.rootfs(abiName)} MB)…")
+                _setup.value = TerminalSetupState.Downloading("Extracting Alpine rootfs (~${AssetSizes.rootfs(abiName)} MB)…")
                 onProgress("Extracting Alpine rootfs…")
                 alpine.deleteRecursively()
                 alpine.mkdirs()
@@ -208,11 +199,11 @@ object TerminalEngine : TerminalSessionClient {
             ensureExecutable(prootLoader())
             prootLoader32()?.let { ensureExecutable(it) }
             tmpDir() // ensure $PROOT_TMP_DIR exists before proot queries it
-            _setup.value = SetupState.Ready
+            _setup.value = TerminalSetupState.Ready
             Log.i(TAG, "ReTerminal-pattern ready; rootfs at ${alpine.absolutePath}")
         } catch (e: Exception) {
             Log.e(TAG, "ensureReady failed", e)
-            _setup.value = SetupState.Failed(e.message ?: "setup failed")
+            _setup.value = TerminalSetupState.Failed(e.message ?: "setup failed")
         }
     }
 
@@ -331,9 +322,9 @@ object TerminalEngine : TerminalSessionClient {
         try { Os.chmod(file.absolutePath, 0x1ED) } catch (_: Exception) { file.setExecutable(true, false) }
     }
 
-    fun startSession(cols: Int = 80, rows: Int = 24) {
+    override fun startSession(cols: Int = 80, rows: Int = 24) {
         if (session != null) return
-        if (_setup.value !is SetupState.Ready) {
+        if (_setup.value !is TerminalSetupState.Ready) {
             Log.w(TAG, "startSession called before Ready; ignoring")
             return
         }
@@ -402,13 +393,13 @@ object TerminalEngine : TerminalSessionClient {
         Log.i(TAG, "ReTerminal session started: shell=$shell args=$args rootfs=${alpineRoot.absolutePath}")
     }
 
-    fun stopSession() {
+    override fun stopSession() {
         session?.finishIfRunning()
         session = null
         _running.value = false
     }
 
-    fun writeCommand(line: String) {
+    override fun writeCommand(line: String) {
         session?.write(line + "\n")
     }
 

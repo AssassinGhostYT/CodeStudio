@@ -96,3 +96,8 @@
 #     packages are kept anyway (obfuscation buys little) and un-renamed output
 #     makes the size accounting + any runtime stack traces readable. ----------
 -dontobfuscate
+
+# On-device Termux userland engine (TermuxRuntime): the bootstrap extractor is reached
+# reflectively-free (direct Kotlin call), but R8 must keep the JNI-backed getZip()/loadZipBytes()
+# members or System.loadLibrary("termux-bootstrap") has nothing to bind to.
+-keep class com.termux.app.TermuxInstaller { *; }
