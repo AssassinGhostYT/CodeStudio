@@ -241,7 +241,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
         session = s
         s.updateSize(cols, rows)
         _running.value = true
-        Log.i(TAG, "Termux session started: linker=$linker bash=$bash prefix=${prefix.absolutePath}")
+        Log.i(TAG, "Termux session started: linker=${linker()} bash=$bash prefix=${prefix.absolutePath}")
     }
 
     private fun buildEnvironment(): Map<String, String> {
