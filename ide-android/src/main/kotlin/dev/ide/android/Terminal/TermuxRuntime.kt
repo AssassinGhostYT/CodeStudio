@@ -13,46 +13,55 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileOutputStream
-import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 
 /**
- * On-device Termux-userland engine — the "bootstrap + shell" runtime that the vendored
- * `:termux:application`'s `libtermux-bootstrap.so` already ships inside THIS apk.
+ * On-device Termux-userland engine — the "bootstrap + shell" runtime shipped by the vendored
+ * `:termux:application`'s `libtermux-bootstrap.so` (JNI `TermuxInstaller.getZip()`).
  *
- * ## Why everything runs under proot
+ * ## Why `/system/bin/linker64` + `libtermux-exec.so` instead of proot
  *
- * The bootstrap's ELF binaries (interpreter `/system/bin/linker64`, NEEDED libs all Termux-built
- * and sitting in `<filesDir>/usr/lib`) cannot be exec'd directly from app-private storage on
- * modern Android: SELinux + the scoped-linker namespaces reject execve of a bionic-linked ELF
- * that resolves its dependencies outside `nativeLibraryDir`/`/system`. The observed failure is
- * `exec(.../usr/bin/bash): Permission denied`. [TerminalEngine] hit the same wall and its
- * working answer doubles as ours — run every binary through the bundled proot with **loader
- * injection** (`-L`, [TerminalEngine.prootExec]/loader), which rewrites the ELF interpreter and
- * mmaps the guest binary instead of relying on kernel execve. That is exactly how the Alpine
- * rootfs already boots in this app, so the Termux prefix reuses the identical, proven chain:
+ * The Interpreter-shipped Termux ELF binaries (e.g. `bin/bash`, interp `/system/bin/linker64`,
+ * NEEDED libs Termux-built living under `<filesDir>/usr/lib`) cannot be exec'd directly from
+ * app-private storage on modern Android: SELinux denies `execute_no_trans` on `app_data_file`
+ * for untrusted apps (targetSdk >= 29) — a W^X policy. The observed failure is
+ * `exec(.../usr/bin/bash): Permission denied`. Even the bundled proot can't help: it fast-paths
+ * host-ELF binaries (machine == host, interp linker64) straight to kernel execve, which is the
+ * very call SELinux blocks.
  *
- *   1. `/system/bin/sh` (bionic) is the *first* process — resolves natively.
- *   2. it execs `$PROOT $PROOT_ARGS <prefix>/bin/bash -l` (argv assembled by [sessionEnv] via
- *      [prootArgsSuffix], mirroring init-host.sh's bind set plus
- *      `-b <prefix>:/data/data/com.termux/files/usr`. That canonical remap is what lets tools with
- *      the compiled-in `/data/data/com.termux/files/usr` path (dpkg maintainer scripts, apt-get,
- *      pip) see a real prefix.
- *   3. proot's tracer follows every child exec (`sh`→dash, perl, node, python…), loader-loading
- *      each Termux binary, so the whole userland works without a single successful kernel execve.
+ * The canonical Termux solution is exactly what `libtermux-exec.so` provides. Since Android 10
+ * the system dynamic linker can be invoked directly:
+ *
+ *     /system/bin/linker64 /abs/path/to/mybinary
+ *
+ * and it will dlopen + run the binary from app-data. SELinux only ever sees `system_linker_exec`
+ * (which untrusted_app IS allowed to execute), so the call succeeds. `libtermux-exec-so` is a
+ * `LD_PRELOAD` shim whose overridden `exec(3)` family (execve/execvp/execvpe) rewrites every exec
+ * of a Termux binary into `/system/bin/linker64 <bin> …` transparently. We therefore:
+ *
+ *   1. Launch the *first* process as `/system/bin/linker64 <prefix>/bin/sh` (or bash) with
+ *      `LD_PRELOAD=<prefix>/lib/libtermux-exec.so`, `LD_LIBRARY_PATH=<prefix>/lib:/system/lib64`.
+ *      The linker is a permitted exec target, so it never hits the SELinux wall.
+ *   2. Every child it spawns inherits the same env, so `libtermux-exec` keeps intercepting their
+ *      exec calls — the whole userland (dash, node, python, apt-get, dpkg…) runs without a single
+ *      direct kernel exec of an app-data ELF.
+ *
+ * apt-get/dpkg hardcode `/data/data/com.termux/files/usr` in their maintainer scripts and metadata.
+ * Rather than remap via proot (which can't exec host-ELF either), we write an `etc/apt/apt.conf`
+ * with `Dir "/"` and every directory pointing at our real prefix — the same approach OpenClaw's
+ * Android runtime uses, and it avoids proot entirely.
  *
  * ## Extraction
  *
- * The bootstrap zip embedded in `libtermux-bootstrap.so` (JNI `TermuxInstaller.getZip()`) is
- * extracted to `<filesDir>/usr`, with SYMLINKS.txt (`src←dst`, U+2190) recreated via `Os.symlink`
- * exactly like the vendored `TermuxInstaller`. Same mechanism OpenClaw's Android runtime uses to
- * run Node.js / Python on-device.
+ * The bootstrap zip embedded in `libtermux-bootstrap.so` is extracted to `<filesDir>/usr`, with
+ * SYMLINKS.txt (`src←dst`, U+2190) recreated via `Os.symlink`, exactly like the vendored
+ * `TermuxInstaller`. One of the bundled termux-exec variants is installed as
+ * `usr/lib/libtermux-exec.so` (the standard name Termux uses for the preload shim).
  */
 object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
 
     private const val TAG = "TermuxRuntime"
     private const val BOOTSTRAP_MARKER = ".cs-termux-bootstrap-v1"
-    private const val TERMUX_CANONICAL_PREFIX = "/data/data/com.termux/files/usr"
 
     private val _setup = MutableStateFlow<TerminalSetupState>(TerminalSetupState.Idle)
     override val setup: StateFlow<TerminalSetupState> = _setup
@@ -61,22 +70,20 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
 
     private var filesDir: File? = null
     private var appContext: Context? = null
-    private var nativeLibDir: String? = null
     override var session: TerminalSession? = null
 
     override fun init(context: Context) {
         appContext = context.applicationContext
         filesDir = context.applicationContext.filesDir
-        nativeLibDir = context.applicationContext.applicationInfo.nativeLibraryDir
-        Log.i(TAG, "init; nativeLibDir=$nativeLibDir filesDir=${filesDir?.absolutePath}")
+        Log.i(TAG, "init; filesDir=${filesDir?.absolutePath}")
     }
 
     private fun prefixDir() = File(filesDir!!, "usr")
     private fun homeDir() = File(filesDir!!, "home").apply { mkdirs() }
     private fun tmpDir() = File(filesDir!!, "tmp").apply { mkdirs() }
     private fun scriptsDir() = File(filesDir!!, "scripts").apply { mkdirs() }
-    private fun prootExec() = File(nativeLibDir!!, "libproot.so")
-    private fun prootLoader() = File(nativeLibDir!!, "libloader.so")
+    private fun termuxExec() = File(prefixDir(), "lib/libtermux-exec.so")
+    private fun linker() = if (File("/system/bin/linker64").exists()) "/system/bin/linker64" else "/system/bin/linker"
 
     override suspend fun ensureReady(onProgress: (String) -> Unit) = withContext(Dispatchers.IO) {
         if (_setup.value is TerminalSetupState.Ready) return@withContext
@@ -85,10 +92,10 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             val prefix = prefixDir()
             _setup.value = TerminalSetupState.Downloading("Bootstrap Termux (~30 MB embebido)…")
             extractBootstrapOnce(prefix, onProgress)
+            installTermuxExec(prefix)
+            writeAptConfig(prefix)
             installBionicCompat()
             writeSessionScript()
-            ensureExecutable(prootExec())
-            ensureExecutable(prootLoader())
             onProgress("Termux listo en ${prefix.absolutePath}")
             _setup.value = TerminalSetupState.Ready
             Log.i(TAG, "Termux userland ready at ${prefix.absolutePath}")
@@ -158,6 +165,52 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
         }
     }
 
+    /**
+     * Install the termux-exec preload shim under the standard name `usr/lib/libtermux-exec.so`.
+     * The `direct-ld-preload` variant is the one built to intercept the exec family and rewrite to
+     * `/system/bin/linker64` — the mechanism this engine depends on (see class KDoc).
+     */
+    private fun installTermuxExec(prefix: File) {
+        val target = termuxExec()
+        if (target.exists()) return
+        val src = File(prefix, "lib/libtermux-exec-direct-ld-preload.so")
+        if (src.exists()) {
+            src.copyTo(target, overwrite = true)
+        }
+        ensureExecutable(target)
+        Log.i(TAG, "termux-exec instalado en $target")
+    }
+
+    /**
+     * apt-get/dpkg on stock Termux assume `/data/data/com.termux/files/usr`. Without proot we can't
+     * bind-mount our real prefix onto that path, so instead mirror OpenClaw's fix: an `etc/apt/apt.conf`
+     * with `Dir "/"` and every path pointed at our real prefix.
+     */
+    private fun writeAptConfig(prefix: File) {
+        val aptConf = File(prefix, "etc/apt/apt.conf")
+        val p = prefix.absolutePath
+        aptConf.writeText(
+            """
+            Dir "/";
+            Dir::State "$p/var/lib/apt/";
+            Dir::State::status "$p/var/lib/dpkg/status";
+            Dir::Cache "$p/var/cache/apt/";
+            Dir::Log "$p/var/log/apt/";
+            Dir::Etc "$p/etc/apt/";
+            Dir::Etc::SourceList "$p/etc/apt/sources.list";
+            Dir::Etc::SourceParts "";
+            Dir::Bin::dpkg "$p/bin/dpkg";
+            Dir::Bin::Methods "$p/lib/apt/methods/";
+            Dir::Bin::apt-key "$p/bin/apt-key";
+            Dpkg::Options:: "--force-configure-any";
+            Dpkg::Options:: "--force-bad-path";
+            Dpkg::Options:: "--instdir=$p";
+            Acquire::AllowInsecureRepositories "true";
+            """.trimIndent() + "\n",
+        )
+        Log.i(TAG, "apt.conf escrito en $aptConf")
+    }
+
     private fun installBionicCompat() {
         val patchDir = File(homeDir(), ".codestudio/patches").apply { mkdirs() }
         val target = File(patchDir, "bionic-compat.js")
@@ -172,9 +225,8 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
     fun bionicCompatPath(): String = File(homeDir(), ".codestudio/patches/bionic-compat.js").absolutePath
 
     // ── Interactive session ──────────────────────────────────────────────
-    // First process is /system/bin/sh (bionic — resolves natively, exactly like TerminalEngine),
-    // then the host script execs proot with [prootArgsSuffix] and hands bash over. See the class
-    // KDoc for why every Termux binary must be loader-loaded through proot.
+    // First process is /system/bin/linker64 (a permitted exec target) running bash from app-data.
+    // libtermux-exec (LD_PRELOAD, inherited by every child) rewrites subsequent execs to linker64.
     override fun startSession(cols: Int, rows: Int) {
         if (session != null) return
         if (_setup.value !is TerminalSetupState.Ready) {
@@ -182,26 +234,14 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             return
         }
         val prefix = prefixDir()
-        val host = File(scriptsDir(), "session-host.sh")
-        val shell = "/system/bin/sh"
-        val args = arrayOf("-c", host.absolutePath)
-        val env = sessionEnv()
-        val s = TerminalSession(shell, prefix.absolutePath, args, env, rows, this)
+        val bash = File(prefix, "bin/bash").absolutePath
+        val args = arrayOf(bash, "-l")
+        val env = buildEnvironment().map { (k, v) -> "$k=$v" }.toTypedArray()
+        val s = TerminalSession(linker(), prefix.absolutePath, args, env, rows, this)
         session = s
         s.updateSize(cols, rows)
         _running.value = true
-        Log.i(TAG, "Termux session started: shell=$shell host=${host.absolutePath} prefix=${prefix.absolutePath}")
-    }
-
-    /** Env handed to the session host script — base userland env + the proot hand-off variables. */
-    private fun sessionEnv(): Array<String> {
-        val env = buildEnvironment().toMutableMap()
-        val proot = prootExec()
-        val loader = prootLoader()
-        env["PROOT"] = proot.absolutePath
-        env["PROOT_LOADER"] = loader.absolutePath
-        env["PROOT_ARGS"] = prootArgsSuffix(canonicalRemap = true, workdir = homeDir().absolutePath)
-        return env.map { (k, v) -> "$k=$v" }.toTypedArray()
+        Log.i(TAG, "Termux session started: linker=$linker bash=$bash prefix=${prefix.absolutePath}")
     }
 
     private fun buildEnvironment(): Map<String, String> {
@@ -213,21 +253,21 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             put("TERMUX__PREFIX", prefix.absolutePath)
             put("HOME", homeDir().absolutePath)
             put("PATH", "${prefix.absolutePath}/bin:${prefix.absolutePath}/bin/applets:/system/bin:/sbin:/bin")
-            put("LD_LIBRARY_PATH", "${prefix.absolutePath}/lib")
+            put("LD_LIBRARY_PATH", "${prefix.absolutePath}/lib:/system/lib64:/system/lib")
+            put("LD_PRELOAD", termuxExec().absolutePath)
             put("TERM", "xterm-256color")
             put("LANG", "C.UTF-8")
             put("COLORTERM", "truecolor")
             put("TMPDIR", tmpDir().absolutePath)
             put("TMP", tmpDir().absolutePath)
             put("TEMP", tmpDir().absolutePath)
-            put("PROOT_TMP_DIR", tmpDir().absolutePath)
             put("SSL_CERT_FILE", "${prefix.absolutePath}/etc/tls/cert.pem")
             put("SSL_CERT_DIR", "/system/etc/security/cacerts")
             put("CURL_CA_BUNDLE", "${prefix.absolutePath}/etc/tls/cert.pem")
             put("GIT_SSL_CAINFO", "${prefix.absolutePath}/etc/tls/cert.pem")
             put("OPENSSL_CONF", "${prefix.absolutePath}/etc/tls/openssl.cnf")
             put("NODE_OPTIONS", "--openssl-config=${prefix.absolutePath}/etc/tls/openssl.cnf --unhandled-rejections=warn -r ${bionicCompatPath()}")
-            // Android system roots — the loader + linker namespace read these.
+            // Android system roots — the linker + namespace read these.
             put("ANDROID_ART_ROOT", sysEnv["ANDROID_ART_ROOT"] ?: "/apex/com.android.art")
             put("ANDROID_DATA", sysEnv["ANDROID_DATA"] ?: "/data")
             put("ANDROID_I18N_ROOT", sysEnv["ANDROID_I18N_ROOT"] ?: "/apex/com.android.i18n")
@@ -236,77 +276,16 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             put("ANDROID_TZDATA_ROOT", sysEnv["ANDROID_TZDATA_ROOT"] ?: "/apex/com.android.tzdata")
             put("BOOTCLASSPATH", sysEnv["BOOTCLASSPATH"] ?: "")
             put("DEX2OATBOOTCLASSPATH", sysEnv["DEX2OATBOOTCLASSPATH"] ?: "")
-            put("LINKER", if (File("/system/bin/linker64").exists()) "/system/bin/linker64" else "/system/bin/linker")
         }
     }
 
-    /**
-     * proot argv suffix mirroring init-host.sh's bind set. With [canonicalRemap] the Termux prefix
-     * is also bound onto the compiled-in `/data/data/com.termux/files/usr` so maintainer scripts and
-     * tools with hardcoded paths resolve. Built at runtime (on-device paths) so /apex and friends
-     * are those the process actually sees. `-L` forces loader injection — the mechanism that makes
-     * exec of Termux binaries possible at all (see class KDoc).
-     */
-    fun prootArgsSuffix(canonicalRemap: Boolean = true, workdir: String = homeDir().absolutePath): String {
-        val prefix = prefixDir()
-        val binds = mutableListOf<String>()
-        for (m in listOf(
-            "/apex", "/odm", "/product", "/system", "/system_ext", "/vendor",
-            "/linkerconfig/ld.config.txt", "/linkerconfig/com.android.art/ld.config.txt",
-            "/plat_property_contexts", "/property_contexts",
-        )) {
-            val f = File(m)
-            if (f.exists()) {
-                binds += "-b ${runCatching { f.canonicalPath }.getOrElse { f.absolutePath }}"
-            }
-        }
-        binds += "-b /sdcard"
-        binds += "-b /storage"
-        binds += "-b /data"
-        binds += "-b /proc"
-        binds += "-b /sys"
-        binds += "-b /dev"
-        binds += "-b /dev/urandom:/dev/random"
-        binds += "-b ${prefix.absolutePath}"
-        if (canonicalRemap) binds += "-b ${prefix.absolutePath}:$TERMUX_CANONICAL_PREFIX"
-        val fdDir = File("/proc/self/fd")
-        if (fdDir.exists()) {
-            binds += "-b /proc/self/fd:/dev/fd"
-            val labels = arrayOf("stdin", "stdout", "stderr")
-            for (n in 0..2) {
-                if (File("/proc/self/fd/$n").exists()) {
-                    binds += "-b /proc/self/fd/$n:/dev/${labels[n]}"
-                }
-            }
-        }
-        binds += "-b ${tmpDir().absolutePath}:/dev/shm"
-        return "--kill-on-exit -w $workdir ${binds.joinToString(" ")} -0 --link2symlink --sysvipc -L"
-    }
-
-    // Builds the session host script (bionic sh → proot → Termux bash). Recreated on every start
-    // keeps paths current if filesDir moves; harmless because it only writes text.
     private fun writeSessionScript() {
-        val prefix = prefixDir()
-        val script = """
-            |#!/system/bin/sh
-            |export PREFIX='${prefix.absolutePath}'
-            |export TERMUX_PREFIX="${'$'}PREFIX"
-            |export TERMUX__PREFIX="${'$'}PREFIX"
-            |export HOME='${homeDir().absolutePath}'
-            |export TMPDIR='${tmpDir().absolutePath}'
-            |export LD_LIBRARY_PATH="${'$'}PREFIX/lib"
-            |export PATH="${'$'}PREFIX/bin:${'$'}PREFIX/bin/applets:/system/bin:/sbin:/bin"
-            |export TERM=xterm-256color
-            |export LANG=C.UTF-8
-            |[ -d "${'$'}HOME" ] || mkdir -p "${'$'}HOME"
-            |[ -d "${'$'}TMPDIR" ] || mkdir -p "${'$'}TMPDIR"
-            |exec "${'$'}PROOT" ${'$'}PROOT_ARGS "${'$'}PREFIX/bin/bash" -l
-        """.trimMargin()
+        // The session runs the linker directly (see startSession); this file is a no-op kept so the
+        // "scripts/" dir exists and future shells have a stable entry point.
         File(scriptsDir(), "session-host.sh").apply {
-            writeText(script)
+            writeText("#!/system/bin/sh\n")
             runCatching { Os.chmod(absolutePath, 0x1ED) }.onFailure { setExecutable(true, false) }
         }
-        // PROOT / PROOT_LOADER / PROOT_ARGS come from the session env handed by startSession.
     }
 
     override fun stopSession() {
@@ -320,27 +299,18 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
     }
 
     // ── Command execution against the Termux userland ─────────────────────
-    // Everything runs through proot (loader injection), never direct exec — see class KDoc. The
-    // runner shell is /system/bin/sh; the Termux tools the command invokes are its children and
-    // get loader-loaded by proot's tracer. Commands are written to a per-invocation script file
-    // (not inlined) so quotes inside the command can't break the /system/bin/sh -c parsing.
+    // Runs <prefix>/bin/sh (through the system linker — see class KDoc) with the full userland
+    // environment. Commands are written to a per-invocation script file so quotes can't break argv.
     fun runInPrefix(command: String, onOutput: ((String) -> Unit)? = null, cwd: File? = null): Int {
         val scriptFile = File(scriptsDir(), "cmd-${System.nanoTime()}.sh")
         scriptFile.writeText("#!/system/bin/sh\n$command\n")
         ensureExecutable(scriptFile)
-        val env = buildEnvironment().toMutableMap()
-        val proot = prootExec()
-        env["PROOT"] = proot.absolutePath
-        env["PROOT_LOADER"] = prootLoader().absolutePath
-        env["PROOT_ARGS"] = prootArgsSuffix(canonicalRemap = true, workdir = (cwd ?: homeDir()).absolutePath)
-        env["CS_SCRIPT"] = scriptFile.absolutePath
-        val host = "exec \"\$PROOT\" \$PROOT_ARGS /system/bin/sh \"\$CS_SCRIPT\""
+        val pb = ProcessBuilder(linker(), File(prefixDir(), "bin/sh").absolutePath, scriptFile.absolutePath)
+        pb.environment().clear()
+        pb.environment().putAll(buildEnvironment())
+        pb.directory((cwd ?: homeDir()))
+        pb.redirectErrorStream(true)
         return try {
-            val pb = ProcessBuilder("/system/bin/sh", "-c", host)
-            pb.environment().clear()
-            pb.environment().putAll(env)
-            pb.directory((cwd ?: homeDir()))
-            pb.redirectErrorStream(true)
             val proc = pb.start()
             proc.inputStream.bufferedReader(Charsets.UTF_8).useLines { lines ->
                 lines.forEach { line ->
@@ -354,15 +324,14 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
         }
     }
 
-    /** Same as [runInPrefix] — kept for callers that conceptually want "proot explicitly". */
+    /** Kept for callers that conceptually distinguish the two execution arms; identical to [runInPrefix]. */
     fun runWithProot(command: String, onOutput: ((String) -> Unit)? = null, cwd: File? = null): Int =
         runInPrefix(command, onOutput, cwd)
 
-    // ── Tooling installs (Node, npm, Python, proot) ───────────────────────
+    // ── Tooling installs (Node, npm, Python) ──────────────────────────────
     fun isNodeInstalled(): Boolean = File(prefixDir(), "bin/node").exists()
     fun isNpmInstalled(): Boolean = File(prefixDir(), "bin/npm").exists()
     fun isPythonInstalled(): Boolean = File(prefixDir(), "bin/python").exists() || File(prefixDir(), "bin/python3").exists()
-    fun isProotInstalled(): Boolean = File(prefixDir(), "bin/proot").exists()
 
     fun installNode(onProgress: (String) -> Unit = {}): Boolean = installDebPackages(
         "nodejs-lts npm c-ares libicu libsqlite",
@@ -373,12 +342,6 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
     fun installPython(onProgress: (String) -> Unit = {}): Boolean = installDebPackages(
         "python python-pip",
         "Python",
-        onProgress,
-    )
-
-    fun installProot(onProgress: (String) -> Unit = {}): Boolean = installDebPackages(
-        "proot libtalloc",
-        "proot",
         onProgress,
     )
 
@@ -406,8 +369,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
         val rc = runInPrefix(extract, onOutput = { onProgress(it) })
         return rc == 0 && when (label) {
             "Node.js" -> isNodeInstalled() && isNpmInstalled()
-            "Python" -> isPythonInstalled()
-            else -> isProotInstalled()
+            else -> isPythonInstalled()
         }
     }
 
