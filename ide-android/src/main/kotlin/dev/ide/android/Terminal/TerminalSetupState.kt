@@ -20,6 +20,10 @@ sealed interface TerminalSetupState {
 interface TerminalRuntime : com.termux.terminal.TerminalSessionClient {
     val setup: StateFlow<TerminalSetupState>
     val running: StateFlow<Boolean>
+    /** The active session, driven by whichever engine is selected. Intentionally declared as a
+     *  plain public `var` (no restricted setter): Kotlin disallows both `private set` on an
+     *  interface property AND implementations narrowing the setter's visibility, so the setter
+     *  stays public at the interface level — harmless since both engines are internal objects. */
     var session: TerminalSession?
     fun init(context: Context)
     suspend fun ensureReady(onProgress: (String) -> Unit = {})

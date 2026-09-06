@@ -5,6 +5,7 @@ import android.system.Os
 import android.util.Log
 import com.termux.app.TermuxInstaller
 import com.termux.terminal.TerminalSession
+import com.termux.terminal.TerminalSessionClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -62,7 +63,6 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
     private var appContext: Context? = null
     private var nativeLibDir: String? = null
     override var session: TerminalSession? = null
-        private set
 
     override fun init(context: Context) {
         appContext = context.applicationContext
@@ -78,7 +78,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
     private fun prootExec() = File(nativeLibDir!!, "libproot.so")
     private fun prootLoader() = File(nativeLibDir!!, "libloader.so")
 
-    override suspend fun ensureReady(onProgress: (String) -> Unit = {}) = withContext(Dispatchers.IO) {
+    override suspend fun ensureReady(onProgress: (String) -> Unit) = withContext(Dispatchers.IO) {
         if (_setup.value is TerminalSetupState.Ready) return@withContext
         if (_setup.value is TerminalSetupState.Downloading || _setup.value is TerminalSetupState.Extracting) return@withContext
         try {
@@ -175,7 +175,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
     // First process is /system/bin/sh (bionic — resolves natively, exactly like TerminalEngine),
     // then the host script execs proot with [prootArgsSuffix] and hands bash over. See the class
     // KDoc for why every Termux binary must be loader-loaded through proot.
-    override fun startSession(cols: Int = 80, rows: Int = 24) {
+    override fun startSession(cols: Int, rows: Int) {
         if (session != null) return
         if (_setup.value !is TerminalSetupState.Ready) {
             Log.w(TAG, "startSession before Ready; ignoring")

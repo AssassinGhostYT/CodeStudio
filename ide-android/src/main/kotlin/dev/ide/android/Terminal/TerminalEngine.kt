@@ -68,7 +68,6 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
     private var appContext: Context? = null
     private var nativeLibDir: String? = null
     override var session: TerminalSession? = null
-        private set
 
     override fun init(context: Context) {
         appContext = context.applicationContext
@@ -128,7 +127,7 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
     // "Ready" with the wrong binaries in place.
     private const val ROOTFS_MARKER = ".cs-reterminal-v2"
 
-    override suspend fun ensureReady(onProgress: (String) -> Unit = {}) = withContext(Dispatchers.IO) {
+    override suspend fun ensureReady(onProgress: (String) -> Unit) = withContext(Dispatchers.IO) {
         if (_setup.value is TerminalSetupState.Ready) return@withContext
         if (_setup.value is TerminalSetupState.Downloading || _setup.value is TerminalSetupState.Extracting) return@withContext
         try {
@@ -322,7 +321,7 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
         try { Os.chmod(file.absolutePath, 0x1ED) } catch (_: Exception) { file.setExecutable(true, false) }
     }
 
-    override fun startSession(cols: Int = 80, rows: Int = 24) {
+    override fun startSession(cols: Int, rows: Int) {
         if (session != null) return
         if (_setup.value !is TerminalSetupState.Ready) {
             Log.w(TAG, "startSession called before Ready; ignoring")
