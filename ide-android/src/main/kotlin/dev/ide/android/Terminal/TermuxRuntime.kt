@@ -234,14 +234,22 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             return
         }
         val prefix = prefixDir()
-        val bash = File(prefix, "bin/bash").absolutePath
-        val args = arrayOf(bash, "-l")
+        // /data/data/<pkg>/files/... has SELinux `app_data_file` context — W^X blocks direct
+        // kernel execve. We go through /system/bin/linker64 (a `system_linker_exec` target) which
+        // loads the ELF with its own privileges; the user's shell needs no separate execute bit on
+        // app_data_file. Use `bin/sh` (dash) as the entry: bash drags in libreadline/libiconv/
+        // libandroid-support, and on devices where any of those failed to extract (or where the
+        // bootstrap zip was packaged with mismatched soname hashes) the chain breaks at
+        // `exec(.../usr/bin/bash): Permission denied`. dash has none of those NEEDED entries —
+        // it loads from /system/lib via the dynamic linker and starts reliably.
+        val sh = File(prefix, "bin/sh").absolutePath
+        val args = arrayOf(sh, "-l")
         val env = buildEnvironment().map { (k, v) -> "$k=$v" }.toTypedArray()
         val s = TerminalSession(linker(), prefix.absolutePath, args, env, rows, this)
         session = s
         s.updateSize(cols, rows)
         _running.value = true
-        Log.i(TAG, "Termux session started: linker=${linker()} bash=$bash prefix=${prefix.absolutePath}")
+        Log.i(TAG, "Termux session started: linker=${linker()} sh=$sh prefix=${prefix.absolutePath}")
     }
 
     private fun buildEnvironment(): Map<String, String> {
