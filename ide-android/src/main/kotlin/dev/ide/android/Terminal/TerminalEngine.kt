@@ -41,6 +41,11 @@ import java.util.zip.GZIPInputStream
  *
  *   3. `<init>` (also a bundled asset) sets PATH/PS1/HOME/TERM and execs `/bin/ash` interactively.
  *
+ *  Runtime tooling (Node.js, npm, Python) is installed with Alpine's `apk` inside the rootfs — the
+ *  same channel Dorpn Editor and other no-Termux Android terminals use. Non-interactive commands
+ *  run through [runInPrefix], which shells the same bind map through `run-host.sh` and execs
+ *  `/bin/ash -c <command>` inside the chroot.
+ *
  * No `libaxs.so` needed (unlike Acode's pattern): the bionic sh hand-off IS the loader alternative.
  * No `LD_PRELOAD=libtermux-exec.so` either — Alpine's libs resolve natively.
  *
@@ -151,6 +156,7 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
                 "init-host.sh" to "init-host.sh",
                 "init.sh" to "init",
                 "rm-wrapper.sh" to "rm-wrapper.sh",
+                "run-host.sh" to "run-host.sh",
             )) {
                 installAssetOnce(ctx, assetName, File(localBinDir(), destName))
             }
@@ -400,6 +406,83 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
 
     override fun writeCommand(line: String) {
         session?.write(line + "\n")
+    }
+
+    // ── Non-interactive command execution inside the Alpine rootfs ────────
+    // Mirrors the interactive orchestration: the *first* process is /system/bin/sh running the
+    // run-host.sh script (assembles the proot argv with the same bind mounts as init-host.sh), then
+    // `$PROOT $ARGS /bin/ash -c "<command>"`. Works for package installs (apk), one-shots, and
+    // anything the interactive shell can do. Returns the exit code.
+    fun runInPrefix(command: String, onOutput: ((String) -> Unit)? = null, cwd: File? = null): Int {
+        val runHost = File(localBinDir(), "run-host.sh")
+        if (!runHost.exists()) { Log.e(TAG, "run-host.sh missing — ensureReady not run"); return -1 }
+        val proot = prootExec()
+        val loader = prootLoader()
+        val loader32 = prootLoader32()
+        val alpineRoot = alpineDir()
+
+        val env = mutableListOf<String>().apply {
+            add("PREFIX=${prefixDir().absolutePath}")
+            add("BIN=${localBinDir().absolutePath}")
+            add("NATIVE_LIB_DIR=${nativeLibDir!!}")
+            add("PROOT=${proot.absolutePath}")
+            add("PROOT_LOADER=${loader.absolutePath}")
+            loader32?.let { add("PROOT_LOADER_32=${it.absolutePath}") }
+            add("TMPDIR=${tmpDir().absolutePath}")
+            add("PROOT_TMP_DIR=${tmpDir().absolutePath}")
+            add("HOME=${alpineRoot.absolutePath}/root")
+            add("TERM=xterm-256color")
+            add("LANG=C.UTF-8")
+            add("PATH=${System.getenv("PATH")}:/bin:/sbin:${localBinDir().absolutePath}")
+        }
+        val pb = ProcessBuilder("/system/bin/sh", runHost.absolutePath, command)
+        pb.environment().clear()
+        pb.environment().putAll(env.map { it.split("=", limit = 2).let { p -> p[0] to p.getOrElse(1) { "" } } })
+        pb.directory(cwd ?: alpineRootRootDir())
+        pb.redirectErrorStream(true)
+        return try {
+            val proc = pb.start()
+            proc.inputStream.bufferedReader(Charsets.UTF_8).useLines { lines ->
+                lines.forEach { line ->
+                    Log.d(TAG, line)
+                    onOutput?.invoke(line)
+                }
+            }
+            proc.waitFor()
+        } catch (e: Exception) {
+            Log.e(TAG, "runInPrefix failed", e)
+            onOutput?.invoke("error: ${e.message}")
+            -1
+        }
+    }
+
+    private fun alpineRootRootDir() = File(alpineDir(), "root").apply { mkdirs() }
+
+    // ── Runtime tooling (Node.js / npm / Python) via Alpine's apk ─────────
+    // The Alpine rootfs extractions place packages under usr/ (minirootfs layout), so the checks
+    // look under bin/ and usr/bin/. Installs run `apk update` first to refresh the index.
+    fun isNodeInstalled(): Boolean =
+        File(alpineDir(), "usr/bin/node").exists() || File(alpineDir(), "bin/node").exists()
+
+    fun isNpmInstalled(): Boolean =
+        File(alpineDir(), "usr/bin/npm").exists() || File(alpineDir(), "bin/npm").exists()
+
+    fun isPythonInstalled(): Boolean =
+        File(alpineDir(), "usr/bin/python3").exists() || File(alpineDir(), "usr/bin/python").exists() ||
+            File(alpineDir(), "bin/python3").exists() || File(alpineDir(), "bin/python").exists()
+
+    fun installNode(onProgress: (String) -> Unit = {}): Boolean {
+        onProgress("Instalando Node.js + npm (apk)…")
+        val rc = runInPrefix("apk add --no-cache nodejs npm", onOutput = onProgress)
+        if (rc != 0) { onProgress("apk add nodejs/npm salió $rc"); return false }
+        return isNodeInstalled() && isNpmInstalled()
+    }
+
+    fun installPython(onProgress: (String) -> Unit = {}): Boolean {
+        onProgress("Instalando Python 3 + pip (apk)…")
+        val rc = runInPrefix("apk add --no-cache python3 py3-pip", onOutput = onProgress)
+        if (rc != 0) { onProgress("apk add python3 salió $rc"); return false }
+        return isPythonInstalled()
     }
 
     // TerminalSessionClient — minimal; the vendored Termux session emits callbacks we don't need
