@@ -19,6 +19,7 @@ object TerminalPlugin {
 
     fun install(context: Context) {
         TerminalEngine.init(context)
+        TermuxRuntime.init(context)
         if (registered.compareAndSet(false, true)) {
             ToolWindowRegistry.register(contribution())
         }

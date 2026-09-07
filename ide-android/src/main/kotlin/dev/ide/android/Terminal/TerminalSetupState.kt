@@ -4,8 +4,9 @@ import android.content.Context
 import com.termux.terminal.TerminalSession
 import kotlinx.coroutines.flow.StateFlow
 
-/** Shared setup lifecycle for the in-IDE terminal engines. Kept outside the engines so the panel can
- *  render the same status UI regardless of which engine is active. */
+/** Shared setup lifecycle for the in-IDE terminal engines (Alpine via [TerminalEngine] and the
+ *  Termux userland via [TermuxRuntime]). Kept outside the engines so the panel can render either
+ *  one through the same status UI. */
 sealed interface TerminalSetupState {
     data object Idle : TerminalSetupState
     data class Downloading(val label: String) : TerminalSetupState
@@ -15,8 +16,7 @@ sealed interface TerminalSetupState {
 }
 
 /** Common surface both terminal engines expose. The panel talks to this interface so switching
- *  engine implementations is a runtime choice, not a code fork. Currently only [TerminalEngine] is
- *  wired, but the interface keeps that decision reversible. */
+ *  engines (Alpine rootfs vs Termux userland) is a runtime choice, not a code fork. */
 interface TerminalRuntime : com.termux.terminal.TerminalSessionClient {
     val setup: StateFlow<TerminalSetupState>
     val running: StateFlow<Boolean>
