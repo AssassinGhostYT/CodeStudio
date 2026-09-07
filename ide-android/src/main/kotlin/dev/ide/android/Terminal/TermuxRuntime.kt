@@ -1,6 +1,7 @@
 package dev.ide.android.Terminal
 
 import android.content.Context
+import android.os.Build
 import android.system.Os
 import android.util.Log
 import com.termux.app.TermuxInstaller
@@ -93,6 +94,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             _setup.value = TerminalSetupState.Downloading("Bootstrap Termux (~30 MB embebido)…")
             extractBootstrapOnce(prefix, onProgress)
             installTermuxExec(prefix)
+            patchTermuxExecShebangs(prefix)
             writeAptConfig(prefix)
             installBionicCompat()
             writeSessionScript()
@@ -169,16 +171,59 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
      * Install the termux-exec preload shim under the standard name `usr/lib/libtermux-exec.so`.
      * The `direct-ld-preload` variant is the one built to intercept the exec family and rewrite to
      * `/system/bin/linker64` — the mechanism this engine depends on (see class KDoc).
+     *
+     * IMPORTANT: the bootstrap zip ALREADY ships `lib/libtermux-exec.so` as a symlink →
+     * `libtermux-exec-ld-preload.so` (the *indirect* variant, which tries kernel execve first and
+     * only falls back to the linker on EACCES). Termux's own postinst (`termux-exec-ld-preload-lib
+     * setup`, run on `pkg upgrade`) REPLACES that with the direct variant when system-linker-exec
+     * applies — which it always does for us (targetSdk 36, domain `untrusted_app`). This is exactly
+     * the "restablecer `LD_PRELOAD`" step from the termux-exec README. So a plain
+     * `if (target.exists()) return` would leave the factory indirect variant active and the direct
+     * one never installed; this function deliberately drops the symlink and puts the direct bytes
+     * at the exported `LD_PRELOAD` path.
      */
     private fun installTermuxExec(prefix: File) {
+        val marker = File(prefix, "lib/.cs-termux-exec-direct")
         val target = termuxExec()
-        if (target.exists()) return
-        val src = File(prefix, "lib/libtermux-exec-direct-ld-preload.so")
-        if (src.exists()) {
-            src.copyTo(target, overwrite = true)
+        val direct = File(prefix, "lib/libtermux-exec-direct-ld-preload.so")
+        if (marker.exists() && target.isFile) return
+        if (!direct.exists()) {
+            // If the bootstrap lacks the direct variant, keep whatever the zip shipped (indirect)
+            // rather than leaving LD_PRELOAD dangling — but log loudly, since the exec rewrite is
+            // then best-effort only.
+            Log.e(TAG, "libtermux-exec-direct-ld-preload.so ausente en bootstrap; termux-exec quedará en variante indirecta")
+            return
         }
+        target.delete() // drop the zip's symlink → libtermux-exec-ld-preload.so (indirect variant)
+        direct.copyTo(target, overwrite = true)
         ensureExecutable(target)
-        Log.i(TAG, "termux-exec instalado en $target")
+        marker.writeText(direct.name)
+        Log.i(TAG, "termux-exec (directo) instalado en $target")
+    }
+
+    /**
+     * The vendored bootstrap was built from AndroidIDE, so the termux-exec helper scripts
+     * (`bin/termux-exec-ld-preload-lib`, `bin/termux-exec-system-linker-exec`) carry a stale
+     * shebang `#!/data/data/com.tom.rv2ide/files/usr/bin/sh` that does not exist on this device.
+     * Maintainer scripts (dpkg) invoke them on `pkg upgrade`/install; with the AndroidIDE path the
+     * kernel fails the shebang exec ("No such file or directory") and the operation dies. Rewrite
+     * the shebang to `/system/bin/sh` (always present; a kernel exec of OUR prefix sh would hit the
+     * same SELinux wall we're routing around via the linker, so host sh is the right interpreter).
+     */
+    private fun patchTermuxExecShebangs(prefix: File) {
+        for (name in listOf(
+            "bin/termux-exec-ld-preload-lib",
+            "bin/termux-exec-system-linker-exec",
+        )) {
+            val f = File(prefix, name)
+            if (!f.exists()) continue
+            val text = f.readText()
+            val fixed = text.replace("#!/data/data/com.tom.rv2ide/files/usr/bin/sh", "#!/system/bin/sh")
+            if (fixed != text) {
+                f.writeText(fixed)
+                Log.i(TAG, "patchTermuxExecShebangs: corregido shebang en $name")
+            }
+        }
     }
 
     /**
@@ -257,6 +302,10 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             put("PREFIX", prefix.absolutePath)
             put("TERMUX_PREFIX", prefix.absolutePath)
             put("TERMUX__PREFIX", prefix.absolutePath)
+            // The termux-exec shim + its is-enabled check read the SDK level to decide between the
+            // direct/linker variants (the scripts fall back to getprop; pass it explicitly so the
+            // C shim never needs /system/bin/getprop).
+            put("ANDROID__BUILD_VERSION_SDK", Build.VERSION.SDK_INT.toString())
             put("HOME", homeDir().absolutePath)
             put("PATH", "${prefix.absolutePath}/bin:${prefix.absolutePath}/bin/applets:/system/bin:/sbin:/bin")
             put("LD_LIBRARY_PATH", "${prefix.absolutePath}/lib:/system/lib64:/system/lib")
