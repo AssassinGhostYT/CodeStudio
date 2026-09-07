@@ -227,6 +227,11 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
     // ── Interactive session ──────────────────────────────────────────────
     // First process is /system/bin/linker64 (a permitted exec target) running bash from app-data.
     // libtermux-exec (LD_PRELOAD, inherited by every child) rewrites subsequent execs to linker64.
+    //
+    // argv must be [linker, bash, "-l"] — NOT [bash, "-l"]. `execvp(linker, argv)` passes argv
+    // through verbatim, so argv[0] has to be the linker path for it to enter loader mode
+    // (`linker64 <elf> [args]`, the exact form termux-exec's -direct-ld-preload uses); with
+    // argv[0]=bash the kernel loads linker64 as a standalone program and bash never starts.
     override fun startSession(cols: Int, rows: Int) {
         if (session != null) return
         if (_setup.value !is TerminalSetupState.Ready) {
@@ -234,14 +239,15 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             return
         }
         val prefix = prefixDir()
+        val linkerPath = linker()
         val bash = File(prefix, "bin/bash").absolutePath
-        val args = arrayOf(bash, "-l")
+        val args = arrayOf(linkerPath, bash, "-l")
         val env = buildEnvironment().map { (k, v) -> "$k=$v" }.toTypedArray()
-        val s = TerminalSession(linker(), prefix.absolutePath, args, env, rows, this)
+        val s = TerminalSession(linkerPath, prefix.absolutePath, args, env, rows, this)
         session = s
         s.updateSize(cols, rows)
         _running.value = true
-        Log.i(TAG, "Termux session started: linker=${linker()} bash=$bash prefix=${prefix.absolutePath}")
+        Log.i(TAG, "Termux session started: linker=$linkerPath bash=$bash prefix=${prefix.absolutePath}")
     }
 
     private fun buildEnvironment(): Map<String, String> {
