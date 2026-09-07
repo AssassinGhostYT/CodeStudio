@@ -369,16 +369,7 @@ android {
         // The real engine (project-model-impl/lang-jdt/...) leans on java.nio.file (Path/Files/walk),
         // which is API 26+. Targeting 26 keeps it native and avoids core-library desugaring complexity.
         minSdk = 26
-        // The Play Store build targets 36 (Play's current policy). But SELinux strips `execute_no_trans`
-        // on app_data_file for targetSdk >= 29, which is precisely WHY running Termux's own bionic ELFs
-        // (`/data/data/<pkg>/files/usr/bin/bash …`) straight from app-private storage dies with
-        // `exec(...): Permission denied`. Termux and AndroidIDE dodge this exact policy by shipping
-        // targetSdk 28 (they distribute via GitHub/F-Droid, not Play) — that is the whole reason their
-        // embedded terminals "just work" on the same device. This app mirrors that trick for a SIDELOAD-
-        // ONLY build: `-PSIDELOAD=true :ide-android:assembleProfile` emits a targetSdk-28 APK whose
-        // terminal runs bash directly like AndroidIDE's (and doesn't need the linker64 indirection at
-        // all). The flag must NEVER be set for the Play upload — the Play build keeps targetSdk 36.
-        targetSdk = if ((findProperty("SIDELOAD") as String?) == "true") 28 else 36
+        targetSdk = 36
         // versionCode must exceed the last published release (the previous-codebase app reached ~29).
         versionCode = 81
         versionName = "4.0.0"
