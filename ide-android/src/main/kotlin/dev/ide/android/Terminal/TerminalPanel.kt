@@ -1,7 +1,16 @@
 package dev.ide.android.Terminal
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.Settings
 import android.view.KeyEvent
 import android.view.MotionEvent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,7 +26,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,10 +42,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.termux.terminal.TerminalSession
 import com.termux.view.TerminalView
 import com.termux.view.TerminalViewClient
@@ -60,6 +74,7 @@ internal fun TerminalPanel() {
 
     androidx.compose.material3.Surface(color = Color(0xFF0D1117), modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            TerminalStorageGate()
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 EngineChip("Alpine", selected = !termuxMode) { termuxMode = false }
                 EngineChip("Termux", selected = termuxMode) { termuxMode = true }
@@ -145,6 +160,89 @@ private fun TermView(session: TerminalSession) {
 @Composable
 private fun StatusLine(text: String, error: Boolean = false) {
     Text(text, color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 6.dp))
+}
+
+/**
+ * Asks for the storage permissions the terminal needs to read/write outside the app sandbox, mirroring
+ * what Termux requests on first launch:
+ *  - Android ≤12 (API ≤32): `READ_EXTERNAL_STORAGE` (declared `maxSdkVersion 32`, so it's real only ≤32).
+ *  - Android 13+ (API 33+): the media perms plus — the one that actually lets proot see `/sdcard` —
+ *    "All files access" (`MANAGE_EXTERNAL_STORAGE`), granted from Settings. Termux bounces the user there
+ *    the same way, so we surface a one-tap action and re-check when the activity resumes.
+ */
+@Composable
+private fun TerminalStorageGate() {
+    val context = LocalContext.current
+    val packageName = context.packageName
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var allFilesGranted by remember { mutableStateOf(Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()) }
+    var requestedRuntime by rememberSaveable { mutableStateOf(false) }
+    var bannerVisible by remember { mutableStateOf(!allFilesGranted) }
+
+    val runtimeLauncher =
+        rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+            // Banner hides only when the effective gate is met: pre-R the runtime grant is enough, R+ needs
+            // "All files access" — media perms alone don't unlock /sdcard inside the terminal.
+            bannerVisible = !(Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager())
+            allFilesGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
+        }
+
+    LaunchedEffect(Unit) {
+        if (requestedRuntime) return@LaunchedEffect
+        requestedRuntime = true
+        val runtime = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            if (context.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                runtime += Manifest.permission.READ_EXTERNAL_STORAGE
+            }
+        } else {
+            if (context.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) runtime += Manifest.permission.READ_MEDIA_IMAGES
+            if (context.checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED) runtime += Manifest.permission.READ_MEDIA_VIDEO
+            if (context.checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) runtime += Manifest.permission.READ_MEDIA_AUDIO
+        }
+        if (runtime.isNotEmpty()) runtimeLauncher.launch(runtime.toTypedArray())
+    }
+
+    // Re-check "All files access" when returning from Settings (MaterialContextMenu → Settings → back).
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                val granted = Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
+                allFilesGranted = granted
+                if (granted) bannerVisible = false
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    if (bannerVisible) {
+        val allFiles = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !allFilesGranted
+        val label = if (allFiles)
+            "Terminal: activar “Todos los archivos” para leer /sdcard"
+        else
+            "Terminal: conceder acceso a archivos para /sdcard"
+        TextButton(
+            onClick = {
+                if (allFiles) {
+                    try {
+                        context.startActivity(
+                            Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")),
+                        )
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        context.startActivity(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION))
+                    }
+                } else {
+                    val runtime = mutableListOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) runtime += Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    runtimeLauncher.launch(runtime.toTypedArray())
+                }
+            },
+            modifier = Modifier.padding(vertical = 2.dp),
+        ) {
+            Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+        }
+    }
 }
 
 @Composable

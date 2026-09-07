@@ -33,6 +33,26 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- In-IDE terminal (TerminalEngine/TermuxRuntime): proot bind-mounts /sdcard and /storage into the
+         Alpine rootfs / Termux prefix so files on shared storage are visible inside the shell. Without the
+         storage runtime-grant the mounts exist but are unreadable (EACCES inside the terminal). Declares
+         the legacy trio plus All-files-access; the app requests whichever applies at runtime (see
+         TerminalStorageGate in TerminalPanel.kt). MANAGE_EXTERNAL_STORAGE is special-access, user-granted via
+         Settings. -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+                    android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+                    android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+                    tools:ignore="ScopedStorage" />
+    <!-- Android 13+ granular media access (TerminalStorageGate requests these; an undeclared runtime
+         permission is always auto-denied, so they must ship in the manifest). -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <!-- Android 14+ “selected photos access” grant-shaped visual media access (partial media grant). -->
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+
     <!-- The bundled aapt2/zipalign (lib*.so) must be EXTRACTED into nativeLibraryDir at install so they can
          be exec'd (ART forbids executing binaries from anywhere else). That extraction is driven by
          packaging.jniLibs.useLegacyPackaging=true in build.gradle.kts (which sets extractNativeLibs on the
