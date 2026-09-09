@@ -55,6 +55,7 @@ object UiDestinations {
     const val PROJECTS = "projects"
     const val DEPENDENCIES = "dependencies"
     const val CODE_STYLE = "codeStyle"
+    const val ICONS = "icons"
 }
 
 /**

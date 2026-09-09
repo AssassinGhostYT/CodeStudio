@@ -89,17 +89,19 @@ internal object AndroidTemplateSupport {
 }
 
 /**
- * A native Android application: one `app` module (android-app) with an `AndroidFacet`, an editable
- * `AndroidManifest.xml`, `res/` (strings, colors, theme, and an `activity_main` layout), and a
- * `MainActivity` that inflates that layout to show a "Hello, World!" page. A complete, dependency-free
- * starter app that assembles to a signed APK through the existing `AndroidBuildSystem` pipeline.
+ * A classic Android application scaffolded as a normal Gradle project: `settings.gradle.kts`, a root
+ * `build.gradle.kts`, `gradle.properties`, the wrapper descriptor and an `app` module whose
+ * `build.gradle.kts` carries the application coordinates. The sources (manifest, `res/`, and a
+ * `MainActivity` that inflates `activity_main`) are the same AndroidIDE-style starter, and the model
+ * is derived from the scripts by the Gradle importer — no `module.toml`.
  */
 object AndroidAppTemplate : ProjectTemplate {
     override val id = TemplateId("android-app")
     override val displayName = "Android App"
-    override val description = "A native Android application that builds to an installable APK."
+    override val description = "A classic Android application built with the standard Gradle build files."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"
+    override val scaffoldsGradle: Boolean = true
 
     override fun parameters(): List<TemplateParameter> = listOf(
         AndroidTemplateSupport.languageParam,
@@ -112,25 +114,19 @@ object AndroidAppTemplate : ProjectTemplate {
         val minSdk = args.int("minSdk", 26)
         val targetSdk = args.int("targetSdk", AndroidTemplateSupport.COMPILE_SDK)
         val kotlin = AndroidTemplateSupport.isKotlin(args)
-        scaffold.workspace.beginModification().apply {
-            addProject(args.name, BuildSystemId.NATIVE, scaffold.rootDir)
-            commit()
-        }
-        scaffold.workspace.projects.first { it.name == args.name }.beginModification().apply {
-            // Android module types supply their own (main/debug/release) source sets, so no addSourceSet here.
-            addModule("app", scaffold.moduleType("android-app")).apply {
-                languageLevel = scaffold.languageLevel
-                putFacet(
-                    AndroidFacet(
-                        namespace = pkg,
-                        compileSdk = AndroidTemplateSupport.COMPILE_SDK,
-                        minSdk = minSdk,
-                        targetSdk = targetSdk,
-                    ),
-                )
-            }
-            commit()
-        }
+
+        GradleScaffold.writeRootFiles(scaffold, args.name)
+        GradleScaffold.writeAppModule(
+            scaffold,
+            GradleScaffold.AppOptions(
+                namespace = pkg,
+                minSdk = minSdk,
+                targetSdk = targetSdk,
+                compileSdk = AndroidTemplateSupport.COMPILE_SDK,
+                kotlin = kotlin,
+                compose = false,
+            ),
+        )
 
         val path = AndroidTemplateSupport.pkgPath(pkg)
         scaffold.writeText("app/proguard-rules.pro", AndroidTemplateSupport.PROGUARD_RULES_PRO)
@@ -239,14 +235,13 @@ object AndroidAppTemplate : ProjectTemplate {
 }
 
 /**
- * A Material You (Material 3) Android application: one `app` module wired to **Google's Material Components
- * library** ([AndroidTemplateSupport.MATERIAL_COORDINATE], resolved by the host after generation). The app
+ * A Material You (Material 3) Android application scaffolded as a normal Gradle project (scripts = source
+ * of truth, model derived by the importer). The `app/build.gradle.kts` declares **Google's Material Components
+ * library** ([AndroidTemplateSupport.MATERIAL_COORDINATE]) in `dependencies {}`, the app
  * theme extends `Theme.Material3.DynamicColors.DayNight` so it adopts the system **dynamic colour** palette
  * on Android 12+ and a light/dark Material 3 baseline below it, and the starter screen is the canonical
  * **FAB example**: a `CoordinatorLayout` with a `FloatingActionButton` whose tap shows a `Snackbar`. The
- * `MainActivity` extends `AppCompatActivity` (pulled in transitively by Material) so the Material 3 theme
- * resolves. Assembles to a signed APK through the existing `AndroidBuildSystem` pipeline (AAR resources +
- * D8 dexing of the Material/AndroidX closure).
+ * `MainActivity` extends `AppCompatActivity` so the Material 3 theme resolves.
  */
 object MaterialYouAppTemplate : ProjectTemplate {
     override val id = TemplateId("android-material-you")
@@ -254,6 +249,7 @@ object MaterialYouAppTemplate : ProjectTemplate {
     override val description = "A Material 3 app with dynamic colour theming and a Floating Action Button."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"
+    override val scaffoldsGradle: Boolean = true
 
     override fun parameters(): List<TemplateParameter> = listOf(
         AndroidTemplateSupport.languageParam,
@@ -265,32 +261,27 @@ object MaterialYouAppTemplate : ProjectTemplate {
         AndroidTemplateSupport.targetSdkParam,
     )
 
-    override fun dependencies(args: TemplateArgs): List<TemplateDependency> =
-        listOf(TemplateDependency(module = "app", coordinate = AndroidTemplateSupport.MATERIAL_COORDINATE))
+    // Declared in the generated app/build.gradle.kts (the importer reads it); nothing to write to module.toml.
+    override fun dependencies(args: TemplateArgs): List<TemplateDependency> = emptyList()
 
     override fun generate(scaffold: ProjectScaffold, args: TemplateArgs) {
         val pkg = args.packageName
         val minSdk = args.int("minSdk", 21)
         val targetSdk = args.int("targetSdk", AndroidTemplateSupport.COMPILE_SDK)
         val kotlin = AndroidTemplateSupport.isKotlin(args)
-        scaffold.workspace.beginModification().apply {
-            addProject(args.name, BuildSystemId.NATIVE, scaffold.rootDir)
-            commit()
-        }
-        scaffold.workspace.projects.first { it.name == args.name }.beginModification().apply {
-            addModule("app", scaffold.moduleType("android-app")).apply {
-                languageLevel = scaffold.languageLevel
-                putFacet(
-                    AndroidFacet(
-                        namespace = pkg,
-                        compileSdk = AndroidTemplateSupport.COMPILE_SDK,
-                        minSdk = minSdk,
-                        targetSdk = targetSdk,
-                    ),
-                )
-            }
-            commit()
-        }
+
+        GradleScaffold.writeRootFiles(scaffold, args.name)
+        GradleScaffold.writeAppModule(
+            scaffold,
+            GradleScaffold.AppOptions(
+                namespace = pkg,
+                minSdk = minSdk,
+                targetSdk = targetSdk,
+                compileSdk = AndroidTemplateSupport.COMPILE_SDK,
+                kotlin = kotlin,
+                compose = false,
+            ),
+        )
 
         val path = AndroidTemplateSupport.pkgPath(pkg)
         scaffold.writeText("app/proguard-rules.pro", AndroidTemplateSupport.PROGUARD_RULES_PRO)

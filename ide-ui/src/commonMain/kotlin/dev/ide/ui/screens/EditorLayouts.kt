@@ -252,6 +252,7 @@ internal fun ExpandedLayout(
     state: IdeUiState,
     onToggleTheme: () -> Unit,
     onOpenHub: () -> Unit,
+    onOpenIconManager: () -> Unit,
     indexStatus: IndexUiStatus,
     buildState: BuildState,
     onNewFile: (String, List<PackageSegment>) -> Unit,
@@ -360,8 +361,8 @@ internal fun ExpandedLayout(
                 )
             }
         }
-        DestinationSheets(state, compact = false, onOpenModuleConfig, onToggleTheme, onOpenHub, onCloseProject, fileActions)
-        PaletteOverlay(state, onToggleTheme, onOpenHub, onOpenDependencies)
+        DestinationSheets(state, compact = false, onOpenModuleConfig, onToggleTheme, onOpenHub, onOpenIconManager, onCloseProject, fileActions)
+        PaletteOverlay(state, onToggleTheme, onOpenHub, onOpenIconManager, onOpenDependencies)
     }
 }
 
@@ -376,6 +377,7 @@ internal fun CompactLayout(
     state: IdeUiState,
     onToggleTheme: () -> Unit,
     onOpenHub: () -> Unit,
+    onOpenIconManager: () -> Unit,
     indexStatus: IndexUiStatus,
     buildState: BuildState,
     onNewFile: (String, List<PackageSegment>) -> Unit,
@@ -499,8 +501,8 @@ internal fun CompactLayout(
             }
         }
 
-        DestinationSheets(state, compact = true, onOpenModuleConfig, onToggleTheme, onOpenHub, onCloseProject, fileActions)
-        PaletteOverlay(state, onToggleTheme, onOpenHub, onOpenDependencies)
+        DestinationSheets(state, compact = true, onOpenModuleConfig, onToggleTheme, onOpenHub, onOpenIconManager, onCloseProject, fileActions)
+        PaletteOverlay(state, onToggleTheme, onOpenHub, onOpenIconManager, onOpenDependencies)
         // Right-edge tool-window drawer (the phone counterpart of the desktop right pane + rail). Self-gates on
         // there being a RIGHT tool window, so it lays down nothing when no plugin contributes one.
         RightToolOverlay(state)

@@ -12,11 +12,16 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.unit.dp
 import dev.ide.ui.backend.UiDrawable
 import dev.ide.ui.backend.UiGradient
+import dev.ide.ui.backend.UiVectorGroup
+import dev.ide.ui.backend.UiVectorNode
+import dev.ide.ui.backend.UiVectorPath
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
@@ -134,16 +139,34 @@ private fun DrawScope.drawVector(v: UiDrawable.Vector, topLeft: Offset, size: Si
     val oy = topLeft.y + (size.height - drawnH) / 2f
     translate(ox, oy) {
         scale(scaleF, scaleF, pivot = Offset.Zero) {
-            for (p in v.paths) {
-                val path = AndroidPathParser.parse(p.pathData)
-                p.fillColor?.let { drawPath(path, argbColor(it), alpha = (p.fillAlpha * v.rootAlpha).coerceIn(0f, 1f), style = Fill) }
-                if (p.strokeColor != null && p.strokeWidthVp > 0f) {
-                    drawPath(
-                        path, argbColor(p.strokeColor!!),
-                        alpha = (p.strokeAlpha * v.rootAlpha).coerceIn(0f, 1f),
-                        style = Stroke(width = p.strokeWidthVp),
-                    )
-                }
+            for (node in v.nodes) drawVectorNode(node, v.rootAlpha)
+        }
+    }
+}
+
+/** Draw one [UiVectorNode] of a vector's tree — a leaf path, or a group that transforms its children. */
+private fun DrawScope.drawVectorNode(node: UiVectorNode, alpha: Float) {
+    when (node) {
+        is UiVectorGroup -> {
+            val pivot = Offset(node.pivotX, node.pivotY)
+            withTransform({
+                translate(node.translateX, node.translateY)
+                rotate(node.rotation, pivot)
+                scale(node.scaleX, node.scaleY, pivot)
+            }) {
+                for (child in node.children) drawVectorNode(child, alpha)
+            }
+        }
+
+        is UiVectorPath -> {
+            val path = AndroidPathParser.parse(node.pathData)
+            node.fillColor?.let { drawPath(path, argbColor(it), alpha = (node.fillAlpha * alpha).coerceIn(0f, 1f), style = Fill) }
+            if (node.strokeColor != null && node.strokeWidthVp > 0f) {
+                drawPath(
+                    path, argbColor(node.strokeColor!!),
+                    alpha = (node.strokeAlpha * alpha).coerceIn(0f, 1f),
+                    style = Stroke(width = node.strokeWidthVp),
+                )
             }
         }
     }

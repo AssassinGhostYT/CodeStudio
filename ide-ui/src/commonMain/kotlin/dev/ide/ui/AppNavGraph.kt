@@ -2,19 +2,25 @@ package dev.ide.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import dev.ide.ui.backend.FileActions
+import dev.ide.ui.backend.IconSnippets
 import dev.ide.ui.backend.ProjectInfo
+import dev.ide.ui.backend.UiInsertionTarget
 import dev.ide.ui.generated.resources.Res
 import dev.ide.ui.generated.resources.settings_title
 import dev.ide.ui.navigation.ScreenHost
+import dev.ide.ui.screens.AppIconStudioScreen
 import dev.ide.ui.screens.CodeStyleScreen
 import dev.ide.ui.screens.CreateProjectScreen
 import dev.ide.ui.screens.EditorScreen
 import dev.ide.ui.screens.ExportProjectScreen
 import dev.ide.ui.screens.HomeScreen
 import dev.ide.ui.screens.ImportPreviewScreen
+import dev.ide.ui.screens.IconManagerScreen
 import dev.ide.ui.screens.KeystoreCreateScreen
 import dev.ide.ui.screens.KeystoreImportScreen
 import dev.ide.ui.screens.KeystoreManagerScreen
@@ -122,10 +128,52 @@ internal fun AppNavGraph(
                 state = state,
                 onToggleTheme = { app.toggleTheme(dark) },
                 onOpenHub = { app.openHub(Screen.Editor) },
+                onOpenIconManager = { app.openIconManager(Screen.Editor) },
                 onOpenDependencies = { module -> app.openModuleConfig(module, ModulesTab.Dependencies) },
                 onOpenModuleConfig = { module -> app.openModuleConfig(module, ModulesTab.Settings) },
                 onCloseProject = { app.navigateTo(Screen.Projects) },
                 onOpenRun = { app.navigateTo(Screen.Run) },
+                fileActions = fileActions,
+            )
+
+            Screen.IconManager -> {
+                val tab = state.active
+                // The reference form depends on the buffer, not just the file name (a Compose file wants a
+                // painter, a plain one wants `R.`), so the target is computed from the live text once on
+                // entry rather than per frame: materialising the rope is not free.
+                val insertionTarget = remember(tab?.path) {
+                    tab?.let { UiInsertionTarget(it.path, composeContext = IconSnippets.looksLikeCompose(it.session.doc.text)) }
+                }
+                val scope = rememberCoroutineScope()
+                IconManagerScreen(
+                    backend = state.backend,
+                    onBack = { app.navigateTo(app.iconManagerReturn) },
+                    onOpenAppIconStudio = { repoId, name -> app.openAppIconStudio(repoId, name) },
+                    // Offered only when there is an editor tab to write into; the edits drive that tab's own
+                    // session, then the user is handed back to it so they see the result in place.
+                    onInsert = if (tab == null) null else { ref ->
+                        scope.launch {
+                            val edits = state.backend.icons.iconInsertion(
+                                path = tab.path,
+                                text = tab.session.doc.text,
+                                caret = tab.session.selection.min,
+                                ref = ref,
+                            )
+                            if (state.applyEdits(edits)) app.navigateTo(Screen.Editor)
+                        }
+                    },
+                    insertionTarget = insertionTarget,
+                    initialResDir = app.iconManagerResDir,
+                    fileActions = fileActions,
+                )
+            }
+
+            Screen.AppIconStudio -> AppIconStudioScreen(
+                backend = state.backend,
+                onBack = { app.navigateTo(Screen.IconManager) },
+                onChooseIcon = { app.navigateTo(Screen.IconManager) },
+                seedRepoId = app.appIconSeedRepoId,
+                seedIconName = app.appIconSeedName,
                 fileActions = fileActions,
             )
 

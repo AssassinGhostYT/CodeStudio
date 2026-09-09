@@ -65,6 +65,7 @@ import dev.ide.core.services.BlockService
 import dev.ide.core.services.BuildService
 import dev.ide.core.services.ComposePreviewService
 import dev.ide.core.services.DependencyService
+import dev.ide.core.services.IconManagerService
 import dev.ide.core.services.KotlinEditorService
 import dev.ide.core.services.LanguageFeatureService
 import dev.ide.core.services.ModuleService
@@ -426,6 +427,7 @@ internal val ANDROID_RESOURCE_SERVICE =
 internal val REFACTOR_SERVICE = ServiceKey<RefactorService>("ide.service.refactor")
 internal val KOTLIN_EDITOR_SERVICE = ServiceKey<KotlinEditorService>("ide.service.kotlinEditor")
 internal val COMPOSE_PREVIEW_SERVICE = ServiceKey<ComposePreviewService>("ide.service.composePreview")
+internal val ICON_MANAGER_SERVICE = ServiceKey<IconManagerService>("ide.service.icons")
 internal val DART_PUB_SERVICE = ServiceKey<DartPubService>("ide.service.dartPub")
 internal val GIT_SERVICE = ServiceKey<GitService>("ide.service.git")
 
@@ -798,6 +800,10 @@ class IdeServices private constructor(
     /** WORKSPACE-scoped Compose @Preview interpreter (lower / diagnostics / run / readiness). */
     internal val composePreview: ComposePreviewService
         get() = store.workspaceContainer.getService(COMPOSE_PREVIEW_SERVICE)
+
+    /** WORKSPACE-scoped Icon Manager: the browsable icon repositories and the import/app-icon writers. */
+    internal val icons: IconManagerService
+        get() = store.workspaceContainer.getService(ICON_MANAGER_SERVICE)
 
     /** WORKSPACE-scoped Dart/Flutter pub.dev package resolution (downloads + attaches package sources). */
     internal val dartPub: DartPubService
@@ -4536,7 +4542,29 @@ class IdeServices private constructor(
                 ?: error("Unknown project template '$templateId'")
             val templateArgs = TemplateArgs(args)
             template.generate(ScaffoldImpl(store, languageLevel), templateArgs)
-            store.save()
+            if (template.scaffoldsGradle) {
+                // A real Gradle project: the build scripts are the source of truth, so after generation we
+                // derive the model through the Gradle importer (the same path imported folders take) and never
+                // write a module.toml. Reopening re-syncs from the scripts via the external-project marker.
+                val importer = ProjectSyncService.importerFor(platform.extensions, root)
+                    ?: error("No importer claims the generated Gradle project")
+                val outcome = runSync { importer.resolve(SyncRequest(root, NoSyncProgress, SyncReason.IMPORT)) }
+                val model = outcome.model ?: error("Gradle import of the generated project produced no model")
+                ExternalModelApplier(store).apply(model, languageLevel, removeAbsent = false)
+                store.save()
+                // Custom Maven repositories captured from the build files → the format DependencyService reads.
+                ExternalRepositories.merge(root, model.repositories)
+                // Mark the project as externally owned so the next open re-syncs from the scripts.
+                ExternalProjectMarker.write(
+                    root,
+                    importer.id.value,
+                    "Created as a ${importer.displayName} project. The build files were read statically, " +
+                        "not executed; edit settings.gradle.kts / build.gradle.kts to change the build.",
+                )
+                SyncStamp.write(root, importer.id.value, SyncStamp.match(root, importer.syncFiles()))
+            } else {
+                store.save()
+            }
             val services = IdeServices(
                 platform,
                 store,

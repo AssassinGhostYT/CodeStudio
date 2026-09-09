@@ -1,5 +1,6 @@
 package dev.ide.model.impl
 
+import dev.ide.model.BuildSystemId
 import dev.ide.model.ContentRole
 import dev.ide.model.DependencyScope
 import dev.ide.model.Exclusion
@@ -80,6 +81,10 @@ object ModelPersistence {
 
         for (p in ws.projects) {
             val projectRoot = resolveRel(root, p.rootRelPath)
+            // Externally-owned projects (real Gradle builds) keep their build scripts as the source of truth:
+            // no module.toml manifests are written into the module folders, so a created project stays a
+            // clean, normal folder. Native projects keep the per-module declarative manifest.
+            if (p.buildSystemId != BuildSystemId.NATIVE.value) continue
             for (m in p.modules) {
                 val moduleDir = resolveRel(projectRoot, m.dirRelPath)
                 CrashSafeWriter.write(moduleDir.resolve(MODULE_FILE), Toml.write(moduleToToml(m)))

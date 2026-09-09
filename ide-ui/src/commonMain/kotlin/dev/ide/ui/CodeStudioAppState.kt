@@ -94,6 +94,22 @@ class CodeStudioAppState(
     var keystoreReturn: Screen by mutableStateOf(Screen.Hub)
         private set
 
+    /** Where the Icon Manager returns on Back: the editor, or wherever it was opened from. */
+    var iconManagerReturn: Screen by mutableStateOf(Screen.Editor)
+        private set
+
+    /** When the Icon Manager was opened from the file tree's "New Image Asset" entry, the `res/` folder whose
+     *  scalables/ the import should land in. Null when opened from the editor's menu (imports un-scoped). */
+    var iconManagerResDir: String? by mutableStateOf(null)
+        private set
+
+    /** App-icon studio seeding: the icon the user picked in the Icon Manager, handed to the studio as its
+     *  starting point (its first generated vector is a live-rendered copy of that icon). */
+    var appIconSeedRepoId: String? by mutableStateOf(null)
+        private set
+    var appIconSeedName: String? by mutableStateOf(null)
+        private set
+
     /** Whether the Keystore Manager was reached from a project context (the editor's hub or a module's Signing
      *  tab) rather than the picker's hub. Gates the "Assign to a build" row: assignment is per-project, so it is
      *  hidden when no project is open (and must never navigate into one). NOT `epoch > 0`: that stays true after
@@ -302,6 +318,22 @@ class CodeStudioAppState(
     fun openKeystoreImport(path: String) {
         keystoreImportPath = path
         screen = Screen.KeystoreImport
+    }
+
+    /** Open the Icon Manager, remembering where Back goes. [resDir] preselects an import target, which is how
+     *  the file tree's "New Image Asset" entry scopes the screen to the folder that was tapped. */
+    fun openIconManager(returnTo: Screen = Screen.Editor, resDir: String? = null) {
+        iconManagerReturn = returnTo
+        iconManagerResDir = resDir
+        screen = Screen.IconManager
+    }
+
+    /** Open the app-icon studio, optionally seeded with the icon the user picked in the Icon Manager. Back from
+     *  the studio returns to the manager, so choosing a different icon is a round trip rather than a dead end. */
+    fun openAppIconStudio(repoId: String? = null, iconName: String? = null) {
+        appIconSeedRepoId = repoId
+        appIconSeedName = iconName
+        screen = Screen.AppIconStudio
     }
 
     /** The keystore manager's "assign to a build" jump: one android-app module goes straight to its Signing
@@ -514,6 +546,9 @@ class CodeStudioAppState(
                 screen == Screen.EditorSymbols || screen == Screen.Plugins || screen == Screen.Storage ->
                 screen = Screen.Hub
             screen == Screen.KeystoreManager -> screen = keystoreReturn
+            // The app-icon studio steps back to the manager; the manager honours its entry origin.
+            screen == Screen.AppIconStudio -> screen = Screen.IconManager
+            screen == Screen.IconManager -> screen = iconManagerReturn
             // The hub returns to wherever it was opened from (picker or editor).
             screen == Screen.Hub -> screen = hubReturn
 

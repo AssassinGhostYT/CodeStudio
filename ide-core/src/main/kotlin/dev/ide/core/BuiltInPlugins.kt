@@ -25,6 +25,7 @@ import dev.ide.core.services.BlockService
 import dev.ide.core.services.BuildService
 import dev.ide.core.services.ComposePreviewService
 import dev.ide.core.services.DependencyService
+import dev.ide.core.services.IconManagerService
 import dev.ide.core.services.KotlinEditorService
 import dev.ide.core.services.LanguageFeatureService
 import dev.ide.core.services.ModuleService
@@ -761,6 +762,9 @@ private class IdeCoreServicesPlugin : Plugin {
         }
         reg.service(COMPOSE_PREVIEW_SERVICE, ServiceScopeLevel.WORKSPACE) {
             ComposePreviewService(getService(ENGINE_CONTEXT))
+        }
+        reg.service(ICON_MANAGER_SERVICE, ServiceScopeLevel.WORKSPACE) {
+            IconManagerService(getService(ENGINE_CONTEXT))
         }
         reg.service(DART_PUB_SERVICE, ServiceScopeLevel.WORKSPACE) {
             DartPubService(getService(ENGINE_CONTEXT))

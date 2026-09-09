@@ -38,6 +38,13 @@ interface ProjectTemplate {
     fun generate(scaffold: ProjectScaffold, args: TemplateArgs)
 
     /**
+     * True when [generate] authors a real Gradle project — the build scripts are the source of truth and
+     * the host runs the Gradle importer over them (writing the external-project marker) instead of
+     * persisting a native workspace. Such projects keep no `module.toml`; the scripts are the model.
+     */
+    val scaffoldsGradle: Boolean get() = false
+
+    /**
      * Maven dependencies the generated project needs (e.g. a Material You app declares
      * `com.google.android.material:material`). The host resolves and attaches each one *after* [generate]
      * (resolution is a `suspend`/network step the synchronous scaffold can't do), reusing the same Maven

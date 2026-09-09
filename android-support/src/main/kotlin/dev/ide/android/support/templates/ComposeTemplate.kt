@@ -1,8 +1,5 @@
 package dev.ide.android.support.templates
 
-import dev.ide.android.support.AndroidFacet
-import dev.ide.android.support.BuildFeatures
-import dev.ide.model.BuildSystemId
 import dev.ide.model.template.ProjectScaffold
 import dev.ide.model.template.ProjectTemplate
 import dev.ide.model.template.TemplateArgs
@@ -13,13 +10,11 @@ import dev.ide.model.template.TemplateParameter
 import dev.ide.platform.log.Log
 
 /**
- * A Jetpack Compose application: one `app` module (android-app) whose UI is built in Compose, with
- * `@Composable` functions and `@Preview`s that the editor can render through the on-device Compose
- * interpreter (see `docs/compose-interpreter.md`). Kotlin-only; Compose requires minSdk 21.
- *
- * The starter screen is a `Greeting` composable shown via `setContent`, plus two `@Preview` composables — a
- * single `Text` and a `Column` of `Text`s — to showcase the editor Preview button on both a leaf and a
- * nested (content-lambda) composable.
+ * A Jetpack Compose application scaffolded as a normal Gradle project — scripts are the source of truth,
+ * `app/build.gradle.kts` declares the Compose BOM + Material 3 in `dependencies {}`, and the model is
+ * derived by the Gradle importer (no `module.toml`). The starter screen is a `Greeting` composable shown
+ * via `setContent`, plus two `@Preview` composables — a single `Text` and a `Column` of `Text`s — to
+ * showcase the editor Preview button on both a leaf and a nested (content-lambda) composable.
  */
 object JetpackComposeAppTemplate : ProjectTemplate {
     override val id = TemplateId("compose-app")
@@ -27,6 +22,7 @@ object JetpackComposeAppTemplate : ProjectTemplate {
     override val description = "An Android app with a Jetpack Compose UI and @Preview composables you can render in the editor."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"
+    override val scaffoldsGradle: Boolean = true
 
     private val log = Log.logger("Jetpack Compose Template Generator")
 
@@ -39,32 +35,27 @@ object JetpackComposeAppTemplate : ProjectTemplate {
         AndroidTemplateSupport.targetSdkParam,
     )
 
-    override fun dependencies(args: TemplateArgs): List<TemplateDependency> =
-        dev.ide.android.support.AndroidFeatureDependencies.COMPOSE.map { TemplateDependency("app", it) }
+    // Declared in the generated app/build.gradle.kts (the importer reads it); nothing to write to module.toml.
+    override fun dependencies(args: TemplateArgs): List<TemplateDependency> = emptyList()
 
     override fun generate(scaffold: ProjectScaffold, args: TemplateArgs) {
         val pkg = args.packageName
         val minSdk = args.int("minSdk", 21)
         val targetSdk = args.int("targetSdk", AndroidTemplateSupport.COMPILE_SDK)
-        scaffold.workspace.beginModification().apply {
-            addProject(args.name, BuildSystemId.NATIVE, scaffold.rootDir)
-            commit()
-        }
-        scaffold.workspace.projects.first { it.name == args.name }.beginModification().apply {
-            addModule("app", scaffold.moduleType("android-app")).apply {
-                languageLevel = scaffold.languageLevel
-                putFacet(
-                    AndroidFacet(
-                        namespace = pkg,
-                        compileSdk = AndroidTemplateSupport.COMPILE_SDK,
-                        minSdk = minSdk,
-                        targetSdk = targetSdk,
-                        buildFeatures = BuildFeatures(compose = true),
-                    ),
-                )
-            }
-            commit()
-        }
+
+        GradleScaffold.writeRootFiles(scaffold, args.name)
+        GradleScaffold.writeAppModule(
+            scaffold,
+            GradleScaffold.AppOptions(
+                module = "app",
+                namespace = pkg,
+                minSdk = minSdk,
+                targetSdk = targetSdk,
+                compileSdk = AndroidTemplateSupport.COMPILE_SDK,
+                kotlin = true,
+                compose = true,
+            ),
+        )
 
         val path = AndroidTemplateSupport.pkgPath(pkg)
         scaffold.writeText("app/proguard-rules.pro", AndroidTemplateSupport.PROGUARD_RULES_PRO)
