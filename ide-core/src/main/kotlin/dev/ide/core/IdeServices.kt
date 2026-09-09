@@ -4543,6 +4543,11 @@ class IdeServices private constructor(
             val templateArgs = TemplateArgs(args)
             template.generate(ScaffoldImpl(store, languageLevel), templateArgs)
             if (template.scaffoldsGradle) {
+                // The build scripts ARE the model; a generated project written with blank/missing scripts is a
+                // silent failure that shows up as empty files in the tree. Fail loudly instead, with the names,
+                // so a bad template or a botched write is caught at creation rather than confused for the user's
+                // project.
+                checkGradleScaffold(root)
                 // A real Gradle project: the build scripts are the source of truth, so after generation we
                 // derive the model through the Gradle importer (the same path imported folders take) and never
                 // write a module.toml. Reopening re-syncs from the scripts via the external-project marker.
@@ -4581,6 +4586,25 @@ class IdeServices private constructor(
             val pending = template.dependencies(templateArgs)
             services.dependencies.setPendingDependencies(pending)
             return services
+        }
+
+        /**
+         * Assert the generated Gradle project actually got its build scripts, with content. The scripts are the
+         * source of truth (they are what the next open re-syncs from), so a blank or absent one would surface as
+         * an empty file in the tree. A missing file means generation wrote nothing; a blank one means the
+         * template passed empty content. Either is caught here, at creation, instead of later.
+         */
+        private fun checkGradleScaffold(root: Path) {
+            val required = listOf(
+                "settings.gradle.kts", "build.gradle.kts", "gradle.properties",
+                "gradle/wrapper/gradle-wrapper.properties", "app/build.gradle.kts",
+            )
+            val missing = required.filter { !Files.exists(root.resolve(it)) }
+            require(missing.isEmpty()) { "Generated Gradle project is missing $missing — the template wrote no build scripts" }
+            val settings = Files.readString(root.resolve("settings.gradle.kts"))
+            require(settings.contains(":app")) { "settings.gradle.kts was generated blank" }
+            require(Files.readString(root.resolve("build.gradle.kts")).contains("com.android.application")) { "build.gradle.kts was generated blank" }
+            require(Files.readString(root.resolve("app/build.gradle.kts")).contains("dependencies")) { "app/build.gradle.kts was generated blank" }
         }
 
         /** Open the existing workspace at [root] (seeding [sdk] only if it has none). The [ProjectManager.open] core. */
