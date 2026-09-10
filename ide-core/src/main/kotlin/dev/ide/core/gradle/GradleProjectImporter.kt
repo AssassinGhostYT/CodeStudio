@@ -147,6 +147,12 @@ class GradleProjectImporter : ProjectImporter {
                 applicationIdSuffix = it.applicationIdSuffix,
                 versionNameSuffix = it.versionNameSuffix,
             )
+        }.let { parsed ->
+            // AGP always provides a debug build type for an Android module even when the script never
+            // declares one (our own scaffold only writes `release { }`). Without it the variant switcher
+            // and the run/analysis default degenerate to release-only. Prepend the AGP default.
+            if (parsed.any { it.name == "debug" }) parsed
+            else listOf(BuildType("debug")) + parsed
         },
         productFlavors = spec.productFlavors.map { ProductFlavor(it.name, dimension = it.dimension) },
         buildFeatures = BuildFeatures(
