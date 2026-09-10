@@ -258,24 +258,17 @@ class CodeStudioAppStateTest {
     }
 
     @Test
-    fun gradleImportBlocksThenOpensTheConvertedProject() = runTest {
+    fun gradleImportBlocksThenOpensTheProject() = runTest {
         val backend = settled(importResult = UiProjectResult(true, ""))
         val app = appState(backend, PickingActions("/external/gradle-app"))
         advanceUntilIdle()
 
-        app.requestGradleImport()
-        assertTrue(app.showImportModeChoice)
-        app.importGradleProject(convert = true)
-        assertFalse(app.showImportModeChoice)
+        app.importGradleProject()
         assertTrue(app.importBusy) // blocking overlay is up while the copy + import runs
 
         advanceUntilIdle()
         assertFalse(app.importBusy)
         assertEquals(Screen.Editor, app.screen)
-        // The convert prompt is a one-shot: the editor's state consumes it and it never fires again.
-        assertTrue(app.pendingGradleConvert)
-        app.consumeGradleConvertPrompt()
-        assertFalse(app.pendingGradleConvert)
     }
 
     @Test
@@ -284,7 +277,7 @@ class CodeStudioAppStateTest {
         val app = appState(backend, PickingActions("/external/not-gradle"))
         advanceUntilIdle()
 
-        app.importGradleProject(convert = false)
+        app.importGradleProject()
         advanceUntilIdle()
         assertFalse(app.importBusy)
         assertEquals(Screen.Projects, app.screen)
@@ -297,7 +290,7 @@ class CodeStudioAppStateTest {
         val app = appState(backend, PickingActions(null))
         advanceUntilIdle()
 
-        app.importGradleProject(convert = false)
+        app.importGradleProject()
         advanceUntilIdle()
         assertFalse(app.importBusy)
         assertNull(app.importError)

@@ -33,7 +33,7 @@ import dev.ide.ui.generated.resources.import_unrecognized
 import dev.ide.ui.navigation.ScreenHost
 import dev.ide.ui.platform.PlatformBackHandler
 import dev.ide.ui.platform.PlatformSystemBars
-import dev.ide.ui.screens.GradleImportModeDialog
+
 import dev.ide.ui.theme.CodeStudioTheme
 import dev.ide.ui.theme.rememberJetBrainsMono
 import org.jetbrains.compose.resources.stringResource
@@ -81,12 +81,9 @@ fun CodeStudioApp(
 
     // The active project changes (create/open) bump the epoch; re-key per-project state on it.
     val state = remember(backend, app.epoch) {
-        IdeUiState(backend, composePreviewHost, initialGradleConvertPrompt = app.pendingGradleConvert)
+        IdeUiState(backend, composePreviewHost)
     }
-    // Clear the one-shot after it has been baked into the (re-created) state, so navigating back to a project
-    // later never re-triggers the convert prompt.
-    LaunchedEffect(state) { app.consumeGradleConvertPrompt() }
-    // Cancel the state's async file-read scope when it's replaced (project/backend change) or leaves composition,
+    // Cancel the state's async file-read scope when it's replaced (project/change) or leaves composition,
     // so a slow read for an abandoned project can't resolve against the new one.
     DisposableEffect(state) { onDispose { state.dispose() } }
     // Session restore/persistence, plugin editor events, and disk sync for the project on screen.
@@ -172,12 +169,7 @@ fun CodeStudioApp(
                     onDismissImportError = app::dismissImportError,
                     importBusy = app.importBusy,
                 )
-                GradleImportModeDialog(
-                    visible = app.showImportModeChoice,
-                    onCompat = { app.importGradleProject(convert = false) },
-                    onConvert = { app.importGradleProject(convert = true) },
-                    onDismiss = app::dismissImportModeChoice,
-                )
+                
             }
         }
     }

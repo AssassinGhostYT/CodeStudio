@@ -12,6 +12,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
@@ -64,6 +65,32 @@ class DamagedWorkspaceLoadTest {
         Files.delete(dir.resolve("shared/module.toml"))
 
         assertEquals(listOf("core"), loadModuleNames(dir), "the readable module must still load")
+    }
+
+    @Test
+    fun externalGradleProjectModulesLoadWithoutModuleManifests() = withTempDir("codestudio-gradle") { dir ->
+        val platform = PlatformCore()
+        platform.registerTestTypes()
+        try {
+            val store = ProjectModel.open(dir, platform, FacetCodecRegistry().register(JavaFacetCodec))
+            val javaLib = ModuleTypeRegistry(platform.extensions).resolve("java-lib")
+            store.workspace.beginModification().apply {
+                addProject("app", BuildSystemId.GRADLE_COMPAT, store.vfs.root())
+                commit()
+            }
+            store.workspace.projects.single().beginModification().apply {
+                addModule("app", javaLib)
+                commit()
+            }
+            store.save()
+        } finally {
+            platform.dispose()
+        }
+
+        // A real Gradle project has no module.toml under app/ (scripts are the source of truth); it must still
+        // reload with its module present instead of reporting it as damaged.
+        assertFalse(Files.exists(dir.resolve("app/module.toml")))
+        assertEquals(listOf("app"), loadModuleNames(dir))
     }
 
     @Test

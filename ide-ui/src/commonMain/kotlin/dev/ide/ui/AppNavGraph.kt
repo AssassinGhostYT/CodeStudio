@@ -323,7 +323,7 @@ private fun ProjectPickerRoute(
         onOpen = app::openProject,
         onNewProject = { app.createProject() },
         onDeleteProject = app::deleteProject,
-        onImportGradle = if (fileActions.canPickDirectory) app::requestGradleImport else null,
+        onImportGradle = if (fileActions.canPickDirectory) app::importGradleProject else null,
         onExportProject = if (fileActions.canShare || fileActions.canExport || fileActions.canReveal) {
             app::startExport
         } else null,

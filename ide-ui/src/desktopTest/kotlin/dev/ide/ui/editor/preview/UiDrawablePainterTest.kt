@@ -26,7 +26,7 @@ class UiDrawablePainterTest {
     @Test
     fun vectorIntrinsicSizeScalesDpByDensity() {
         val vec = UiDrawable.Vector(
-            widthDp = 24f, heightDp = 24f, viewportWidth = 24f, viewportHeight = 24f, rootAlpha = 1f, paths = emptyList(),
+            widthDp = 24f, heightDp = 24f, viewportWidth = 24f, viewportHeight = 24f, rootAlpha = 1f, nodes = emptyList(),
         )
         assertEquals(Size(48f, 48f), UiDrawablePainter(vec, density = 2f).intrinsicSize, "24dp @ density 2 = 48px")
     }
@@ -42,7 +42,7 @@ class UiDrawablePainterTest {
         // A 24x24 vector whose single path fills the whole viewport with opaque red.
         val red = UiDrawable.Vector(
             widthDp = 24f, heightDp = 24f, viewportWidth = 24f, viewportHeight = 24f, rootAlpha = 1f,
-            paths = listOf(
+            nodes = listOf(
                 UiVectorPath(
                     pathData = "M0,0 L24,0 L24,24 L0,24 Z",
                     fillColor = 0xFFFF0000L, strokeColor = null, strokeWidthVp = 0f, fillAlpha = 1f, strokeAlpha = 1f,

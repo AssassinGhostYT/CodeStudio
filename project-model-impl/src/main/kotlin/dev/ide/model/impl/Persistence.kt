@@ -236,14 +236,21 @@ object ModelPersistence {
             val p = entry.asObject()
             val rootRel = p["root"] as String
             val projectRoot = resolveRel(root, rootRel)
+            val buildSystem = p["buildSystem"] as String
             val damaged = ArrayList<Pair<String, Throwable>>()
-            val modules = (p["modules"] as? List<*>).orEmpty().mapNotNull { loadModule(projectRoot, it, damaged) }
+            // External projects (real Gradle builds) keep their build scripts as the source of truth: they
+            // have no module.toml manifests, so their modules are reconstructed from the workspace entry alone
+            // (a callout the Gradle importer reuses on open to rebuild the full model from the scripts).
+            val modules = (p["modules"] as? List<*>).orEmpty().mapNotNull {
+                if (buildSystem == BuildSystemId.NATIVE.value) loadModule(projectRoot, it, damaged)
+                else loadExternalModule(it)
+            }
             reportSkippedModules(name, damaged)
             ProjectData(
                 id = p["id"] as String,
                 name = p["name"] as String,
                 rootRelPath = rootRel,
-                buildSystemId = p["buildSystem"] as String,
+                buildSystemId = buildSystem,
                 settings = (p["settings"] as? Map<*, *>)?.entries?.associate { it.key.toString() to it.value.toString() } ?: emptyMap(),
                 modules = modules,
                 libraries = (p["libraries"] as? List<*>)?.mapNotNull { loadLibrary(it) } ?: emptyList(),
@@ -274,6 +281,28 @@ object ModelPersistence {
             damaged += name to it
         }.getOrNull()
     }
+
+    /**
+     * Reconstruct a module of an external (Gradle) project from its workspace entry alone. These projects do
+     * not carry module.toml manifests — their build scripts are the source of truth and the Gradle importer
+     * rebuilds the full model (facets, source sets, dependencies) from them on open. This placeholder keeps
+     * the model loadable (module name, count, id) without a manifest read, so a missing module.toml is not
+     * reported as damage for a project that never had one.
+     */
+    private fun loadExternalModule(entry: Any?): ModuleData? = runCatching {
+        val m = entry.asObject()
+        val dir = m["dir"] as String
+        ModuleData(
+            id = m["id"] as String,
+            name = m["name"] as String,
+            dirRelPath = dir,
+            // Unknown until the Gradle importer re-syncs on open; [UnknownModuleType] keeps it loadable.
+            typeId = "",
+            languageLevel = LanguageLevel.JAVA_17,
+            outputRelPath = "build/classes",
+        )
+    }.onFailure { log.warn("skipping an external module entry that could not be read", it) }
+        .getOrNull()
 
     /** Tell the user once that a project opened short of some of its modules. Losing a module changes the shape
      *  of the project, so it is reported rather than passed over, but one report covers all of them. */

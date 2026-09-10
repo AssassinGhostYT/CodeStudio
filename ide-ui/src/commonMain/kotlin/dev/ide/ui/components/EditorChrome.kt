@@ -91,8 +91,6 @@ import dev.ide.ui.generated.resources.edchrome_build_variant
 import dev.ide.ui.generated.resources.edchrome_command_palette
 import dev.ide.ui.generated.resources.edchrome_compose_preview
 import dev.ide.ui.generated.resources.edchrome_find_replace
-import dev.ide.ui.generated.resources.edchrome_gradle_compat
-import dev.ide.ui.generated.resources.edchrome_gradle_compatibility_mode
 import dev.ide.ui.generated.resources.edchrome_hide_inlay_hints
 import dev.ide.ui.generated.resources.edchrome_hide_resolution_details
 import dev.ide.ui.generated.resources.edchrome_hide_unresolved_dependencies
@@ -188,10 +186,6 @@ fun EditorTopBar(
     onPreview: () -> Unit = {},
     previewBusy: Boolean = false,
     onIndexClick: () -> Unit = {},
-    /** True when the project was imported from Gradle (compatibility mode) — shows the amber compat chip. */
-    compatibilityMode: Boolean = false,
-    /** Tapped on the compat chip: re-opens the compatibility-mode details banner. */
-    onCompatClick: () -> Unit = {},
     /** Plugin-contributed toolbar actions (the `mainToolbar` place), rendered just before Run. Empty by
      *  default — built-in chrome stays native; this is the seam a plugin adds a button through. */
     pluginActions: List<UiActionItem> = emptyList(),
@@ -222,7 +216,6 @@ fun EditorTopBar(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            if (compatibilityMode) CompatModeChip(compact = compact, onClick = onCompatClick)
             IndexStatusChip(indexStatus, compact = compact, onClick = onIndexClick)
             // Accent-tinted while there are unsaved changes; saves the active tab (Cmd/Ctrl-S also works).
             IconButtonCa(CaIcons.save, stringResource(Res.string.save), onSave, active = hasUnsavedChanges)
@@ -938,36 +931,6 @@ private fun VariantChip(
                 )
             }
         }
-    }
-}
-
-/**
- * An amber pill marking that the project was imported from Gradle and runs in compatibility mode. Always
- * present while such a project is open (so the limitation is never out of sight); tapping it re-opens the
- * details banner. Collapses to an icon-only chip on a phone.
- */
-@Composable
-private fun CompatModeChip(compact: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(Ca.radius.pill)
-    Row(
-        Modifier.clip(shape).clickable(onClick = onClick)
-            .background(Ide.colors.warning.copy(alpha = 0.16f), shape)
-            .padding(horizontal = if (compact) 6.dp else 9.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Icon(
-            CaIcons.warning,
-            stringResource(Res.string.edchrome_gradle_compatibility_mode),
-            Modifier.size(13.dp),
-            tint = Ide.colors.warning
-        )
-        if (!compact) Text(
-            stringResource(Res.string.edchrome_gradle_compat),
-            color = Ide.colors.warning,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold
-        )
     }
 }
 

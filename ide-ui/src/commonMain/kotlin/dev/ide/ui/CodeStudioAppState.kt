@@ -186,13 +186,6 @@ class CodeStudioAppState(
     var importBusy: Boolean by mutableStateOf(false)
         private set
 
-    /** The import-time "compatibility mode vs convert" chooser (shown after the folder pick request), and a
-     *  one-shot carried into the freshly-opened editor's state when Convert was chosen. */
-    var showImportModeChoice: Boolean by mutableStateOf(false)
-        private set
-    var pendingGradleConvert: Boolean by mutableStateOf(false)
-        private set
-
     // ---- backend-derived state ----
 
     /** The active project epoch: create/open bumps it, and per-project state is re-keyed on it. */
@@ -424,21 +417,9 @@ class CodeStudioAppState(
 
     // ---- Gradle import ----
 
-    /** The picker's "Import Gradle project" action: ask which mode first (compatibility vs convert). */
-    fun requestGradleImport() {
-        showImportModeChoice = true
-    }
-
-    fun dismissImportModeChoice() {
-        showImportModeChoice = false
-    }
-
-    /**
-     * Pick a Gradle folder and import it (always in compatibility mode first). When [convert] was chosen at the
-     * mode prompt, flag the freshly-opened editor to run the convert flow once it is up (see EditorCenter).
-     */
-    fun importGradleProject(convert: Boolean) {
-        showImportModeChoice = false
+    /** Pick a Gradle folder and import it. Gradle is CodeStudio's own project format now — there is no
+     *  "convert to native modules" alternative — so the import goes straight in, re-syncing from the scripts. */
+    fun importGradleProject() {
         doImportGradle(
             fileActions = fileActions,
             scope = scope,
@@ -448,19 +429,10 @@ class CodeStudioAppState(
             importBusy = false
             when {
                 result == null -> {} // cancelled, stay on the picker
-                result.success -> {
-                    if (convert) pendingGradleConvert = true
-                    screen = Screen.Editor
-                }
+                result.success -> screen = Screen.Editor
                 else -> importError = ImportError.GradleFailed(result.message)
             }
         }
-    }
-
-    /** Clear the convert one-shot once it has been baked into the (re-created) per-project state, so navigating
-     *  back to a project later never re-triggers the convert prompt. */
-    fun consumeGradleConvertPrompt() {
-        pendingGradleConvert = false
     }
 
     fun dismissImportError() {
