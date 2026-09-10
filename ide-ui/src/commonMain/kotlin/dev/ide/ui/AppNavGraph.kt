@@ -129,7 +129,6 @@ internal fun AppNavGraph(
                 onToggleTheme = { app.toggleTheme(dark) },
                 onOpenHub = { app.openHub(Screen.Editor) },
                 onOpenIconManager = { app.openIconManager(Screen.Editor) },
-                onOpenDependencies = { module -> app.openModuleConfig(module, ModulesTab.Dependencies) },
                 onOpenModuleConfig = { module -> app.openModuleConfig(module, ModulesTab.Settings) },
                 onCloseProject = { app.navigateTo(Screen.Projects) },
                 onOpenRun = { app.navigateTo(Screen.Run) },
@@ -195,7 +194,6 @@ internal fun AppNavGraph(
                 onBack = { app.navigateTo(Screen.Editor) },
                 onOpenKeystoreManager = { app.openKeystoreManager(Screen.ModuleConfig, inProject = true) },
                 codeFont = codeFont,
-                fileActions = fileActions,
             )
 
             Screen.SdkManager -> SdkManagerScreen(
@@ -334,8 +332,6 @@ private fun ProjectPickerRoute(
         onOpenInFiles = if (fileActions.canReveal) {
             { backend.projects.storageRootPath()?.let { fileActions.reveal(it) } }
         } else null,
-        showLegacyRecovery = app.showLegacyRecovery,
-        onDismissLegacyRecovery = app::dismissLegacyRecovery,
         loadIcon = { backend.projects.projectIcon(it.rootPath) },
     )
 }

@@ -62,7 +62,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.ide.ui.backend.FileActions
 import dev.ide.ui.backend.IdeBackend
 import dev.ide.ui.backend.UiBuildFeature
 import dev.ide.ui.backend.UiBuildFeatures
@@ -179,14 +178,14 @@ enum class ModulesTab(val label: StringResource) {
     CompilerPlugins(Res.string.modcfg_tab_compiler_plugins),
     Packaging(Res.string.modcfg_tab_packaging),
     Signing(Res.string.modcfg_tab_signing),
-    Dependencies(Res.string.modcfg_tab_dependencies),
 }
 
 /**
  * The **Modules** screen. Lists the project's modules first (add / remove); selecting one opens its detail
- * view with two tabs — **Settings** (Java version, source sets, facet config) and **Dependencies** (the
- * per-module dependency manager: libraries, BOMs, module-on-module deps, custom repositories). Facet panels
- * are generic — fields are derived from the facet codec, so a new facet appears without bespoke UI. Talks
+ * view of the remaining per-module tabs — Settings (source sets, facet config), Build Features, Compiler
+ * Plugins, Packaging and Signing. Dependencies are no longer managed here: in a Gradle project the
+ * `dependencies {}` block in the module's `build.gradle.kts` is the source of truth. Facet panels are
+ * generic — fields are derived from the facet codec, so a new facet appears without bespoke UI. Talks
  * only to [IdeBackend].
  */
 @Composable
@@ -197,14 +196,13 @@ fun ModuleConfigScreen(
     onBack: () -> Unit,
     onOpenKeystoreManager: () -> Unit = {},
     codeFont: FontFamily = FontFamily.Monospace,
-    fileActions: FileActions = FileActions.None,
 ) {
     var selected by remember { mutableStateOf(initialModule) }
     val module = selected
     if (module == null) {
         ModulesList(backend, codeFont, onOpen = { selected = it }, onBack = onBack)
     } else {
-        ModuleDetail(backend, module, initialTab, codeFont, fileActions, onOpenKeystoreManager, onBack = { selected = null })
+        ModuleDetail(backend, module, initialTab, codeFont, onOpenKeystoreManager, onBack = { selected = null })
     }
 }
 
@@ -288,7 +286,7 @@ private fun ModuleListItem(module: UiModuleRef, onOpen: () -> Unit, onRemove: ()
 // ---- module detail (Settings | Dependencies) ---------------------------------------------------
 
 @Composable
-private fun ModuleDetail(backend: IdeBackend, moduleName: String, initialTab: ModulesTab, codeFont: FontFamily, fileActions: FileActions, onOpenKeystoreManager: () -> Unit, onBack: () -> Unit) {
+private fun ModuleDetail(backend: IdeBackend, moduleName: String, initialTab: ModulesTab, codeFont: FontFamily, onOpenKeystoreManager: () -> Unit, onBack: () -> Unit) {
     var tab by remember(moduleName) { mutableStateOf(initialTab) }
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(Modifier.fillMaxSize()) {
@@ -301,7 +299,6 @@ private fun ModuleDetail(backend: IdeBackend, moduleName: String, initialTab: Mo
                 ModulesTab.CompilerPlugins -> CompilerPluginsPane(backend, moduleName, Modifier.weight(1f).fillMaxWidth())
                 ModulesTab.Packaging -> PackagingPane(backend, moduleName, codeFont, Modifier.weight(1f).fillMaxWidth())
                 ModulesTab.Signing -> SigningPane(backend, moduleName, onOpenKeystoreManager, Modifier.weight(1f).fillMaxWidth())
-                ModulesTab.Dependencies -> DependenciesPane(backend, moduleName, codeFont, fileActions, Modifier.weight(1f).fillMaxWidth())
             }
         }
     }
@@ -309,7 +306,7 @@ private fun ModuleDetail(backend: IdeBackend, moduleName: String, initialTab: Mo
 
 @Composable
 private fun ModuleTabRow(tab: ModulesTab, onSelect: (ModulesTab) -> Unit) {
-    // Scrolls horizontally so the tab strip never clips on a narrow phone (Settings · Build Features · Signing · Dependencies).
+    // Scrolls horizontally so the tab strip never clips on a narrow phone (Settings · Build Features · Signing · etc).
     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ModulesTab.entries.forEach { t ->
             val sel = t == tab
@@ -768,13 +765,12 @@ private fun ConfigForm(
     onCreateProguard: (entry: String) -> Unit,
     onSave: (UiModuleConfigEdit) -> Unit,
 ) {
-    // Editable state, rebuilt whenever a fresh config is loaded (e.g. after a save).
-    var level by remember(config) { mutableStateOf(config.languageLevel) }
-    var sdk by remember(config) { mutableStateOf(config.platformSdk) } // "" = follow the module-type default
+    // Editable state, rebuilt whenever a fresh config is loaded (e.g. after a save). The language level and
+    // the platform SDK come from the build scripts in a Gradle project (compileOptions/kotlinOptions and the
+    // SDK levels in `android {}`), so they are no longer editable here.
     val forms = remember(config) { config.facets.map { it.toForm() } }
     val mainClass = remember(config) { mutableStateOf(config.runConfig?.mainClass ?: "") }
-    val dirty = level != config.languageLevel || sdk != config.platformSdk ||
-        (config.runConfig != null && mainClass.value.trim() != config.runConfig!!.mainClass)
+    val dirty = (config.runConfig != null && mainClass.value.trim() != config.runConfig!!.mainClass)
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // ---- General ----
@@ -784,22 +780,6 @@ private fun ConfigForm(
                 MetaRow(stringResource(Res.string.modcfg_output)) {
                     Text(shortenPath(config.outputDir, projectRoot), color = MaterialTheme.colorScheme.outline,
                         style = MaterialTheme.typography.bodySmall.copy(fontFamily = codeFont), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                Spacer(Modifier.height(2.dp))
-                Text(stringResource(Res.string.modcfg_java_version), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-                Row(Modifier.fillMaxWidth().padding(top = 2.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    config.languageLevels.forEach { lvl -> LevelChip(prettyLevel(lvl), lvl == level) { level = lvl } }
-                }
-                // Platform SDK: the boot classpath the module compiles/completes against. "Auto" follows the
-                // module type (Java → core-Java, Android → the Android SDK); pinning it is how a console module
-                // is kept off android.jar, or a module is targeted at a specific installed platform.
-                if (config.availableSdks.size > 1) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(stringResource(Res.string.modcfg_platform_sdk), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-                    Row(Modifier.fillMaxWidth().padding(top = 2.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        LevelChip(stringResource(Res.string.modcfg_platform_sdk_auto, config.resolvedSdk), sdk == "") { sdk = "" }
-                        config.availableSdks.forEach { opt -> LevelChip(opt.label, sdk == opt.name) { sdk = opt.name } }
-                    }
                 }
             }
         }
@@ -833,10 +813,10 @@ private fun ConfigForm(
             Row(Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp), horizontalArrangement = Arrangement.End) {
                 PrimaryButton(stringResource(if (dirty) Res.string.modcfg_save_changes else Res.string.modcfg_save), icon = CaIcons.check, onClick = {
                     onSave(UiModuleConfigEdit(
-                        languageLevel = level,
+                        languageLevel = config.languageLevel,
                         facetValues = forms.associate { it.table to it.toValues() },
                         mainClass = if (config.runConfig != null) mainClass.value.trim() else null,
-                        platformSdk = sdk,
+                        platformSdk = config.platformSdk,
                     ))
                 })
             }

@@ -101,7 +101,10 @@ internal class ProjectModelTransactionImpl(
     private var done = false
 
     override fun addModule(name: String, type: ModuleType): ModifiableModule {
-        require(builders[name] == null && project.modules.none { it.id == name }) { "module '$name' already exists" }
+        // A name the same transaction just removed may be re-added (a resync rebuilds a module whose type the
+        // build files no longer declare the same as the loaded stub, so it removes and re-adds it fresh).
+        require(builders[name] == null && (removed.contains(name) || project.modules.none { it.id == name })) { "module '$name' already exists" }
+        removed.remove(name)
         val builder = ModuleBuilder(id = name, name = name, dirRelPath = name, typeId = type.id, initial = null, codecs = store.facetCodecs)
         type.defaultSourceSets().forEach { builder.addSourceSet(it) }
         type.defaultFacets().forEach { template ->

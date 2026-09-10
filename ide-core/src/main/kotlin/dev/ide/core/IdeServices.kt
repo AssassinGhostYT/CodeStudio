@@ -4510,7 +4510,45 @@ class IdeServices private constructor(
                 env.platform.modelLock
             )
             val store = ProjectModel.open(root, platform, env.codecs, env.container)
+            // External (Gradle) projects keep their build scripts as the source of truth: the persisted model
+            // holds only a per-module stub (id/name/dir — see `Persistence.workspaceJson`), because their folders
+            // carry no module.toml. Opening off that stub would show an empty source tree (just the module's
+            // config files), so re-derive the full model from the scripts before the engine starts.
+            resyncExternalProject(root, platform, store)
             return platform to store
+        }
+
+        /**
+         * Rebuild an external project's model from its build scripts on open (mirrors the create/import path with
+         * [SyncReason.OPEN]). An external ownership marker (written at creation/import) selects the projects whose
+         * scripts own the model — native projects are untouched. Best-effort: a failure logs and falls through to
+         * the persisted stub model, so a broken build file can never make the project unopenable.
+         */
+        private fun resyncExternalProject(root: Path, platform: PlatformCore, store: ProjectModelStore): Unit {
+            if (!ExternalProjectMarker.exists(root)) return
+            val importer = ProjectSyncService.importerFor(platform.extensions, root) ?: return
+            val model = runCatching {
+                runSync { importer.resolve(SyncRequest(root, NoSyncProgress, SyncReason.OPEN)) }
+            }.getOrElse { e ->
+                Log.logger("ide.workspace").error(
+                    "Re-sync of ${importer.displayName} project failed on open; opened with the persisted model instead.",
+                    e,
+                )
+                null
+            }?.model ?: return
+            runCatching {
+                val languageLevel = store.data.projects.firstOrNull()?.modules?.firstOrNull()?.languageLevel
+                    ?: LanguageLevel.JAVA_17
+                ExternalModelApplier(store).apply(
+                    model,
+                    languageLevel,
+                    removeAbsent = importer.ownership == ModelOwnership.EXTERNAL,
+                )
+                ExternalRepositories.merge(root, model.repositories)
+                store.save()
+            }.onFailure { e ->
+                Log.logger("ide.workspace").error("Couldn't apply the re-synced ${importer.displayName} model on open.", e)
+            }
         }
 
         /** Desktop default SDK: an installed Android SDK's `android.jar` if present, else a detected JDK. */

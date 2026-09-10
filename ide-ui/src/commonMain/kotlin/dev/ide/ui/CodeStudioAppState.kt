@@ -38,7 +38,6 @@ private const val LAST_PROJECT_PREF = "session.lastProject"
 private const val REOPEN_LAST_PROJECT_PREF = "session.reopenLastProject"
 
 private const val MIGRATION_ACK_PREF = "migration.acknowledged"
-private const val LEGACY_RECOVERY_SEEN_PREF = "legacy.recovery.seen"
 private const val ONBOARDING_SEEN_PREF = "onboarding.seen"
 
 /** Why the project-import flow stopped, rendered by the host as a localized notice. */
@@ -149,8 +148,6 @@ class CodeStudioAppState(
     // ---- first-launch sheets ----
 
     var showMigration: Boolean by mutableStateOf(backend.settings.preference(MIGRATION_ACK_PREF) != "true")
-        private set
-    var showLegacyRecovery: Boolean by mutableStateOf(backend.settings.preference(LEGACY_RECOVERY_SEEN_PREF) != "true")
         private set
     var showOnboarding: Boolean by mutableStateOf(backend.settings.preference(ONBOARDING_SEEN_PREF) != "true")
         private set
@@ -485,11 +482,6 @@ class CodeStudioAppState(
     fun dismissOnboarding() {
         showOnboarding = false
         backend.settings.setPreference(ONBOARDING_SEEN_PREF, "true")
-    }
-
-    fun dismissLegacyRecovery() {
-        showLegacyRecovery = false
-        backend.settings.setPreference(LEGACY_RECOVERY_SEEN_PREF, "true")
     }
 
     fun setAnalyticsConsent(granted: Boolean) {

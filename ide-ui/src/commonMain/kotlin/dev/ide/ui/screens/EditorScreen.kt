@@ -61,7 +61,6 @@ fun EditorScreen(
     onToggleTheme: () -> Unit,
     onOpenHub: () -> Unit = {},
     onOpenIconManager: () -> Unit = {},
-    onOpenDependencies: (String?) -> Unit = {},
     onOpenModuleConfig: (String?) -> Unit = {},
     onCloseProject: () -> Unit = {},
     onOpenRun: () -> Unit = {},
@@ -135,7 +134,6 @@ fun EditorScreen(
                 onNewResource,
                 onNewSource,
                 onFileOp,
-                onOpenDependencies,
                 onOpenModuleConfig,
                 onCloseProject,
                 fileActions
@@ -152,7 +150,6 @@ fun EditorScreen(
                 onNewResource,
                 onNewSource,
                 onFileOp,
-                onOpenDependencies,
                 onOpenModuleConfig,
                 onCloseProject,
                 fileActions

@@ -71,7 +71,6 @@ import dev.ide.ui.generated.resources.backup_failed
 import dev.ide.ui.generated.resources.brand_logo
 import dev.ide.ui.generated.resources.cancel
 import dev.ide.ui.generated.resources.coming_soon
-import dev.ide.ui.generated.resources.compatibility
 import dev.ide.ui.generated.resources.delete
 import dev.ide.ui.generated.resources.delete_project
 import dev.ide.ui.generated.resources.delete_project_content
@@ -98,8 +97,6 @@ import dev.ide.ui.generated.resources.quick_favorites
 import dev.ide.ui.generated.resources.quick_recent
 import dev.ide.ui.generated.resources.quick_section_title
 import dev.ide.ui.generated.resources.quick_templates
-import dev.ide.ui.generated.resources.recovered_projects
-import dev.ide.ui.generated.resources.recovered_projects_content
 import dev.ide.ui.generated.resources.settings_hub_title
 import dev.ide.ui.generated.resources.your_files
 import dev.ide.ui.generated.resources.your_projects
@@ -117,9 +114,9 @@ import org.jetbrains.compose.resources.stringResource
 /**
  * The "Projects" picker: a brand header, the New-Project / Import-Gradle leading cards, a Quick-Access row
  * (Recientes / Plantillas / Favoritos / Respaldos), and either a populated project list or an empty-state.
- * The legacy recovery banner sits between the quick-access row and the project list. Tiles in [QuickAccessRow]
- * either deep-link (Plantillas → [onOpenStore]) or fire-and-forget locally (Recientes / Favoritos show
- * "Próximamente"; Respaldos triggers [onBackup] and surfaces the result via Snackbar).
+ * Tiles in [QuickAccessRow] either deep-link (Plantillas → [onOpenStore]) or fire-and-forget locally
+ * (Recientes / Favoritos show "Próximamente"; Respaldos triggers [onBackup] and surfaces the result via
+ * Snackbar).
  */
 @Composable
 fun ProjectPickerScreen(
@@ -141,8 +138,6 @@ fun ProjectPickerScreen(
     onOpenStore: (() -> Unit)? = null,
     storagePath: String? = null,
     onOpenInFiles: (() -> Unit)? = null,
-    showLegacyRecovery: Boolean = false,
-    onDismissLegacyRecovery: () -> Unit = {},
     /** Loads an Android project's launcher icon (off the main thread); null ⇒ no icon support. */
     loadIcon: (suspend (ProjectInfo) -> UiProjectIcon?)? = null,
 ) {
@@ -150,7 +145,6 @@ fun ProjectPickerScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val comingSoonMsg = stringResource(Res.string.coming_soon)
-    val compatibilityCount = projects.count { it.compatibility }
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -187,10 +181,6 @@ fun ProjectPickerScreen(
                     onFavorites = { scope.launch { snackbarHostState.showSnackbar(comingSoonMsg) }; Unit },
                     onBackups = onBackup ?: { scope.launch { snackbarHostState.showSnackbar(comingSoonMsg) }; Unit },
                 )
-
-                if (showLegacyRecovery && compatibilityCount > 0) {
-                    LegacyRecoveryBanner(count = compatibilityCount, onDismiss = onDismissLegacyRecovery)
-                }
 
                 if (projects.isEmpty()) {
                     EmptyStateProjectsCard(onCreate = onNewProject)
@@ -567,7 +557,6 @@ private fun ProjectCard(
                 itemVerticalAlignment = Alignment.CenterVertically,
             ) {
                 if (project.isAndroid) AndroidTag()
-                if (project.compatibility) CompatibilityChip()
                 Text(
                     pluralStringResource(Res.plurals.modules, project.moduleCount, project.moduleCount),
                     color = MaterialTheme.colorScheme.outline,
@@ -710,58 +699,3 @@ private val PROJECT_PALETTE = listOf(
 
 internal fun projectColor(name: String): Color =
     PROJECT_PALETTE[(name.hashCode() and 0x7fffffff) % PROJECT_PALETTE.size]
-
-/** A small amber pill marking a project imported from Gradle (compatibility mode). */
-@Composable
-private fun CompatibilityChip() {
-    Row(
-        Modifier
-            .background(Ide.colors.warning.copy(alpha = 0.16f), RoundedCornerShape(Ca.radius.pill))
-            .padding(horizontal = 8.dp, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        Icon(CaIcons.warning, null, Modifier.size(12.dp), tint = Ide.colors.warning)
-        Text(stringResource(Res.string.compatibility), color = Ide.colors.warning, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
-    }
-}
-
-/**
- * A dismissible first-run banner shown when projects were recovered from an older CodeStudio version.
- * Sets expectations: Gradle-style projects open in a limited compatibility mode and may not be fully
- * supported. [count] is how many compatibility-mode projects were found.
- */
-@Composable
-private fun LegacyRecoveryBanner(count: Int, onDismiss: () -> Unit) {
-    val shape = RoundedCornerShape(Ca.radius.lg)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(Ide.colors.warning.copy(alpha = 0.10f), shape)
-            .border(1.dp, Ide.colors.warning.copy(alpha = 0.35f), shape)
-            .padding(14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Icon(CaIcons.warning, null, Modifier.size(20.dp), tint = Ide.colors.warning)
-        Column(Modifier.weight(1f)) {
-            Text(
-                pluralStringResource(Res.plurals.recovered_projects, count, count),
-                color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                stringResource(Res.string.recovered_projects_content),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.labelSmall,
-            )
-        }
-        val interaction = remember { MutableInteractionSource() }
-        Box(
-            Modifier.size(28.dp).pressScale(interaction).clickable(interaction, indication = null, onClick = onDismiss),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(CaIcons.close, stringResource(Res.string.dismiss), Modifier.size(16.dp), tint = MaterialTheme.colorScheme.outline)
-        }
-    }
-}

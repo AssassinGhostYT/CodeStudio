@@ -556,7 +556,7 @@ private fun OverflowItem(
  * (a newly-created project's template deps, an add, or a Retry); when resolution is idle but declared
  * dependencies are still unresolved it shows a persistent error banner with the reason + a Retry action —
  * the project-level error state (builds of the affected modules are blocked until it's cleared). Shows
- * everywhere in the app, so the user needn't stay on the Dependencies screen.
+ * files and the editor), so it's hard to miss even while the user is somewhere else in the app.
  */
 @Composable
 fun DepsProgressBar(state: DepsResolveState, onRetry: () -> Unit) {

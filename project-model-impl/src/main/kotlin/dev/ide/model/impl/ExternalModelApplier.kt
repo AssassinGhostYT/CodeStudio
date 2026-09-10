@@ -75,7 +75,12 @@ class ExternalModelApplier(private val store: ProjectModelStore) {
             for (name in gone) existing[name]?.let { tx.removeModule(it.id) }
             for (external in model.modules) {
                 val current = existing[external.name]
-                if (current == null) {
+                // The build files declare a different module type than the currently loaded one (or none was
+                // loaded): rebuild the module from the snapshot so its new type's defaults (source sets,
+                // facets) come in fresh. Type-match keeps the in-place refresh. This is what a reopen hits for
+                // externally-owned projects, whose persisted modules are only id/name/dir stubs.
+                if (current == null || current.type.id != external.typeId) {
+                    current?.let { tx.removeModule(it.id) }
                     val module = tx.addModule(external.name, store.moduleTypes.resolve(external.typeId))
                     configure(module, external, defaultLanguageLevel, replaceDependencies = false)
                     added += external.name

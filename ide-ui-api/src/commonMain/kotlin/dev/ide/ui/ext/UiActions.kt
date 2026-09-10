@@ -53,7 +53,6 @@ object UiDestinations {
     const val KEYSTORES = "keystores"
     const val LOGS = "logs"
     const val PROJECTS = "projects"
-    const val DEPENDENCIES = "dependencies"
     const val CODE_STYLE = "codeStyle"
     const val ICONS = "icons"
 }

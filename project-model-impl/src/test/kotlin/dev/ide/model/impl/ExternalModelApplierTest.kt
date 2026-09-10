@@ -32,10 +32,11 @@ class ExternalModelApplierTest {
     private fun appModule(
         dependencies: List<dev.ide.model.sync.ExternalDependency> = emptyList(),
         facets: List<ExternalFacet> = emptyList(),
+        typeId: String = "java-lib",
     ) = ExternalModule(
         name = "app",
         dirRelPath = "apps/app",
-        typeId = "java-lib",
+        typeId = typeId,
         sourceSets = listOf(
             ExternalSourceSet(
                 "main",
@@ -121,5 +122,25 @@ class ExternalModelApplierTest {
         val removed = applier.apply(snapshot(appModule()), LanguageLevel.JAVA_17, removeAbsent = true)
         assertEquals(listOf("core"), removed.removed)
         assertEquals(listOf("app"), store.workspace.projects.single().modules.map { it.name })
+    }
+
+    @Test
+    fun moduleWhoseTypeTheBuildFilesChangedIsRebuiltNotPatched() = withWorkspace { platform, store ->
+        platform.registerTestTypes()
+        val applier = ExternalModelApplier(store)
+        applier.apply(snapshot(appModule()), LanguageLevel.JAVA_17)
+        assertEquals("java-lib", store.workspace.projects.single().modules.single().type.id)
+
+        // The persisted stub of an externally-owned project carries a different (or empty) type than the
+        // build files declare — on reopen the module is REBUILT from the snapshot (so its new type's
+        // defaults — source sets, facets — come in fresh) instead of being patched in place, which would
+        // leave a type-less module with an empty source tree.
+        val report = applier.apply(snapshot(appModule(typeId = "java-cli")), LanguageLevel.JAVA_17, removeAbsent = true)
+
+        assertEquals(listOf("app"), report.added, "a type change rebuilds the module")
+        assertEquals(emptyList(), report.updated)
+        val app = store.workspace.projects.single().modules.single()
+        assertEquals("java-cli", app.type.id)
+        assertEquals(1, store.workspace.projects.single().modules.size, "remove-then-readd keeps a single module")
     }
 }

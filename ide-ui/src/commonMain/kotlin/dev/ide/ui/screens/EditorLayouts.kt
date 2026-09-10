@@ -127,7 +127,6 @@ internal fun buildLeftPanels(
     onNewResource: (TreeNode) -> Unit,
     onNewSource: (String, NewSourceLang, List<PackageSegment>) -> Unit,
     onFileOp: (TreeNode, FileOpKind) -> Unit,
-    onOpenDependencies: (String?) -> Unit,
     onOpenModuleConfig: (String?) -> Unit,
     closeDrawer: () -> Unit,
 ): List<SidebarPanel> {
@@ -144,7 +143,7 @@ internal fun buildLeftPanels(
         SidebarPanel(LeftPanelId.FILES, filesTitle, CaIcons.docText, order = 10) {
             FilesPanelContent(
                 state, fileActions, onNewFile, onNewFolder, onNewResource, onNewSource,
-                onFileOp, onOpenDependencies, onOpenModuleConfig, closeDrawer,
+                onFileOp, onOpenModuleConfig, closeDrawer,
             )
         },
         SidebarPanel(LeftPanelId.SEARCH, searchTitle, CaIcons.search, order = 20) {
@@ -193,7 +192,6 @@ private fun FilesPanelContent(
     onNewResource: (TreeNode) -> Unit,
     onNewSource: (String, NewSourceLang, List<PackageSegment>) -> Unit,
     onFileOp: (TreeNode, FileOpKind) -> Unit,
-    onOpenDependencies: (String?) -> Unit,
     onOpenModuleConfig: (String?) -> Unit,
     closeDrawer: () -> Unit,
 ) {
@@ -209,7 +207,6 @@ private fun FilesPanelContent(
         onNewFolder = onNewFolder,
         onNewResource = onNewResource,
         onNewSource = onNewSource,
-        onViewDependencies = { node -> closeDrawer(); onOpenDependencies(node.moduleConfigName ?: node.name) },
         onConfigureModule = { node -> closeDrawer(); onOpenModuleConfig(node.moduleConfigName ?: node.name) },
         onAddSourceRoot = { node -> closeDrawer(); state.addSourceRootModule = node.moduleConfigName ?: node.name },
         canImport = fileActions.canImport,
@@ -260,7 +257,6 @@ internal fun ExpandedLayout(
     onNewResource: (TreeNode) -> Unit,
     onNewSource: (String, NewSourceLang, List<PackageSegment>) -> Unit,
     onFileOp: (TreeNode, FileOpKind) -> Unit,
-    onOpenDependencies: (String?) -> Unit,
     onOpenModuleConfig: (String?) -> Unit,
     onCloseProject: () -> Unit,
     fileActions: FileActions,
@@ -268,7 +264,7 @@ internal fun ExpandedLayout(
     val project = state.backend.project
     val leftPanels = buildLeftPanels(
         state, fileActions, indexStatus.building,
-        onNewFile, onNewFolder, onNewResource, onNewSource, onFileOp, onOpenDependencies, onOpenModuleConfig,
+        onNewFile, onNewFolder, onNewResource, onNewSource, onFileOp, onOpenModuleConfig,
         closeDrawer = {}, // desktop panes are persistent — never auto-collapse
     )
     val rightPanels = pluginPanels(ToolWindowAnchor.RIGHT, state.backend, state.active?.path)
@@ -362,7 +358,7 @@ internal fun ExpandedLayout(
             }
         }
         DestinationSheets(state, compact = false, onOpenModuleConfig, onToggleTheme, onOpenHub, onOpenIconManager, onCloseProject, fileActions)
-        PaletteOverlay(state, onToggleTheme, onOpenHub, onOpenIconManager, onOpenDependencies)
+        PaletteOverlay(state, onToggleTheme, onOpenHub, onOpenIconManager)
     }
 }
 
@@ -385,7 +381,6 @@ internal fun CompactLayout(
     onNewResource: (TreeNode) -> Unit,
     onNewSource: (String, NewSourceLang, List<PackageSegment>) -> Unit,
     onFileOp: (TreeNode, FileOpKind) -> Unit,
-    onOpenDependencies: (String?) -> Unit,
     onOpenModuleConfig: (String?) -> Unit,
     onCloseProject: () -> Unit,
     fileActions: FileActions,
@@ -407,7 +402,7 @@ internal fun CompactLayout(
     }
     val leftPanels = buildLeftPanels(
         state, fileActions, indexStatus.building,
-        onNewFile, onNewFolder, onNewResource, onNewSource, onFileOp, onOpenDependencies, onOpenModuleConfig,
+        onNewFile, onNewFolder, onNewResource, onNewSource, onFileOp, onOpenModuleConfig,
         closeDrawer = { state.selectedLeftPanel = null }, // a navigating action closes the drawer on phone
     )
     Box(Modifier.fillMaxSize()) {
@@ -502,7 +497,7 @@ internal fun CompactLayout(
         }
 
         DestinationSheets(state, compact = true, onOpenModuleConfig, onToggleTheme, onOpenHub, onOpenIconManager, onCloseProject, fileActions)
-        PaletteOverlay(state, onToggleTheme, onOpenHub, onOpenIconManager, onOpenDependencies)
+        PaletteOverlay(state, onToggleTheme, onOpenHub, onOpenIconManager)
         // Right-edge tool-window drawer (the phone counterpart of the desktop right pane + rail). Self-gates on
         // there being a RIGHT tool window, so it lays down nothing when no plugin contributes one.
         RightToolOverlay(state)

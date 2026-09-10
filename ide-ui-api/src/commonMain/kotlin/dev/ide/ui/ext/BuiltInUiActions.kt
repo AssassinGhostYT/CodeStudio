@@ -32,7 +32,7 @@ object BuiltInUiPlugin : UiPlugin {
                 "ui.modules",
                 "Módulos",
                 more,
-                "Añadir/quitar módulos · versión de Java · dependencias · repositorios",
+                "Añadir/quitar módulos · versión de Java · SDK",
                 "layers",
                 20
             ) {
@@ -49,17 +49,6 @@ object BuiltInUiPlugin : UiPlugin {
                 22
             ) {
                 it.navigate(UiDestinations.ICONS)
-            },
-        )
-        scope.action(
-            SimpleUiAction(
-                "ui.dependencies",
-                "Gestionar dependencias",
-                setOf(palette),
-                iconId = "layers",
-                order = 25
-            ) {
-                it.navigate(UiDestinations.DEPENDENCIES)
             },
         )
         scope.action(

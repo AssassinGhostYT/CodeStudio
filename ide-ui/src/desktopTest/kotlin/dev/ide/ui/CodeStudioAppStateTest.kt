@@ -65,7 +65,6 @@ class CodeStudioAppStateTest {
     private fun settledPrefs() = mapOf(
         "migration.acknowledged" to "true",
         "onboarding.seen" to "true",
-        "legacy.recovery.seen" to "true",
     )
 
     /** A backend past its first launch, with the analytics prompt already answered. */
@@ -337,10 +336,10 @@ class CodeStudioAppStateTest {
         val app = appState(backend)
         advanceUntilIdle()
 
-        app.openModuleConfig("app", ModulesTab.Dependencies)
+        app.openModuleConfig("app", ModulesTab.Settings)
         assertEquals(Screen.ModuleConfig, app.screen)
         assertEquals("app", app.configModule)
-        assertEquals(ModulesTab.Dependencies, app.modulesTab)
+        assertEquals(ModulesTab.Settings, app.modulesTab)
         app.navigateBack()
         assertEquals(Screen.Editor, app.screen)
     }

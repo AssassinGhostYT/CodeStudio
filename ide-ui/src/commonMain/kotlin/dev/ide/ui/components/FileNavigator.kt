@@ -135,7 +135,6 @@ fun FileNavigator(
     onNewResource: (TreeNode) -> Unit = {},
     /** Create a new typed source file (Java class / Kotlin file) in [dirPath]; [segments] as in [onNewFile]. */
     onNewSource: (dirPath: String, lang: NewSourceLang, segments: List<PackageSegment>) -> Unit = { _, _, _ -> },
-    onViewDependencies: (TreeNode) -> Unit = {},
     onConfigureModule: (TreeNode) -> Unit = {},
     /** Open the Add-Source-Root dialog for a module node. */
     onAddSourceRoot: (TreeNode) -> Unit = {},
@@ -278,7 +277,6 @@ fun FileNavigator(
                         onNewFolder,
                         onNewResource,
                         onNewSource,
-                        onViewDependencies,
                         onConfigureModule,
                         onAddSourceRoot,
                         canShare,
@@ -518,7 +516,6 @@ private fun TreeRowContent(
     onNewFolder: (dirPath: String, segments: List<PackageSegment>) -> Unit,
     onNewResource: (TreeNode) -> Unit,
     onNewSource: (dirPath: String, lang: NewSourceLang, segments: List<PackageSegment>) -> Unit,
-    onViewDependencies: (TreeNode) -> Unit,
     onConfigureModule: (TreeNode) -> Unit,
     onAddSourceRoot: (TreeNode) -> Unit,
     canShare: Boolean = false,
@@ -658,13 +655,6 @@ private fun TreeRowContent(
                             boxSize = 22,
                             iconSize = 14
                         )
-                        IconButtonCa(
-                            CaIcons.layers,
-                            stringResource(Res.string.filetree_dependencies_of, node.name),
-                            onClick = { onViewDependencies(node) },
-                            boxSize = 22,
-                            iconSize = 14
-                        )
                     }
 
                 canNew && hovered ->
@@ -714,9 +704,6 @@ private fun TreeRowContent(
             if (canModuleMenu) {
                 FileActionItem(CaIcons.gear, stringResource(Res.string.filetree_module_settings)) {
                     menuOpen = false; onConfigureModule(node)
-                }
-                FileActionItem(CaIcons.layers, stringResource(Res.string.filetree_dependencies)) {
-                    menuOpen = false; onViewDependencies(node)
                 }
                 FileActionItem(CaIcons.plus, stringResource(Res.string.filetree_add_source_root)) {
                     menuOpen = false; onAddSourceRoot(
