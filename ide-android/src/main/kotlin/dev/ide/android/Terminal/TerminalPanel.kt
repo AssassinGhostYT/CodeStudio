@@ -57,16 +57,16 @@ import kotlinx.coroutines.launch
 
 @Composable
 internal fun TerminalPanel() {
-    var termuxMode by rememberSaveable { mutableStateOf(false) }
-    val engine: TerminalRuntime = if (termuxMode) TermuxRuntime else TerminalEngine
+    // The terminal is the in-IDE Alpine proot shell (TerminalEngine). Earlier builds toggled between
+    // Alpine and the Termux userland; Termux fails to exec its bootstrap on Android 11+ (SELinux W^X on
+    // app-data ELF — see TermuxRuntime's KDoc), so Alpine is the only engine (no trap toggle).
+    val engine: TerminalRuntime = TerminalEngine
     val setup by engine.setup.collectAsState()
     val running by engine.running.collectAsState()
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(termuxMode) {
+    LaunchedEffect(Unit) {
         scope.launch {
-            // Stop the engine we left before (re)starting the selected one.
-            (if (termuxMode) TerminalEngine else TermuxRuntime).stopSession()
             engine.ensureReady()
             if (engine.setup.value is TerminalSetupState.Ready) engine.startSession()
         }
@@ -75,10 +75,6 @@ internal fun TerminalPanel() {
     androidx.compose.material3.Surface(color = Color(0xFF0D1117), modifier = Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             TerminalStorageGate()
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                EngineChip("Alpine", selected = !termuxMode) { termuxMode = false }
-                EngineChip("Termux", selected = termuxMode) { termuxMode = true }
-            }
             when (val s = setup) {
                 TerminalSetupState.Idle -> StatusLine("Initializing…")
                 is TerminalSetupState.Downloading -> StatusLine(s.label)
@@ -242,26 +238,6 @@ private fun TerminalStorageGate() {
         ) {
             Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
         }
-    }
-}
-
-@Composable
-private fun EngineChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .clip(RoundedCornerShape(6.dp))
-            .background(if (selected) Color(0xFF1F6FEB) else Color(0xFF161B22))
-            .border(1.dp, if (selected) Color(0xFF1F6FEB) else Color(0xFF30363D), RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(
-            label,
-            color = if (selected) Color.White else Color(0xFF8B949E),
-            fontSize = 12.sp,
-            fontFamily = FontFamily.Monospace,
-        )
     }
 }
 
