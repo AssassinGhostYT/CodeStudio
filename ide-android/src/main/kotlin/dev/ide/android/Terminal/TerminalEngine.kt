@@ -158,7 +158,11 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
                 "rm-wrapper.sh" to "rm-wrapper.sh",
                 "run-host.sh" to "run-host.sh",
             )) {
-                installAssetOnce(ctx, assetName, File(localBinDir(), destName))
+                // The interactive `init` entry point is refreshed from the bundled asset every run — it
+                // carries the preamble (HOME/cwd, PS1, default env) whose defaults ship with the app; the
+                // rest install once so a user's local edits survive app updates.
+                val refresh = destName == "init"
+                installAssetOnce(ctx, assetName, File(localBinDir(), destName), refresh)
             }
 
             // 2. Extract the Alpine rootfs the first time. Idempotent: if the marker file exists and
@@ -218,8 +222,8 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
      * restarts. The chmod +x happens unconditionally because Android's package installer sometimes
      * strips exec bits on file extraction into filesDir (we hit this with libproot_loader.so before).
      */
-    private fun installAssetOnce(ctx: Context, assetName: String, dest: File) {
-        if (!dest.exists()) {
+    private fun installAssetOnce(ctx: Context, assetName: String, dest: File, refresh: Boolean = false) {
+        if (refresh || !dest.exists()) {
             dest.parentFile?.mkdirs()
             ctx.assets.open(assetName).use { input ->
                 FileOutputStream(dest).use { input.copyTo(it) }

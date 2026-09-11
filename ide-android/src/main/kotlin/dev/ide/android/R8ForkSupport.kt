@@ -37,6 +37,26 @@ object R8ForkSupport {
 
     fun launcher(): String? = LAUNCHERS.firstOrNull { File(it).exists() }
 
+    /** `dex\n035\0` header magic every dalvik dex starts with — cheap integrity check for an extracted file. */
+    private val DEX_MAGIC = byteArrayOf(0x64, 0x65, 0x78, 0x0a) // "dex\n"
+
+    /** Whether [dexes] is a usable forked-VM classpath: non-empty, non-directory, non-zero-sized, and each
+     *  carrying the `dex\n` header. ART fails the WHOLE VM classpath for a corrupt entry, and the marker guard
+     *  below can return a stale/truncated extraction whose marker still matches — so every path validates. */
+    private fun valid(dexes: List<File>): Boolean = dexes.isNotEmpty() && dexes.all { f ->
+        f.isFile && f.length() > 0 && runCatching {
+            f.inputStream().use { i ->
+                val h = ByteArray(4)
+                i.read(h) == 4 && h.contentEquals(DEX_MAGIC)
+            }
+        }.getOrDefault(false)
+    }
+
+    /** Clear any (possibly read-only) dexes/chunks in [dir] so a fresh extraction can't hit a read-only file. */
+    private fun clearDir(dir: File) {
+        dir.listFiles()?.forEach { runCatching { it.setWritable(true); it.delete() } }
+    }
+
     /**
      * Extract `assets/r8.dex.zip` → `cacheDir/r8-dex/` and return its `classes*.dex`, made READ-ONLY.
      *
@@ -44,7 +64,9 @@ object R8ForkSupport {
      * (W^X — `SecurityException: Writable dex file '…' is not allowed`, aborting the VM at system-classloader
      * creation). A freshly-extracted file is writable, so each is `setReadOnly()` after writing. Marker-guarded
      * by the app's `lastUpdateTime` so a new APK (possibly a new r8) re-extracts; the stale read-only files are
-     * cleared first so the rewrite can't hit a read-only file.
+     * cleared first so the rewrite can't hit a read-only file. Defensive: a marker match is also re-validated
+     * ([valid]) and, on failure, re-extracted once — a truncated on-disk dex (a killed write, a stale folder
+     * from an older app) otherwise passes straight to a forked merge that can't locate r8's classes.
      */
     fun extractR8Dexes(context: Context): List<File>? {
         val ctx = context.applicationContext
@@ -52,10 +74,15 @@ object R8ForkSupport {
         val stamp = runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).lastUpdateTime }.getOrDefault(0L).toString()
         val marker = File(dir, ".extracted")
         fun dexes() = dir.listFiles { f -> f.name.endsWith(".dex") }?.toList()?.sortedBy { it.name }
-        dexes()?.takeIf { marker.exists() && marker.readText() == stamp && it.isNotEmpty() }?.let { return it }
+        val cached = dexes()?.takeIf { marker.exists() && marker.readText() == stamp }
+        if (cached != null) {
+            if (valid(cached)) return cached
+            log.warn("r8-fork: ${cached.size} cached dex in $dir failed the header check — re-extracting $R8_DEX_ASSET")
+            clearDir(dir)
+        }
         dir.mkdirs()
         // Clear any stale (read-only) dexes from a prior extract so the fresh write can't hit a read-only file.
-        dir.listFiles()?.forEach { runCatching { it.setWritable(true); it.delete() } }
+        clearDir(dir)
         return runCatching {
             ctx.assets.open(R8_DEX_ASSET).use { ins ->
                 ZipInputStream(ins.buffered()).use { zis ->
@@ -71,7 +98,11 @@ object R8ForkSupport {
                 }
             }
             marker.writeText(stamp)
-            dexes()?.takeIf { it.isNotEmpty() }
+            val ds = dexes()?.takeIf { it.isNotEmpty() }
+            if (ds == null || !valid(ds)) {
+                log.warn("r8-fork: extracted dexes failed validation — forked-R8 unavailable, in-process fallback")
+                null
+            } else ds
         }.onFailure { log.warn("r8-fork: failed to extract $R8_DEX_ASSET: ${it.message}") }.getOrNull()
     }
 
