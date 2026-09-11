@@ -127,10 +127,11 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
 
     // Marker written under <filesDir>/local/alpine/ after a successful extract. Versioned so a
     // future ReTerminal asset layout change (different /etc/profile defaults, different package
-    // set) invalidates the cache without manual cleanup. Bumped to v2 from v1 (the previous
-    // Termux-bootstrap version) so devices that extracted a Termux rootfs don't get a stale
-    // "Ready" with the wrong binaries in place.
-    private const val ROOTFS_MARKER = ".cs-reterminal-v2"
+    // set) invalidates the cache without manual cleanup. Bumped to v3 from v2: v2 devices could
+    // report Ready with a missing interactive `init` script (panel showed exit code 127 +
+    // "local/bin/init: No such file or directory"), so v3's ensureReady now also requires the init
+    // script to exist before reusing the rootfs and forces a clean re-extract otherwise.
+    private const val ROOTFS_MARKER = ".cs-reterminal-v3"
 
     override suspend fun ensureReady(onProgress: (String) -> Unit) = withContext(Dispatchers.IO) {
         if (_setup.value is TerminalSetupState.Ready) return@withContext
@@ -160,14 +161,24 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
             )) {
                 // The interactive `init` entry point is refreshed from the bundled asset every run — it
                 // carries the preamble (HOME/cwd, PS1, default env) whose defaults ship with the app; the
-                // rest install once so a user's local edits survive app updates.
-                val refresh = destName == "init"
+                // rest install once so a user's local edits survive app updates. init-host.sh and
+                // run-host.sh are ALSO refreshed: they assemble the proot argv and their bind-map relies
+                // on files created by the runtime (stat/vmstat), so stale on-device copies from an older
+                // build (e.g. pre-fix init-host.sh that tried to tar "$PREFIX/files/alpine.tar.gz") must
+                // not win over the shipped version.
+                val refresh = destName in setOf("init", "init-host.sh", "run-host.sh")
                 installAssetOnce(ctx, assetName, File(localBinDir(), destName), refresh)
             }
 
-            // 2. Extract the Alpine rootfs the first time. Idempotent: if the marker file exists and
-            //    `bin/ash` is in place, skip the extract. The marker name is versioned (see above).
-            if (File(alpine, ROOTFS_MARKER).exists() && File(alpine, "bin/ash").exists()) {
+            // 2. Extract the Alpine rootfs the first time. Idempotent: if the marker file exists AND
+            //    `bin/ash` is in place AND the interactive `init` entry exists, skip the extract. The
+            //    marker name is versioned (see above); the extra bin/ash + init checks recover devices
+//    that carried a HALF-extracted rootfs or a missing init script from an older build
+                //    (the terminal showed "Process completed (code 127)" + "local/bin/init: No such file
+                //    or directory") by forcing a clean re-extract.
+            val ashExists = File(alpine, "bin/ash").exists()
+            val initScript = File(localBinDir(), "init")
+            if (File(alpine, ROOTFS_MARKER).exists() && ashExists && initScript.exists()) {
                 onProgress("Reusing extracted Alpine rootfs")
             } else {
                 _setup.value = TerminalSetupState.Downloading("Extracting Alpine rootfs (~${AssetSizes.rootfs(abiName)} MB)…")
@@ -204,6 +215,10 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
             // 3. Mark Ready. Set exec bits on the proot chain — Android sometimes drops them at
             //    install time even with useLegacyPackaging=true (the same issue we hit with
             //    libproot_loader.so before). Idempotent.
+            //    Also create the /proc/stat + /proc/vmstat bind sources init-host.sh mounts: proot
+            //    warns (non-fatally) when they're absent, and Alpine's procps can't synthesize them.
+            emptyFile(File(localDir(), "stat"))
+            emptyFile(File(localDir(), "vmstat"))
             ensureExecutable(prootExec())
             ensureExecutable(prootLoader())
             prootLoader32()?.let { ensureExecutable(it) }
@@ -331,8 +346,24 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
         try { Os.chmod(file.absolutePath, 0x1ED) } catch (_: Exception) { file.setExecutable(true, false) }
     }
 
+    /** Create [f] as an empty file if it doesn't exist (e.g. the stat/vmstat bind sources). */
+    private fun emptyFile(f: File) {
+        if (!f.exists()) {
+            f.parentFile?.mkdirs()
+            runCatching { f.createNewFile() }
+        }
+    }
+
     override fun startSession(cols: Int, rows: Int) {
-        if (session != null) return
+        // A leftover session that already finished (running=false) must be cleared, otherwise the
+        // early-return below would refuse to start a fresh shell — leaving the view stuck on a dead
+        // session ("El shell terminó").
+        val current = session
+        if (current != null) {
+            if (_running.value) return
+            runCatching { current.finishIfRunning() }
+            session = null
+        }
         if (_setup.value !is TerminalSetupState.Ready) {
             Log.w(TAG, "startSession called before Ready; ignoring")
             return

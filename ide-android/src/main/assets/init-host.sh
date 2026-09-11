@@ -2,9 +2,21 @@ ALPINE_DIR=$PREFIX/local/alpine
 
 mkdir -p $ALPINE_DIR
 
-if [ -z "$(ls -A "$ALPINE_DIR" | grep -vE '^(root|tmp)$')" ]; then
-    tar -xf "$PREFIX/files/alpine.tar.gz" -C "$ALPINE_DIR"
+# The rootfs is extracted by the app (TerminalEngine.ensureReady → assets/alpine/*.tar.gz.rootfs →
+# $ALPINE_DIR) BEFORE this script is ever run. The old ReTerminal line that tar-extracted
+# "$PREFIX/files/alpine.tar.gz" here could never work on modern installs (no file is ever placed
+# at that path — the tarballs are APK assets with an arch suffix), so it's removed. If the app-side
+# extraction hasn't happened, surface it visibly instead of letting proot fail on an empty -r root.
+if [ ! -x "$ALPINE_DIR/bin/ash" ]; then
+    echo "ALPINE_ROOTFS_MISSING: $ALPINE_DIR/bin/ash no existe — cerrá y reabrí la terminal desde la IDE (el rootfs se extrae al arrancar)." >&2
+    ls -la "$ALPINE_DIR" >&2
+    sleep 2
 fi
+
+# stat/vmstat are tiny placeholders proot binds as /proc/stat + /proc/vmstat (Alpine's procps can't
+# synthesize them). Create them if missing so proot stops warning about unavailable bind sources.
+if [ ! -e "$PREFIX/local/stat" ]; then : > "$PREFIX/local/stat"; fi
+if [ ! -e "$PREFIX/local/vmstat" ]; then : > "$PREFIX/local/vmstat"; fi
 
 if [ -f "$BIN/rm" ]; then
     rm -f "$ALPINE_DIR/bin/rm"
