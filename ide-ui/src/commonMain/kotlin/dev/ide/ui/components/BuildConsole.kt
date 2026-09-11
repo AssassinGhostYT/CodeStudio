@@ -175,6 +175,11 @@ fun BuildConsole(
 
     var tab by remember { mutableStateOf(BuildTab.Log) }
     var activePluginTab by remember { mutableStateOf<String?>(null) }
+    // The Problems filter and the Log level+search live here (not inside their tabs) so the header's Copy
+    // button copies exactly what the active filter shows — "copy the errors" copies only errors, etc.
+    var problemFilter by remember { mutableStateOf(ProblemFilter.All) }
+    var logLevel by remember { mutableStateOf(LogLevelFilter.All) }
+    var logQuery by remember { mutableStateOf("") }
     // Pull the errors front-and-center the moment a build fails (but never override the user otherwise).
     LaunchedEffect(buildState.status) {
         if (buildState.status == RunStatus.Failed && (errors > 0 || warnings > 0)) {
@@ -193,6 +198,7 @@ fun BuildConsole(
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Header(
             buildState, errors, warnings, tab, activePluginTab != null,
+            problemFilter, logLevel, logQuery,
             onRun, onStop, onCollapse,
         )
         if (indexStatus.building) IndexingSection(indexStatus)
@@ -215,8 +221,20 @@ fun BuildConsole(
                 }
                 plugin.content(ctx)
             } else when (tab) {
-                BuildTab.Problems -> ProblemsTab(buildState.diagnostics, onOpenDiagnostic)
-                BuildTab.Log -> LogTab(buildState.log, running)
+                BuildTab.Problems -> ProblemsTab(
+                    buildState.diagnostics,
+                    problemFilter,
+                    { problemFilter = it },
+                    onOpenDiagnostic,
+                )
+                BuildTab.Log -> LogTab(
+                    buildState.log,
+                    logLevel,
+                    { logLevel = it },
+                    logQuery,
+                    { logQuery = it },
+                    running,
+                )
                 BuildTab.Steps -> StepsTab(buildState.steps)
                 BuildTab.Logcat -> LogcatTab(appLog) { backend?.build?.clearAppLog() }
             }
@@ -245,6 +263,9 @@ private fun Header(
     warnings: Int,
     tab: BuildTab,
     pluginActive: Boolean,
+    problemFilter: ProblemFilter,
+    logLevel: LogLevelFilter,
+    logQuery: String,
     onRun: () -> Unit,
     onStop: () -> Unit,
     onCollapse: () -> Unit,
@@ -283,7 +304,7 @@ private fun Header(
             )
         }
         StatusPill(state.status)
-        val (copyTab, copyProvide) = copyForTab(state, tab, pluginActive)
+        val (copyTab, copyProvide) = copyForTab(state, tab, pluginActive, problemFilter, logLevel, logQuery)
         if (copyProvide != null) CopyButton(copyTab, copyProvide)
         if (running) IconButtonCa(
             CaIcons.stop,
@@ -331,24 +352,37 @@ private fun StatusPill(status: RunStatus) {
 }
 
 /**
- * The copy target for the active tab: the whole Problems / Log / Steps transcript as pasteable text. Copying
- * the full set (not just the filtered view) is deliberate — it's the only practical way to capture a build off
- * a device with no `adb`/logcat. Returns a null provider when there's nothing to copy (or a plugin tab owns
- * the pane), which hides the button. The text is built on demand so an empty tap never pays for it.
+ * The copy target for the active tab: the visible transcript as pasteable text. The copy follows the tab's
+ * active filter — the Problems filter chips and the Log level+search — so "copy the errors" copies only the
+ * errors, "copy the warnings" only the warnings, "copy all" the whole set; this is the device's only practical
+ * way to lift a build off without `adb`/logcat. Returns a null provider when there's nothing to copy (or a
+ * plugin tab owns the pane), which hides the button. The text is built on demand so an empty tap never pays
+ * for it.
  */
 private fun copyForTab(
     state: BuildState,
     tab: BuildTab,
     pluginActive: Boolean,
+    problemFilter: ProblemFilter,
+    logLevel: LogLevelFilter,
+    logQuery: String,
 ): Pair<BuildTab, (() -> String)?> {
     if (pluginActive) return tab to null
     return when (tab) {
-        BuildTab.Problems -> tab to (
-            if (state.diagnostics.isEmpty()) null
-            else fun(): String = renderProblemsForCopy(state.diagnostics))
-        BuildTab.Log -> tab to (
-            if (state.log.isEmpty()) null
-            else fun(): String = state.log.joinToString("\n", transform = ::renderLogForCopy))
+        BuildTab.Problems -> {
+            val shown = state.diagnostics.filter { problemFilter.keep(it.severity) }
+            tab to (if (shown.isEmpty()) null else fun(): String = renderProblemsForCopy(shown))
+        }
+        BuildTab.Log -> {
+            val q = logQuery.trim()
+            val shown = state.log.filter {
+                logLevel.keep(it.level) && (q.isEmpty() || it.message.contains(
+                    q,
+                    true
+                ) || (it.task?.contains(q, true) == true))
+            }
+            tab to (if (shown.isEmpty()) null else fun(): String = shown.joinToString("\n", transform = ::renderLogForCopy))
+        }
         BuildTab.Steps -> tab to (
             if (state.steps.isEmpty()) null
             else fun(): String = renderStepsForCopy(state.steps))
@@ -617,8 +651,12 @@ private fun TabItem(
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun ProblemsTab(diagnostics: List<BuildDiagnosticUi>, onOpen: (BuildDiagnosticUi) -> Unit) {
-    var filter by remember { mutableStateOf(ProblemFilter.All) }
+private fun ProblemsTab(
+    diagnostics: List<BuildDiagnosticUi>,
+    filter: ProblemFilter,
+    onFilter: (ProblemFilter) -> Unit,
+    onOpen: (BuildDiagnosticUi) -> Unit,
+) {
     val errors = diagnostics.count { it.severity == UiSeverity.Error }
     val warnings = diagnostics.count { it.severity == UiSeverity.Warning }
     val shown = remember(diagnostics, filter) { diagnostics.filter { filter.keep(it.severity) } }
@@ -629,15 +667,15 @@ private fun ProblemsTab(diagnostics: List<BuildDiagnosticUi>, onOpen: (BuildDiag
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             ConsoleChip(stringResource(Res.string.buildc_filter_all, diagnostics.size), filter == ProblemFilter.All) {
-                filter = ProblemFilter.All
+                onFilter(ProblemFilter.All)
             }
             if (errors > 0) ConsoleChip(stringResource(Res.string.buildc_filter_errors, errors), filter == ProblemFilter.Errors) {
-                filter = ProblemFilter.Errors
+                onFilter(ProblemFilter.Errors)
             }
             if (warnings > 0) ConsoleChip(
                 stringResource(Res.string.buildc_filter_warnings, warnings),
                 filter == ProblemFilter.Warnings
-            ) { filter = ProblemFilter.Warnings }
+            ) { onFilter(ProblemFilter.Warnings) }
         }
         if (shown.isEmpty()) {
             EmptyState(
@@ -770,9 +808,14 @@ private fun severityColor(s: UiSeverity): Color = when (s) {
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun LogTab(log: List<BuildLogLine>, running: Boolean) {
-    var level by remember { mutableStateOf(LogLevelFilter.All) }
-    var query by remember { mutableStateOf("") }
+private fun LogTab(
+    log: List<BuildLogLine>,
+    level: LogLevelFilter,
+    onLevel: (LogLevelFilter) -> Unit,
+    query: String,
+    onQuery: (String) -> Unit,
+    running: Boolean,
+) {
     var grouped by remember { mutableStateOf(true) }
     val collapsed = remember { mutableStateMapOf<String, Boolean>() }
 
@@ -792,7 +835,7 @@ private fun LogTab(log: List<BuildLogLine>, running: Boolean) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            SearchField(query, { query = it }, Modifier.weight(1f))
+            SearchField(query, onQuery, Modifier.weight(1f))
             IconButtonCa(
                 CaIcons.layers, if (grouped) stringResource(Res.string.buildc_ungroup) else stringResource(Res.string.buildc_group_by_task),
                 onClick = { grouped = !grouped }, boxSize = 30, iconSize = 16,
@@ -803,7 +846,7 @@ private fun LogTab(log: List<BuildLogLine>, running: Boolean) {
             Modifier.fillMaxWidth().padding(bottom = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            LogLevelFilter.entries.forEach { f -> ConsoleChip(stringResource(f.label), f == level) { level = f } }
+            LogLevelFilter.entries.forEach { f -> ConsoleChip(stringResource(f.label), f == level) { onLevel(f) } }
         }
         Box(
             Modifier.weight(1f).fillMaxWidth()
