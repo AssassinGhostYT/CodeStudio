@@ -21,9 +21,14 @@ if [[ ! -f /linkerconfig/ld.config.txt ]];then
 fi
 
 if [ "$#" -eq 0 ]; then
-    source /etc/profile
+    source /etc/profile 2>/dev/null || true
     export PS1='\[\033[01;32m\]\u@reterm\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
-    mkdir -p "$HOME"
+    # PUBLIC_HOME is the app's external home (bind-mounted from /storage). If it's unreachable
+    # (storage not granted yet, SD card absent) fall back to the in-rootfs /root rather than dying —
+    # under `set -e` a failed mkdir/cd would kill the shell instantly and the UI would sit on
+    # "Waiting for shell…" forever with no diagnostics.
+    mkdir -p "$HOME" 2>/dev/null || export HOME=/root
+    cd "$HOME" 2>/dev/null || export HOME=/root
     cd "$HOME"
     if [ -f /initrc ]; then
         source /initrc

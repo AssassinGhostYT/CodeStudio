@@ -142,9 +142,10 @@ internal fun EditorCenter(
                 onToggleConsole = { state.consoleOpen = !state.consoleOpen },
                 consoleOpen = state.consoleOpen,
                 // The toolbar's Terminal button always shows. On Android the host replaces
-                // [IdeUiState.openTerminal] with a log-only launcher; the actual terminal surface is the
-                // RIGHT-anchored tool window contributed by TerminalPlugin, which we toggle here when
-                // registered. On desktop (no terminal plugin registered) the host launcher stays a no-op.
+                // [IdeUiState.openTerminal] with a launcher for the standalone Alpine shell
+                // (TerminalActivity); no in-IDE tool window is registered anymore, so this always
+                // routes to the host. On desktop (no terminal plugin registered) the host launcher
+                // stays a no-op.
                 onOpenTerminal = {
                     val terminalPanel = ToolWindowRegistry
                         .forAnchor(ToolWindowAnchor.RIGHT)

@@ -230,49 +230,18 @@ class MainActivity : ComponentActivity() {
                     // instance is stable across project switches (it swaps services internally), so one host suffices.
                     composePreviewHost = (b as? IdeServicesBackend)?.let { AndroidComposePreviewHost(it) },
                     importPackagePath = importPackagePath,
-                    // Real Termux terminal as an Activity. The class is com.termux.app.TermuxActivity,
-                    // declared in :termux:application's manifest with exported=true; the IDE's toolbar
-                    // button launches it the same way Termux:Tasker / any third-party launcher does.
-                    // Resolution goes to the locally-bundled TermuxActivity first; if that ever stops
-                    // shipping, the Intent falls through to Termux from Google Play if installed, then
-                    // to a friendly install dialog. The previous "necesitás root" Toast (eb90bcd) was
-                    // both misleading AND a regression — Termux runs fine without root, you just need
-                    // the app installed.
+                    // Standalone Alpine-Linux terminal as a full-screen Activity (Termux-style black
+                    // canvas + extra-keys bar). dev.ide.android.Terminal.TerminalActivity is declared in
+                    // this APK's manifest with Theme.CodeStudio.Termux. The Toolbar's Terminal button
+                    // reaches it here: EditorCenter routes to this host lambda because the in-IDE
+                    // TerminalPlugin tool window is deliberately NOT registered anymore (the embedded
+                    // panel was dropped in favour of the full-screen experience).
                     onOpenTerminal = {
-                        val terminalTag = "CodeTermux"
-                        // TerminalPanel is now installed (ReTerminal-pattern proot+Alpine shell,
-                        // see AndroidIde.bootstrap). `state.openTerminal` is wired by EditorCenter.kt
-                        // through `state.toggleRightPanel(TERMINAL_TOOL_WINDOW_ID)` when the panel
-                        // exists — so this host lambda is only called when the panel failed to register
-                        // (debug builds without TerminalPlugin, future regressions). In that case we
-                        // fall back to launching the real Termux Activity, same as the user originally
-                        // had before eb90bcd regressed it with a misleading "necesitás root" Toast.
-                        Log.i(terminalTag, "tap fired; in-IDE panel absent → falling back to Termux Intent; activity=${this@MainActivity.javaClass.simpleName}")
+                        Log.i("CodeTermux", "toolbar Terminal → launching TerminalActivity (Alpine)")
                         try {
-                            // Resolve the class explicitly so a missing-class failure (e.g. :termux:application
-                            // not bundled in a future build) shows up in logcat instead of dying silently
-                            // before resolveActivity.
-                            val activityClass = Class.forName("com.termux.app.TermuxActivity")
-                            Log.i(terminalTag, "loaded ${activityClass.name}")
-                            val intent = Intent(this, activityClass)
-                            val resolved = packageManager.resolveActivity(intent, 0)
-                            if (resolved != null) {
-                                Log.i(terminalTag, "resolveActivity hit ${resolved.activityInfo.name}; launching")
-                                startActivity(intent)
-                                Log.i(terminalTag, "startActivity returned")
-                                Toast.makeText(this@MainActivity, "✓ Lanzando Termux…", Toast.LENGTH_LONG).show()
-                            } else {
-                                Log.w(terminalTag, "resolveActivity returned null; Termux activity not registered in this build")
-                                promptInstallTermux()
-                            }
-                        } catch (e: ClassNotFoundException) {
-                            Log.e(terminalTag, "TermuxActivity class not in this APK — falling back to install prompt", e)
-                            promptInstallTermux()
-                        } catch (e: android.content.ActivityNotFoundException) {
-                            Log.e(terminalTag, "ActivityNotFoundException — Termux not installed", e)
-                            promptInstallTermux()
+                            startActivity(Intent(this, dev.ide.android.Terminal.TerminalActivity::class.java))
                         } catch (e: Throwable) {
-                            Log.e(terminalTag, "launch failed", e)
+                            Log.e("CodeTermux", "TerminalActivity launch failed", e)
                             Toast.makeText(
                                 this@MainActivity,
                                 "❌ Terminal launch failed: ${e.javaClass.simpleName}: ${e.message}",

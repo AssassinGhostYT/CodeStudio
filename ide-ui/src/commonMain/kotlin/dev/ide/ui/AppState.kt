@@ -373,8 +373,8 @@ class IdeUiState(
 
     /**
      * What the editor toolbar's "Terminal" button does when tapped. On Android the host overrides this
-     * in [CodeStudioApp] with a launcher that opens `com.termux.app.TermuxActivity` (real Termux, with
-     * bootstrap, pkg, extra keys, foreground service). On desktop there is no terminal — the toolbar
+     * in [CodeStudioApp] with a launcher that opens the standalone Alpine shell — `dev.ide.android.Terminal.TerminalActivity`
+     * (full-screen black TerminalView, proot + Alpine rootfs, extra-keys bar). On desktop there is no terminal — the toolbar
      * button still renders but tapping it is a no-op. The old fallback that focused a BOTTOM tool-window
      * tab is gone: that tab was the Ubuntu-PRoot custom dock, deleted when the in-process terminal was.
      */

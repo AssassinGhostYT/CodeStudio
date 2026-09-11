@@ -119,10 +119,11 @@ object AndroidIde {
         // built libs, no `libreadline.so.8`/`libiconv.so` linker stall. The previous Termux-built
         // bootstrap stalled at "Waiting for shell.." on this device because proot couldn't ptrace-
         // execve Termux's bash (whose NEEDED entries are all Termux-built and unresolvable). The
-        // Toolbar's Terminal button toggles this panel (EditorCenter toggles the RIGHT tool window
-        // it registers); only if the panel ever failed to register would MainActivity.onOpenTerminal
-        // fall back to launching com.termux.app.TermuxActivity via Intent.
-        dev.ide.android.Terminal.TerminalPlugin.install(appContext)
+        // Toolbar's Terminal button opens the standalone [dev.ide.android.Terminal.TerminalActivity]
+        // (a full-screen black TerminalView running the Alpine shell) — NOT an in-IDE tool window. The
+        // window registration below stays OFF so EditorCenter routes the button to MainActivity's
+        // onOpenTerminal, which starts that Activity.
+        // dev.ide.android.Terminal.TerminalPlugin.install(appContext)
         // cold_start: time the whole on-device bootstrap (asset copy + project load + engine init). Emitted
         // once per launch for users who consented; no-op otherwise. Also serves as the per-launch anchor.
         if (backend.diagnostics.analyticsConsent() == true) {

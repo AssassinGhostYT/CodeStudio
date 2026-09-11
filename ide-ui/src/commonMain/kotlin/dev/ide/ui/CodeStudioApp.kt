@@ -62,8 +62,9 @@ fun CodeStudioApp(
      *  non-null value, the import preview opens for it. Null on desktop / normal launch. */
     importPackagePath: String? = null,
     /** What the editor's "Terminal" toolbar button does when tapped. Android passes a launcher that opens
-     *  the real Termux Activity (`com.termux.app.TermuxActivity`); desktop leaves the default no-op (the
-     *  terminal is Android-only — desktop users have a separate "open in terminal" path per project). */
+     *  the standalone Alpine shell as a full-screen Activity (`dev.ide.android.Terminal.TerminalActivity`);
+     *  desktop leaves the default no-op (the terminal is Android-only — desktop users have a separate
+     *  "open in terminal" path per project). */
     onOpenTerminal: () -> Unit = {},
 ) {
     // Register the UI facets of the enabled plugins, then load once. The backend reports exactly the plugins
