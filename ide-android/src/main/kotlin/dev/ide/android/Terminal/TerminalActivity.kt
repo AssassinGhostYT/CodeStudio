@@ -99,7 +99,7 @@ class TerminalActivity : Activity() {
             setBackgroundColor(Color.BLACK)
         }
         val tv = TerminalView(this, null).apply {
-            setTextSize(19f)
+            setTextSize(19)
             isFocusable = true
             isFocusableInTouchMode = true
             setBackgroundColor(Color.BLACK)
