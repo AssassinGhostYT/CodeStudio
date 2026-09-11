@@ -378,11 +378,15 @@ public class TermuxPluginUtils {
         // Must ensure result code for PendingIntents and id for notification are unique otherwise will override previous
         int nextNotificationId = TermuxNotificationUtils.getNextNotificationId(termuxPackageContext);
 
-        PendingIntent contentIntent = PendingIntent.getActivity(termuxPackageContext, nextNotificationId, result.contentIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+        PendingIntent contentIntent = PendingIntent.getActivity(termuxPackageContext, nextNotificationId, result.contentIntent,
+            // Android 12+ (targetSdk 31+) requires PendingIntents to declare mutability; these plugin-error
+            // intents are this app's own, so they are immutable.
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         PendingIntent deleteIntent = null;
         if (result.deleteIntent != null)
-            deleteIntent = PendingIntent.getBroadcast(termuxPackageContext, nextNotificationId, result.deleteIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+            deleteIntent = PendingIntent.getBroadcast(termuxPackageContext, nextNotificationId, result.deleteIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         // Setup the notification channel if not already set up
         setupPluginCommandErrorsNotificationChannel(termuxPackageContext);
