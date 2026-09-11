@@ -13,6 +13,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
@@ -238,40 +240,70 @@ class TerminalActivity : Activity() {
         Toast.makeText(this, "Copiado: ${text.length} caracteres", Toast.LENGTH_SHORT).show()
     }
 
+    private val handler = Handler(Looper.getMainLooper())
     private var startAttempted = false
 
     private fun startOrAttachShell() {
-        // Re-entry: the previous session is still running in the engine; just re-attach the view.
         val existing = TerminalEngine.session
         if (existing != null && TerminalEngine.running.value) {
             statusText?.visibility = View.GONE
             attachView(existing)
-        } else {
-            scope.launch {
-                startAttempted = true
-                TerminalEngine.ensureReady { msg -> showStatus(msg) }
-                when (val s = TerminalEngine.setup.value) {
-                    is TerminalSetupState.Ready -> {
-                        showStatus("Waiting for shell…")
-                        TerminalEngine.startSession()
-                        TerminalEngine.session?.let { attachView(it) }
+            return
+        }
+        scope.launch {
+            startAttempted = true
+            TerminalEngine.ensureReady { msg -> showStatus(msg) }
+            when (val s = TerminalEngine.setup.value) {
+                is TerminalSetupState.Ready -> {
+                    showStatus("Starting shell…")
+                    TerminalEngine.startSession()
+                    val session = TerminalEngine.session
+                    if (session != null) {
+                        attachView(session)
+                        // Hide overlay NOW — terminal buffer is visible via the view. The
+                        // collector only shows a Toast if the shell dies later.
+                        runOnUiThread { statusText?.visibility = View.GONE }
+                        // Diagnostic: if the shell died within 3 s, dump its buffer so we can
+                        // see what proot/init produced.
+                        handler.postDelayed({
+                            val alive = TerminalEngine.running.value
+                            val buf = session.getEmulator()?.getScreen()?.getSelectedText(
+                                0, 0, session.getEmulator().mColumns,
+                                session.getEmulator().getScreen().getActiveRows(), true,
+                            ) ?: ""
+                            Log.i(TAG, "shell-alive=$alive bufLen=${buf.length}")
+                            if (buf.isNotBlank()) Log.i(TAG, "shell-buffer:\n$buf")
+                            if (!alive) {
+                                runOnUiThread {
+                                    Toast.makeText(
+                                        this@TerminalActivity,
+                                        "Shell exited — check logcat -s TerminalActivity:TerminalEngine",
+                                        Toast.LENGTH_LONG,
+                                    ).show()
+                                }
+                            }
+                        }, 3_000)
                     }
-                    is TerminalSetupState.Failed -> showStatus("Setup fallido: ${s.message}")
-                    else -> showStatus("Preparando terminal…")
                 }
+                is TerminalSetupState.Failed -> showStatus("Setup fallido: ${s.message}")
+                else -> showStatus("Preparando terminal…")
             }
         }
-        // Watch the session lifecycle so a dead shell surfaces as a message instead of a silent
-        // black screen; hide the overlay as soon as the session is actually running.
+        // Minimal lifecycle tracking: only show Toast on death (never re-show overlay).
         scope.launch {
             TerminalEngine.running.collect { runningNow ->
-                if (runningNow) {
-                    runOnUiThread { statusText?.visibility = View.GONE }
-                } else if (startAttempted &&
+                if (!runningNow && startAttempted &&
                     TerminalEngine.setup.value is TerminalSetupState.Ready &&
                     TerminalEngine.session == null
                 ) {
-                    showStatus("El shell terminó — reabrí la terminal para reiniciarlo")
+                    runOnUiThread {
+                        statusText?.visibility = View.GONE
+                        Toast.makeText(
+                            this@TerminalActivity,
+                            "Shell terminó — reabrí la terminal",
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
                 }
             }
         }
