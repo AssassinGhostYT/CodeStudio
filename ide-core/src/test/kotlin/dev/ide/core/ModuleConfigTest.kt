@@ -1,5 +1,6 @@
 package dev.ide.core
 
+import dev.ide.model.BuildSystemId
 import dev.ide.testkit.withTempDir
 import dev.ide.ui.backend.UiConfigField
 import dev.ide.ui.backend.UiFacetConfig
@@ -103,6 +104,45 @@ class ModuleConfigTest {
         IdeServices.open(dir).use { reopened ->
             val core = assertNotNull(reopened.moduleService.getModuleConfig("core"))
             assertTrue(core.platformSdk.isNotEmpty(), "explicit [module] sdk override persisted to module.toml")
+        }
+        dir.toFile().deleteRecursively()
+    }
+
+    /** An externally-owned (Gradle) module's Android header values are mirrors of the build scripts — the
+     *  generic facet panel hides them (namespace, SDK levels, manifest, version numbers), while the rest of
+     *  the panel (isApplication, buildTypes) still renders. A native `module.toml` module keeps them editable. */
+    @Test
+    fun externallyOwnedModulesHideTheAndroidHeaderFields() = withTempDir("ide-cfg-ext") { dir ->
+        IdeServices.bootstrapDemo(dir).use { ide ->
+            fun androidPanel(): UiFacetConfig {
+                val config = assertNotNull(ide.moduleService.getModuleConfig("app"), "app config should load")
+                return config.facets.firstOrNull { it.table == "android" }
+                    ?: error("android facet panel present")
+            }
+
+            // Native (module.toml) project: the header fields render as editable fields.
+            assertTrue(androidPanel().fields.any { it.key == "namespace" }, "native: namespace present")
+            assertTrue(androidPanel().fields.any { it.key == "compileSdk" }, "native: compileSdk present")
+
+            // Rebind the sole project to an external build system (the state a Gradle import produces).
+            ide.store.workspace.beginModification().apply {
+                setBuildSystem(ide.store.workspace.projects.single().id, BuildSystemId.GRADLE_COMPAT)
+                commit()
+            }
+
+            val external = androidPanel()
+            for (hidden in listOf("namespace", "compileSdk", "minSdk", "targetSdk", "manifest", "versionCode", "versionName")) {
+                assertTrue(external.fields.none { it.key == hidden }, "'$hidden' must be hidden for an external module")
+            }
+            assertTrue(external.fields.any { it is UiConfigField.Bool && it.key == "isApplication" }, "isApplication still shown")
+            assertTrue(external.fields.any { it is UiConfigField.TableList && it.key == "buildTypes" }, "buildTypes still shown")
+
+            // Back to native ownership → the fields return.
+            ide.store.workspace.beginModification().apply {
+                setBuildSystem(ide.store.workspace.projects.single().id, BuildSystemId.NATIVE)
+                commit()
+            }
+            assertTrue(androidPanel().fields.any { it.key == "namespace" }, "headers return when the module is native again")
         }
         dir.toFile().deleteRecursively()
     }

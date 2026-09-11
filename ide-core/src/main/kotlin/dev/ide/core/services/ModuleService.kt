@@ -14,6 +14,7 @@ import dev.ide.lang.kotlin.compile.KOTLIN_COMPILER_PLUGIN_EP
 import dev.ide.lang.kotlin.compile.ParcelizeCompilerPlugin
 import dev.ide.lang.kotlin.compile.SerializationCompilerPlugin
 import dev.ide.model.ClasspathEntryKind
+import dev.ide.model.BuildSystemId
 import dev.ide.model.ContentRole
 import dev.ide.model.DependencyScope
 import dev.ide.model.LanguageLevel
@@ -83,14 +84,24 @@ internal class ModuleService(private val ctx: EngineContext) {
      */
     fun getModuleConfig(moduleName: String): UiModuleConfig? {
         val module = ctx.modules().firstOrNull { it.name == moduleName } ?: return null
+        val project = ctx.projectOf(module)
+        // In a Gradle/Maven project the build files own the Android header values — namespace, the SDK levels,
+        // the manifest path, version code/name — so their rows here would only mirror the scripts. Hide them
+        // for externally-owned modules (a native `module.toml` module still edits them in place).
+        val buildScriptOwned = project != null && project.buildSystemId != BuildSystemId.NATIVE
         val facets = module.facets.all.mapNotNull { facet ->
             val data = ctx.store.facetCodecs.encode(facet) ?: return@mapNotNull null
             UiFacetConfig(
                 data.tomlTable,
                 titleCase(data.tomlTable),
-                // `packaging` is a nested table edited on its own tab (and is absent when default) — keep it out
-                // of the generic field list so it isn't rendered as a raw map here.
-                data.values.filterKeys { it != PACKAGING_KEY }.map { (k, v) -> configFieldFor(k, v) })
+                data.values
+                    .filterKeys {
+                        // `packaging` is a nested table edited on its own tab (and is absent when default) —
+                        // keep it out of the generic field list so it isn't rendered as a raw map here.
+                        it != PACKAGING_KEY && !(buildScriptOwned && data.tomlTable == "android" &&
+                            it in EXTERNAL_FACET_HEADER_KEYS)
+                    }
+                    .map { (k, v) -> configFieldFor(k, v) })
         }
         val runConfig = if (isConsoleRunModule(module)) {
             val detected = MainClassDetection.detect(ctx, module).map { it.mainClass }
@@ -968,6 +979,12 @@ internal class ModuleService(private val ctx: EngineContext) {
     private companion object {
         /** The `[android]` codec key for the packaging block — edited via the Packaging tab, not the Settings fields. */
         const val PACKAGING_KEY = "packaging"
+
+        /** Android facet header values owned by the build scripts in an external (Gradle) project — mirrors
+         *  of `namespace`, SDK levels, manifest and version numbers; hidden from the generic field table. */
+        val EXTERNAL_FACET_HEADER_KEYS = setOf(
+            "namespace", "compileSdk", "minSdk", "targetSdk", "manifest", "versionCode", "versionName",
+        )
 
         /** [UiToolchainWarning.id] prefix for a bundled-KSP-processor runtime mismatch; the suffix is the
          *  catalog processor id, which is what the acceptance is persisted under. */
