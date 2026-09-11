@@ -119,13 +119,10 @@ object AndroidIde {
         // built libs, no `libreadline.so.8`/`libiconv.so` linker stall. The previous Termux-built
         // bootstrap stalled at "Waiting for shell.." on this device because proot couldn't ptrace-
         // execve Termux's bash (whose NEEDED entries are all Termux-built and unresolvable). The
-        // Toolbar's Terminal button now toggles this panel directly; if it ever stalls again, the
-        // fallback in MainActivity.onOpenTerminal still launches com.termux.app.TermuxActivity via
-        // Intent (the real, known-working shell from F-Droid/Play).
-        // Ubuntu/proot terminal disabled — the editor toolbar's Terminal button falls back to the Termux
-        // Intent launcher in MainActivity.onOpenTerminal (logs-only when Termux isn't installed). Remove
-        // this comment + the Terminal directory + the Termux deps from build.gradle.kts to fully purge.
-        // dev.ide.android.Terminal.TerminalPlugin.install(appContext)
+        // Toolbar's Terminal button toggles this panel (EditorCenter toggles the RIGHT tool window
+        // it registers); only if the panel ever failed to register would MainActivity.onOpenTerminal
+        // fall back to launching com.termux.app.TermuxActivity via Intent.
+        dev.ide.android.Terminal.TerminalPlugin.install(appContext)
         // cold_start: time the whole on-device bootstrap (asset copy + project load + engine init). Emitted
         // once per launch for users who consented; no-op otherwise. Also serves as the per-launch anchor.
         if (backend.diagnostics.analyticsConsent() == true) {
