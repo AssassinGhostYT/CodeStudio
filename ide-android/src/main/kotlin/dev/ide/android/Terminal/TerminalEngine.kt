@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
+import android.system.Os
 import android.util.Log
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
