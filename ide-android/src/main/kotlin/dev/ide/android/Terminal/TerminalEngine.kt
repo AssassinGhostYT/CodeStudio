@@ -81,7 +81,8 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
         Log.i(TAG, "init; nativeLibDir=$nativeLibDir filesDir=${filesDir?.absolutePath}")
     }
 
-    // Filesystem layout under `<filesDir>/`, all relative to the app's private storage:
+    // Filesystem layout under `<app-data>/local/` (= `$PREFIX/local/`, the directory init-host.sh
+    // and run-host.sh address — $PREFIX is the *parent* of files/, so NOT `<app-data>/files/local/`):
     //   local/                     (mirror of Termux's $PREFIX — what init-host.sh expects)
     //     bin/                     init-host.sh, init.sh, rm-wrapper.sh (copied from assets, chmod +x)
     //     lib/                     symlinks: libtalloc.so.2 -> $NATIVE_LIB_DIR/libtalloc.so
@@ -91,10 +92,12 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
     //     stat, vmstat             tiny POSIX shims that procps in Alpine can't synthesize
     //
     // $PREFIX used by init-host.sh = `<filesDir>/parent` (i.e. the directory *above* `files/`),
-    // matching ReTerminal MkSession.kt:99 ("PREFIX=${filesDir.parentFile!!.path}"). proot sees
-    // `<filesDir>/local/alpine` as `/alpine` once `-r $PREFIX/local/alpine` runs.
+    // matching ReTerminal MkSession.kt:99 ("PREFIX=${filesDir.parentFile!!.path}"). The extraction,
+    // the stat/vmstat shims and every `localDir()`-derived path must live under `$PREFIX/local/…`
+    // (NOT `<filesDir>/local/…`) or init-host.sh fails with "no such file or directory" / the
+    // ALPINE_ROOTFS_MISSING diagnostic, exactly like the user's device showed.
     private fun prefixDir() = filesDir!!.parentFile!!
-    private fun localDir() = File(filesDir!!, "local")
+    private fun localDir() = File(prefixDir(), "local")
     private fun localBinDir() = File(localDir(), "bin")
     private fun localLibDir() = File(localDir(), "lib")
     private fun alpineDir() = File(localDir(), "alpine")
@@ -125,7 +128,8 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
         }
     }
 
-    // Marker written under <filesDir>/local/alpine/ after a successful extract. Versioned so a
+    // Marker written under $PREFIX/local/alpine/ (= <app-data>/local/alpine/) after a successful
+    // extract. Versioned so a
     // future ReTerminal asset layout change (different /etc/profile defaults, different package
     // set) invalidates the cache without manual cleanup. Bumped to v3 from v2: v2 devices could
     // report Ready with a missing interactive `init` script (panel showed exit code 127 +
@@ -143,7 +147,7 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
             _setup.value = TerminalSetupState.Extracting
             onProgress("Preparing Alpine rootfs for $abiName…")
 
-            // 1. Install the init scripts into <filesDir>/local/bin/ from assets if missing.
+            // 1. Install the init scripts into $PREFIX/local/bin/ from assets if missing.
             //    ReTerminal only writes them once per install — the assets are the source of truth,
             //    and the per-device copies get chmod +x so proot can exec them as part of its argv.
             //
@@ -156,6 +160,10 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
             for ((assetName, destName) in listOf(
                 "init-host.sh" to "init-host.sh",
                 "init.sh" to "init",
+                // Two hardlinks-like aliases: init-host.sh wakes `$BIN/rm` (mounts it over the
+                // rootfs bin/rm so proot's host rm is user-safe), and tools.cmd may also reach the
+                // wrapper by its bootstrap name.
+                "rm-wrapper.sh" to "rm",
                 "rm-wrapper.sh" to "rm-wrapper.sh",
                 "run-host.sh" to "run-host.sh",
             )) {
@@ -208,9 +216,12 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
                             .onFailure { link.writeBytes(talloc.readBytes()) }
                     }
                 }
-                alpineTmpDir()
-                alpineRootDir()
             }
+            // Ensure the chroot /tmp and /root exist even on the reuse (marker-hit) path — the
+            // first launch after moving the runtime to $PREFIX/local must not depend on leftover
+            // dirs from an older <filesDir>/local layout.
+            alpineTmpDir()
+            alpineRootDir()
 
             // 3. Mark Ready. Set exec bits on the proot chain — Android sometimes drops them at
             //    install time even with useLegacyPackaging=true (the same issue we hit with
@@ -232,7 +243,7 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
     }
 
     /**
-     * Copy an asset to `<filesDir>/local/bin/<name>` once. Re-running does not overwrite — this is
+     * Copy an asset to `$PREFIX/local/bin/<name>` once. Re-running does not overwrite — this is
      * deliberate so a user's local edits (or a future runtime customization) survive across app
      * restarts. The chmod +x happens unconditionally because Android's package installer sometimes
      * strips exec bits on file extraction into filesDir (we hit this with libproot_loader.so before).
