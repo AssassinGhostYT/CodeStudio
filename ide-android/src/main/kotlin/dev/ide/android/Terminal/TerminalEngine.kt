@@ -1,8 +1,9 @@
 package dev.ide.android.Terminal
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
-import android.system.Os
 import android.util.Log
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
@@ -454,6 +455,11 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
         session?.write(line + "\n")
     }
 
+    /** Write a byte-for-byte sequence (escape sequences, control chars) — no trailing newline. */
+    fun writeRaw(text: String) {
+        session?.write(text)
+    }
+
     // ── Non-interactive command execution inside the Alpine rootfs ────────
     // Mirrors the interactive orchestration: the *first* process is /system/bin/sh running the
     // run-host.sh script (assembles the proot argv with the same bind mounts as init-host.sh), then
@@ -537,8 +543,23 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
     override fun onTextChanged(c: TerminalSession) {}
     override fun onTitleChanged(c: TerminalSession) {}
     override fun onSessionFinished(f: TerminalSession) { _running.value = false; session = null }
-    override fun onCopyTextToClipboard(s: TerminalSession, t: String) {}
-    override fun onPasteTextFromClipboard(s: TerminalSession?) {}
+    override fun onCopyTextToClipboard(s: TerminalSession, text: String) {
+        val ctx = appContext ?: return
+        runCatching {
+            (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                .setPrimaryClip(ClipData.newPlainText(null, text))
+        }.onFailure { Log.e(TAG, "clipboard copy failed", it) }
+    }
+    override fun onPasteTextFromClipboard(s: TerminalSession?) {
+        val ctx = appContext ?: return
+        runCatching {
+            val clip = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            if (clip.hasPrimaryClip()) {
+                val text = clip.primaryClip?.getItemAt(0)?.coerceToText(ctx).toString()
+                if (text.isNotEmpty()) session?.write(text)
+            }
+        }.onFailure { Log.e(TAG, "clipboard paste failed", it) }
+    }
     override fun onBell(s: TerminalSession) {}
     override fun onColorsChanged(s: TerminalSession) {}
     override fun onTerminalCursorStateChange(b: Boolean) {}
