@@ -89,12 +89,6 @@
 
     <string name="export_title">تصدير المشروع</string>
     <string name="export_intro">حزم هذا المشروع كملف .caproj يمكنك مشاركته مع أي شخص.</string>
-    <string name="export_bundle_deps">تضمين التبعيات</string>
-    <string name="export_bundle_deps_desc">تضمين المكتبات المُنزلَة حتى يتم استيرادها وبناؤها بلا اتصال. يجعل الملف أكبر.</string>
-    <string name="export_author_label">المؤلف (اختياري)</string>
-    <string name="export_author_hint">اسمك</string>
-    <string name="export_description_label">الوصف (اختياري)</string>
-    <string name="export_description_hint">ماذا يفعل هذا المشروع؟</string>
     <string name="export_action">تصدير</string>
     <string name="export_share">مشاركة المشروع</string>
     <string name="export_failed">تعذر تصدير المشروع.</string>

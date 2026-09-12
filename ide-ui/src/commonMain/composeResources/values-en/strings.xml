@@ -101,19 +101,15 @@ We never collect your code, file or project names, which features you use, or an
         <item quantity="other">%1$d files</item>
     </plurals>
     <string name="export_title">Export project</string>
-    <string name="export_intro">Package this project as a .caproj file you can share with anyone.</string>
-    <string name="export_bundle_deps">Bundle dependencies</string>
-    <string name="export_bundle_deps_desc">Include downloaded libraries so it imports and builds offline. Makes the file larger.</string>
-    <string name="export_author_label">Author (optional)</string>
-    <string name="export_author_hint">Your name</string>
-    <string name="export_description_label">Description (optional)</string>
-    <string name="export_description_hint">What does this project do?</string>
+    <string name="export_intro">Export the project as a standard .zip — a normal project folder you can open in Android Studio or any other IDE. Unzip it anywhere and open the folder.</string>
+    <string name="export_contains_title">What&#39;s inside the zip</string>
+    <string name="export_contains_desc">Your sources and res, the AndroidManifest, and the Gradle build files (settings.gradle.kts, build.gradle.kts, gradle wrapper). Nothing CodeStudio-specific.</string>
     <string name="export_action">Export</string>
     <string name="export_share">Share project</string>
     <string name="export_failed">Couldn\'t export the project.</string>
     <string name="export_exporting">Exporting…</string>
     <string name="export_success_title">Project exported</string>
-    <string name="export_success_subtitle">Your project package is ready.</string>
+    <string name="export_success_subtitle">Your project folder is ready as a .zip.</string>
     <string name="export_locate">Show in file manager</string>
     <string name="export_save_copy">Save a copy…</string>
     <string name="export_done">Done</string>

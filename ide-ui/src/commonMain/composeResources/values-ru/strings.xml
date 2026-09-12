@@ -89,12 +89,6 @@
 
     <string name="export_title">Экспорт проекта</string>
     <string name="export_intro">Упакуйте проект в файл .caproj, которым можно поделиться с кем угодно.</string>
-    <string name="export_bundle_deps">Включить зависимости</string>
-    <string name="export_bundle_deps_desc">Включает загруженные библиотеки для офлайн-импорта и сборки. Увеличивает размер файла.</string>
-    <string name="export_author_label">Автор (необязательно)</string>
-    <string name="export_author_hint">Ваше имя</string>
-    <string name="export_description_label">Описание (необязательно)</string>
-    <string name="export_description_hint">Что делает этот проект?</string>
     <string name="export_action">Экспортировать</string>
     <string name="export_share">Поделиться проектом</string>
     <string name="export_failed">Не удалось экспортировать проект.</string>

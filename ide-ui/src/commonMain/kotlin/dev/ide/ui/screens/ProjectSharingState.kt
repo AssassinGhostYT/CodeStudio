@@ -60,41 +60,23 @@ internal fun rememberImportPreviewState(
     ImportPreviewState(backend, archivePath, preview, scope)
 }
 
-/** State and intents for packaging a project into a shareable `.caproj`: the options form and the export. */
+/** State and intents for exporting a project as a standard project `.zip` (plain folder, IDE-portable). */
 @Stable
 internal class ExportProjectState(
     private val backend: IdeBackend,
     private val project: ProjectInfo,
-    initialAuthor: String,
-    private val onAuthorRemembered: (String) -> Unit,
     private val scope: CoroutineScope,
 ) {
     var phase: ExportPhase by mutableStateOf(ExportPhase.Configure)
         private set
-    var bundleDeps: Boolean by mutableStateOf(false)
-        private set
-    var author: String by mutableStateOf(initialAuthor)
-        private set
-    var description: String by mutableStateOf("")
-        private set
-
-    fun updateBundleDeps(value: Boolean) { bundleDeps = value }
-
-    fun updateAuthor(value: String) { author = value }
-
-    fun updateDescription(value: String) { description = value }
 
     fun backToConfigure() { phase = ExportPhase.Configure }
 
-    /** Package the project, remembering the author for the next export. */
+    /** Package the project as a plain `.zip` (sources + Gradle build files). */
     fun export() {
-        onAuthorRemembered(author.trim())
         phase = ExportPhase.Exporting
         scope.launch {
-            val path = backend.projects.exportProject(
-                project.rootPath,
-                UiExportOptions(bundleDeps, author.trim(), description.trim()),
-            )
+            val path = backend.projects.exportProject(project.rootPath, UiExportOptions())
             phase = if (path != null) ExportPhase.Done(path) else ExportPhase.Failed
         }
     }
@@ -104,9 +86,7 @@ internal class ExportProjectState(
 internal fun rememberExportProjectState(
     backend: IdeBackend,
     project: ProjectInfo,
-    initialAuthor: String,
-    onAuthorRemembered: (String) -> Unit,
     scope: CoroutineScope = rememberCoroutineScope(),
 ): ExportProjectState = remember(backend, project, scope) {
-    ExportProjectState(backend, project, initialAuthor, onAuthorRemembered, scope)
+    ExportProjectState(backend, project, scope)
 }

@@ -101,19 +101,15 @@ Nunca recopilamos su código, nombres de archivos o proyectos, qué funciones us
         <item quantity="other">%1$d archivos</item>
     </plurals>
     <string name="export_title">Exportar proyecto</string>
-    <string name="export_intro">Empaqueta este proyecto como un archivo .caproj que puedes compartir con cualquiera.</string>
-    <string name="export_bundle_deps">Incluir dependencias</string>
-    <string name="export_bundle_deps_desc">Incluye bibliotecas descargadas para que se importe y compile sin conexión. Hace que el archivo sea más grande.</string>
-    <string name="export_author_label">Autor (opcional)</string>
-    <string name="export_author_hint">Tu nombre</string>
-    <string name="export_description_label">Descripción (opcional)</string>
-    <string name="export_description_hint">¿Qué hace este proyecto?</string>
+    <string name="export_intro">Exporta el proyecto como un .zip estándar — una carpeta de proyecto normal que puedes abrir en Android Studio o cualquier otro IDE. Descomprímelo donde quieras y abre la carpeta.</string>
+    <string name="export_contains_title">Qué hay dentro del zip</string>
+    <string name="export_contains_desc">Tus fuentes y res, el AndroidManifest y los archivos de compilación de Gradle (settings.gradle.kts, build.gradle.kts, gradle wrapper). Nada específico de CodeStudio.</string>
     <string name="export_action">Exportar</string>
     <string name="export_share">Compartir proyecto</string>
     <string name="export_failed">No se pudo exportar el proyecto.</string>
     <string name="export_exporting">Exportando…</string>
     <string name="export_success_title">Proyecto exportado</string>
-    <string name="export_success_subtitle">Tu paquete de proyecto está listo.</string>
+    <string name="export_success_subtitle">Tu carpeta de proyecto está lista como .zip.</string>
     <string name="export_locate">Mostrar en administrador de archivos</string>
     <string name="export_save_copy">Guardar una copia…</string>
     <string name="export_done">Hecho</string>

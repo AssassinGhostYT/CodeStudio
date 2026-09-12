@@ -90,8 +90,6 @@ internal fun AppNavGraph(
                     ExportProjectScreen(
                         backend = backend,
                         project = target,
-                        initialAuthor = app.exportAuthor(),
-                        onAuthorRemembered = app::rememberExportAuthor,
                         onReveal = if (fileActions.canReveal) ({ path -> fileActions.reveal(path) }) else null,
                         onSaveCopy = if (fileActions.canExport) ({ path -> fileActions.exportFile(path) }) else null,
                         onShare = if (fileActions.canShare) ({ path -> fileActions.share(path) }) else null,

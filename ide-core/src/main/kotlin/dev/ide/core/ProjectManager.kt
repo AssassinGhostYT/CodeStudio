@@ -2,6 +2,7 @@ package dev.ide.core
 
 import dev.ide.android.support.AndroidFacetCodec
 import dev.ide.android.support.resources.LauncherIcon
+import dev.ide.android.support.templates.PortableProjectExport
 import dev.ide.android.support.tools.KeystoreRegistry
 import dev.ide.build.engine.ProgramInterpreter
 import dev.ide.core.sync.ExternalProjectMarker
@@ -327,23 +328,27 @@ class ProjectManager private constructor(
         return rel.split('/').any { it == "build" || it == "exports" || it == ".gradle" }
     }
 
-    // --- shareable project packages (.caproj) ---
+    // --- shareable project packages ---
 
     /**
-     * Export the project at [rootPath] to a `.caproj` under `<home>/exports` (a fresh, non-clobbering file
-     * name derived from the project name) and return it. The package carries the project's source-of-truth
-     * plus a [CaprojManifest] and, when [ProjectPackaging.ExportOptions.bundleDependencies] is set, the
-     * resolved dependency cache so the recipient can build offline. See [ProjectPackaging].
+     * Export the project at [rootPath] to a **standard project `.zip`** under `<home>/exports` (a fresh,
+     * non-clobbering file name derived from the project name) and return it. The zip contains the plain
+     * project folder — sources, res, manifest, and the Gradle build files (synthesized for native-only
+     * projects, see [PortableProjectExport]) — so any IDE (Android Studio / AndroidIDE on a phone or PC)
+     * can unzip and open it directly. No CodeStudio-specific packaging, no manifest.
+     *
+     * The `.caproj` format is no longer produced by the export flow; it survives solely as the internal
+     * container for community packages (Explore/Store) and for importing packages shared by other users.
      */
     internal fun exportProject(rootPath: String, options: ProjectPackaging.ExportOptions): Path {
         val projectDir = Paths.get(rootPath)
         val meta = exportMeta(projectDir)
         val exportsDir = homeDir.resolve("exports").also { Files.createDirectories(it) }
         val base = slug(meta.name).ifEmpty { "project" }
-        var out = exportsDir.resolve("$base.${CaprojFormat.EXTENSION}")
+        var out = exportsDir.resolve("$base.zip")
         var n = 2
-        while (Files.exists(out)) { out = exportsDir.resolve("$base-$n.${CaprojFormat.EXTENSION}"); n++ }
-        return ProjectPackaging.export(projectDir, out, options, exportIcon(projectDir), meta)
+        while (Files.exists(out)) { out = exportsDir.resolve("$base-$n.zip"); n++ }
+        return PortableProjectExport.writeZip(projectDir, out)
     }
 
     /** Read a `.caproj`'s manifest, file peek, and icon for the import preview, without extracting it. */

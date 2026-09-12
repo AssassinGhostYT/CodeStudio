@@ -98,12 +98,6 @@
     </plurals>
     <string name="export_title">导出项目</string>
     <string name="export_intro">将本项目打包为 .caproj 文件，可分享给任意用户</string>
-    <string name="export_bundle_deps">内嵌依赖库</string>
-    <string name="export_bundle_deps_desc">打包时纳入已下载的库文件，便可离线导入、构建项目；此举会增大文件体积</string>
-    <string name="export_author_label">作者 (选填)</string>
-    <string name="export_author_hint">你的名字</string>
-    <string name="export_description_label">项目描述 (选填)</string>
-    <string name="export_description_hint">该项目具备什么功能？</string>
     <string name="export_action">导出</string>
     <string name="export_share">分享工程项目</string>
     <string name="export_failed">导出失败！</string>

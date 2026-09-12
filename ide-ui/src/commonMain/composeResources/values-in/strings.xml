@@ -89,12 +89,6 @@ Kami tidak pernah mengumpulkan kode, nama file atau proyek Anda, fitur apa yang 
 
     <string name="export_title">Ekspor proyek</string>
     <string name="export_intro">Kemas proyek ini sebagai file .caproj yang dapat Anda bagikan dengan siapa saja.</string>
-    <string name="export_bundle_deps">Sertakan dependensi</string>
-    <string name="export_bundle_deps_desc">Sertakan pustaka yang diunduh sehingga diimpor dan dibangun secara offline. Membuat file lebih besar.</string>
-    <string name="export_author_label">Penulis (opsional)</string>
-    <string name="export_author_hint">Nama Anda</string>
-    <string name="export_description_label">Deskripsi (opsional)</string>
-    <string name="export_description_hint">Apa yang dilakukan proyek ini?</string>
     <string name="export_action">Ekspor</string>
     <string name="export_share">Bagikan proyek</string>
     <string name="export_failed">Tidak dapat mengekspor proyek.</string>

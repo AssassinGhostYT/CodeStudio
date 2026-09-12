@@ -69,12 +69,6 @@ import dev.ide.ui.generated.resources.back
 import dev.ide.ui.generated.resources.caproj_files
 import dev.ide.ui.generated.resources.cancel
 import dev.ide.ui.generated.resources.export_action
-import dev.ide.ui.generated.resources.export_author_hint
-import dev.ide.ui.generated.resources.export_author_label
-import dev.ide.ui.generated.resources.export_bundle_deps
-import dev.ide.ui.generated.resources.export_bundle_deps_desc
-import dev.ide.ui.generated.resources.export_description_hint
-import dev.ide.ui.generated.resources.export_description_label
 import dev.ide.ui.generated.resources.export_done
 import dev.ide.ui.generated.resources.export_exporting
 import dev.ide.ui.generated.resources.export_failed
@@ -272,24 +266,22 @@ private fun StatChip(icon: ImageVector, text: String, accent: Boolean = false) {
 
 /** The stages of the full-screen export flow. */
 /**
- * Full-screen export flow for [project]: an offline-bundle toggle + optional author/description, then a
- * success view offering to reveal the file, save a copy, or share it. The `.caproj` is written by
+ * Full-screen export flow for [project]: packages it as a **standard project `.zip`** (plain folder:
+ * sources, res, manifest, Gradle build files — nothing CodeStudio-specific), then a success view offering
+ * to reveal the file, save a copy, or share it with a share sheet. The zip is written by
  * [IdeBackend.exportProject]; each of [onReveal]/[onSaveCopy]/[onShare] is null when the host can't do it
- * (that action is hidden). [initialAuthor] prefills from the remembered preference; the entered author is
- * reported via [onAuthorRemembered] so the host can persist it.
+ * (that action is hidden).
  */
 @Composable
 fun ExportProjectScreen(
     backend: IdeBackend,
     project: ProjectInfo,
-    initialAuthor: String,
-    onAuthorRemembered: (String) -> Unit,
     onReveal: ((String) -> Unit)?,
     onSaveCopy: ((String) -> Unit)?,
     onShare: ((String) -> Unit)?,
     onDone: () -> Unit,
 ) {
-    val state = rememberExportProjectState(backend, project, initialAuthor, onAuthorRemembered)
+    val state = rememberExportProjectState(backend, project)
 
     Column(
         Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(20.dp),
@@ -301,9 +293,6 @@ fun ExportProjectScreen(
                 when (p) {
                     ExportPhase.Configure -> ExportConfigure(
                         project = project,
-                        bundleDeps = state.bundleDeps, onBundleDeps = state::updateBundleDeps,
-                        author = state.author, onAuthor = state::updateAuthor,
-                        description = state.description, onDescription = state::updateDescription,
                         onExport = state::export,
                     )
                     ExportPhase.Exporting -> BusyView(stringResource(Res.string.export_exporting))
@@ -318,9 +307,6 @@ fun ExportProjectScreen(
 @Composable
 private fun ColumnScope.ExportConfigure(
     project: ProjectInfo,
-    bundleDeps: Boolean, onBundleDeps: (Boolean) -> Unit,
-    author: String, onAuthor: (String) -> Unit,
-    description: String, onDescription: (String) -> Unit,
     onExport: () -> Unit,
 ) {
     Column(
@@ -332,22 +318,6 @@ private fun ColumnScope.ExportConfigure(
             Text(project.name, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Text(stringResource(Res.string.export_intro), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyLarge)
-        SharingField(stringResource(Res.string.export_author_label), author, stringResource(Res.string.export_author_hint), onAuthor)
-        SharingField(stringResource(Res.string.export_description_label), description, stringResource(Res.string.export_description_hint), onDescription)
-        Row(
-            Modifier.fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(Ca.radius.control))
-                .clickable { onBundleDeps(!bundleDeps) }
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(stringResource(Res.string.export_bundle_deps), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyLarge)
-                Text(stringResource(Res.string.export_bundle_deps_desc), color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.bodySmall)
-            }
-            AnimatedToggle(bundleDeps)
-        }
     }
     PrimaryButton(
         text = stringResource(Res.string.export_action),
