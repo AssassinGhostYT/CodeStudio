@@ -33,9 +33,11 @@ import androidx.core.view.WindowInsetsCompat
 import com.termux.terminal.TerminalSession
 import com.termux.view.TerminalView
 import com.termux.view.TerminalViewClient
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Standalone full-screen Alpine shell — Termux-style: black canvas + extra-keys bar, launched as its
@@ -378,10 +380,19 @@ class TerminalActivity : Activity() {
             Log.i(TAG, "shell-alive=$alive bufLen=${buf.length}")
             if (buf.isNotBlank()) Log.i(TAG, "shell-buffer:\n$buf")
             if (!alive) {
-                val reason = buf.trim()
-                    .takeIf { it.isNotEmpty() }?.take(600)
-                    ?: "shell exited; buffer vacío (proot/ash cayó sin texto)"
-                val status = "Shell salió:\n$reason"
+                var reason = buf.trim().takeIf { it.isNotEmpty() }?.take(600)
+                if (reason == null || !reason.contains("init-host.log")) {
+                    // Session died without init-host.sh ever writing its run log: the exec/pty path lost
+                    // the failure. Probe it directly (no pty) so stderr+exit code are unconditional.
+                    scope.launch {
+                        val d = withContext(Dispatchers.IO) { TerminalEngine.diagnose() }
+                        runOnUiThread {
+                            showStatus("Sonda (sin pty):\n$d")
+                        }
+                    }
+                    reason = "$reason\n\nEjecutando sonda sin pty…"
+                }
+                val status = "Shell salió:\n${reason ?: "buffer vacío"}"
                 runOnUiThread {
                     showStatus(status)
                     Toast.makeText(this@TerminalActivity, status, Toast.LENGTH_LONG).show()

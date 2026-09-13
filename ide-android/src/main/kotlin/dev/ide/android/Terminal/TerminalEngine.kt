@@ -16,6 +16,7 @@ import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.util.concurrent.TimeUnit
 import java.util.zip.GZIPInputStream
 
 /**
@@ -398,11 +399,25 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
         val shell = "/system/bin/sh"
         val args = arrayOf("-c", initHost.absolutePath)
 
-        // Env block — matches ReTerminal MkSession.kt:80-110. PROOT and PROOT_LOADER are the
-        // absolute paths init-host.sh expects; LINKER lets it pick linker64 vs linker for the
-        // alpine rootfs's init shell if it ever needs to re-exec; LD_LIBRARY_PATH makes
-        // libtalloc.so.2 (symlinked in $PREFIX/local/lib/) resolvable.
-        val env = mutableListOf<String>().apply {
+        val env = buildEnv()
+
+        val s = TerminalSession(shell, alpineRoot.absolutePath, args, env.toTypedArray(), rows, this)
+        session = s
+        s.updateSize(cols, rows)
+        _running.value = true
+        Log.i(TAG, "ReTerminal session started: shell=$shell args=$args rootfs=${alpineRoot.absolutePath}")
+    }
+
+    /** Env block — matches ReTerminal MkSession.kt:80-110. PROOT and PROOT_LOADER are the absolute
+     *  paths init-host.sh expects; LINKER lets it pick linker64 vs linker for the alpine rootfs's
+     *  init shell if it ever needs to re-exec; LD_LIBRARY_PATH makes libtalloc.so.2 (symlinked in
+     *  $PREFIX/local/lib/) resolvable. */
+    private fun buildEnv(): MutableList<String> {
+        val proot = prootExec()
+        val loader = prootLoader()
+        val loader32 = prootLoader32()
+        val alpineRoot = alpineDir()
+        return mutableListOf<String>().apply {
             add("ANDROID_ART_ROOT=${System.getenv("ANDROID_ART_ROOT") ?: ""}")
             add("ANDROID_DATA=${System.getenv("ANDROID_DATA") ?: ""}")
             add("ANDROID_I18N_ROOT=${System.getenv("ANDROID_I18N_ROOT") ?: ""}")
@@ -421,9 +436,6 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
             add("PROOT=${proot.absolutePath}")
             add("PROOT_LOADER=${loader.absolutePath}")
             loader32?.let { add("PROOT_LOADER_32=${it.absolutePath}") }
-            // /system/bin/linker64 on 64-bit ABIs, /system/bin/linker on 32-bit. init-host.sh does
-            // not consume this directly, but exposing it lets Alpine's initrc probe the right
-            // dynamic linker if the user runs `ldd` inside the shell.
             add("LINKER=${if (File("/system/bin/linker64").exists()) "/system/bin/linker64" else "/system/bin/linker"}")
             add("PATH=${System.getenv("PATH")}:/sbin:${localBinDir().absolutePath}")
             add("HOME=${alpineRoot.absolutePath}/root")
@@ -436,18 +448,58 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
             add("PROOT_TMP_DIR=${tmpDir().absolutePath}")
             add("PKG=${appContext!!.packageName}")
             add("PKG_PATH=${appContext!!.applicationInfo.sourceDir}")
-            // init-host.sh honors FDROID=true to extract the native libs from $PREFIX instead of
-            // $NATIVE_LIB_DIR (legacy path from Termux's F-Droid-only build). We're not on F-Droid,
-            // but exposing the var means a future Play-Store/F-Droid split can flip it without
-            // touching init-host.sh.
             add("FDROID=false")
         }
+    }
 
-        val s = TerminalSession(shell, alpineRoot.absolutePath, args, env.toTypedArray(), rows, this)
-        session = s
-        s.updateSize(cols, rows)
-        _running.value = true
-        Log.i(TAG, "ReTerminal session started: shell=$shell args=$args rootfs=${alpineRoot.absolutePath}")
+    /**
+     * Non-pty diagnostic probe for a shell that dies with NO init-run.log: executes init-host.sh via
+     * ProcessBuilder and captures ALL output (sh/proot stderr can never be lost mid-write here, unlike
+     * the pty path). If proot works, `ash` will stay alive until the 20s timeout — the probe then reports
+     * "proot lanzado y vivo (ash esperando input)" which is the SUCCESS case, and kills the probe.
+     */
+    fun diagnose(): String {
+        val out = StringBuilder()
+        val initHost = File(localBinDir(), "init-host.sh")
+        out.append("init-host.exists=").append(initHost.exists())
+            .append(" bin/ash=").append(File(alpineDir(), "bin/ash").exists())
+            .append(" proot=").append(File(nativeLibDir!!, "libproot.so").exists())
+            .append(" loader=").append(File(nativeLibDir!!, "libloader.so").exists()).append('\n')
+        val proc = try {
+            ProcessBuilder("/system/bin/sh", initHost.absolutePath)
+                .redirectErrorStream(true)
+                .apply {
+                    environment().clear()
+                    environment().putAll(buildEnv().map {
+                        it.split("=", limit = 2).let { p -> p[0] to p.getOrElse(1) { "" } }
+                    })
+                }
+                .start()
+        } catch (e: Exception) {
+            return out.toString() + "exec-failed: ${e.message}"
+        }
+        return try {
+            val finished = proc.waitFor(20, TimeUnit.SECONDS)
+            if (!finished) {
+                proc.destroy()
+                out.append("proot lanzado y VIVO tras 20s (ash esperando input) — la cadena proot FUNCIONA")
+                return out.toString()
+            }
+            proc.inputStream.bufferedReader().use { r ->
+                r.lineSequence().forEach { line -> out.append(line).append('\n') }
+            }
+            out.append("exit=").append(proc.exitValue())
+            try {
+                val runLog = File(localDir(), "init-run.log")
+                if (runLog.exists()) out.append("\n--- init-run.log tail ---\n")
+                    .append(runLog.readText().trim().take(1200))
+            } catch (_: Exception) {}
+            out.toString()
+        } catch (e: Exception) {
+            out.toString() + "diagnose-failed: ${e.message}"
+        } finally {
+            runCatching { proc.destroyForcibly() }
+        }
     }
 
     override fun stopSession() {
