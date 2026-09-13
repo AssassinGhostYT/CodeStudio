@@ -1,5 +1,21 @@
 ALPINE_DIR=$PREFIX/local/alpine
 
+# Deterministic run log for the app: env, prereqs, proot ARGS and the proot exit code. The pty buffer
+# can be lost when the session dies mid-write (black screen), but this file always lands on disk — the
+# app reads its tail to surface the real failure reason instead of a generic "Shell salió".
+DEBUG_LOG="$PREFIX/local/init-run.log"
+{
+    echo "=== $(date +%H:%M:%S) pid $$ ==="
+    env | grep -E '^(PREFIX|BIN|PROOT|PROOT_LOADER|PROOT_LOADER_32|NATIVE_LIB_DIR|PUBLIC_HOME|LD_LIBRARY_PATH|TMPDIR|LINKER)=' || true
+    echo "--- prereqs ---"
+    ls -la "$ALPINE_DIR/bin/ash" "$PROOT" "$PROOT_LOADER" 2>&1 || true
+    if [ -x "$ALPINE_DIR/bin/ash" ] && [ -f "$PROOT" ] && [ -f "$PROOT_LOADER" ]; then
+        echo "prereqs: ok"
+    else
+        echo "prereqs: MISSING"
+    fi
+} > "$DEBUG_LOG" 2>&1
+
 mkdir -p $ALPINE_DIR
 
 # The rootfs is extracted by the app (TerminalEngine.ensureReady → assets/alpine/*.tar.gz.rootfs →
@@ -10,6 +26,7 @@ mkdir -p $ALPINE_DIR
 if [ ! -x "$ALPINE_DIR/bin/ash" ]; then
     echo "ALPINE_ROOTFS_MISSING: $ALPINE_DIR/bin/ash no existe — cerrá y reabrí la terminal desde la IDE (el rootfs se extrae al arrancar)." >&2
     ls -la "$ALPINE_DIR" >&2
+    echo "ALPINE_ROOTFS_MISSING" >> "$DEBUG_LOG"
     sleep 2
 fi
 
@@ -81,4 +98,10 @@ ARGS="$ARGS --link2symlink"
 ARGS="$ARGS --sysvipc"
 ARGS="$ARGS -L"
 
+echo "--- ARGS ---" >> "$DEBUG_LOG"
+echo "$ARGS" >> "$DEBUG_LOG"
+
 $PROOT $ARGS sh $PREFIX/local/bin/init "$@"
+RC=$?
+echo "proot exit=$RC" >> "$DEBUG_LOG"
+exit $RC

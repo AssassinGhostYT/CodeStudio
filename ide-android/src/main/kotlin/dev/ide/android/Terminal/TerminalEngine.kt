@@ -554,11 +554,21 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
     }
 
     /** Capture the finished session's emulator text into [lastExitBuffer] and log it, so a dead shell's
-     *  reason is visible both in `logcat -s TerminalEngine` AND on the Activity's status overlay. */
+     *  reason is visible both in `logcat -s TerminalEngine` AND on the Activity's status overlay. The
+     *  pty buffer can be lost on a mid-write death, so it's merged with init-host.sh's deterministic
+     *  `$PREFIX/local/init-run.log` (env, prereqs, proot ARGS, proot exit code). */
     private fun dumpExitBuffer(finished: TerminalSession, reason: String) {
         val emu = finished.getEmulator()
-        lastExitBuffer = emu?.getScreen()?.getSelectedText(0, 0, emu.mColumns, emu.getScreen().getActiveRows(), true)
-            ?: ""
+        val screen = emu?.getScreen()?.getSelectedText(0, 0, emu.mColumns, emu.getScreen().getActiveRows(), true)
+            .orEmpty().trim()
+        val runLog = runCatching {
+            File(localDir(), "init-run.log").takeIf { it.exists() }?.readText()
+        }.getOrNull() ?: ""
+        lastExitBuffer = when {
+            screen.isNotEmpty() && runLog.isNotEmpty() -> "$screen\n\n--- init-host.log ---\n${runLog.trim().take(1500)}"
+            runLog.isNotEmpty() -> "--- init-host.log ---\n${runLog.trim().take(1500)}"
+            else -> screen
+        }
         if (lastExitBuffer.isNotBlank()) Log.i(TAG, "$reason; buffer:\n$lastExitBuffer")
         else Log.i(TAG, "$reason; empty buffer")
     }
