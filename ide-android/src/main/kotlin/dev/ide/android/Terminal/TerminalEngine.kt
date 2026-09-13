@@ -83,9 +83,11 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
 
     /** True once the engine has switched the interactive session to the native Android shell (mksh) — a
      *  fallback for ROMs where the proot chain is dead (ptrace/exec restricted), so the terminal WORKS
-     *  even without Alpine. */
+     *  even without Alpine. Persisted across app runs so the NEXT open is instant. */
     var nativeModeUsed: Boolean = false
         private set
+
+    private fun nativeFallbackPrefs() = appContext!!.getSharedPreferences("terminal", Context.MODE_PRIVATE)
 
     /** Path of the on-disk debug dump ([debugText]) — reliable even when the pty/status overlay show nothing. */
     fun debugFilePath(): String {
@@ -108,7 +110,10 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
         appContext = context.applicationContext
         filesDir = context.applicationContext.filesDir
         nativeLibDir = context.applicationInfo.nativeLibraryDir
-        Log.i(TAG, "init; nativeLibDir=$nativeLibDir filesDir=${filesDir?.absolutePath}")
+        nativeModeUsed = runCatching {
+            nativeFallbackPrefs().getBoolean("native_fallback", false)
+        }.getOrDefault(false)
+        Log.i(TAG, "init; nativeLibDir=$nativeLibDir filesDir=${filesDir?.absolutePath} nativeMode=$nativeModeUsed")
     }
 
     // Filesystem layout under `<app-data>/local/` (= `$PREFIX/local/`, the directory init-host.sh
@@ -541,10 +546,6 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
      * dies on a restrictive ROM.
      */
     fun startNativeSession(cols: Int, rows: Int): Boolean {
-        if (_setup.value !is TerminalSetupState.Ready) {
-            Log.w(TAG, "startNativeSession called before Ready; ignoring")
-            return false
-        }
         val current = session
         if (current != null) {
             if (_running.value) return true
@@ -566,6 +567,7 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
         s.updateSize(cols, rows)
         _running.value = true
         nativeModeUsed = true
+        runCatching { nativeFallbackPrefs().edit().putBoolean("native_fallback", true).apply() }
         Log.i(TAG, "native mksh session started: cwd=$home")
         return true
     }

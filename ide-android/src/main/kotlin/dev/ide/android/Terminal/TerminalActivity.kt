@@ -299,6 +299,20 @@ class TerminalActivity : Activity() {
         }
         scope.launch {
             startAttempted = true
+            if (TerminalEngine.nativeModeUsed) {
+                // Already proved proot is dead on this device: go straight to the native shell — no
+                // Alpine extraction, no retries, instant prompt.
+                TerminalEngine.startNativeSession(lastCols, lastRows)
+                val native = TerminalEngine.session
+                if (native != null) {
+                    lastShellStartMs = SystemClock.uptimeMillis()
+                    crashStreak = 0
+                    attachView(native)
+                    runOnUiThread { statusText?.visibility = View.GONE }
+                    watchForShellDeath(native)
+                }
+                return@launch
+            }
             TerminalEngine.ensureReady { msg -> showStatus(msg) }
             when (val s = TerminalEngine.setup.value) {
                 is TerminalSetupState.Ready -> {
@@ -343,10 +357,11 @@ class TerminalActivity : Activity() {
         val now = SystemClock.uptimeMillis()
         if (!manual) {
             if (now - lastShellStartMs < 3_000) crashStreak++ else crashStreak = 0
-            if (crashStreak >= 3) {
+            if (crashStreak >= 1) {
                 // The proot chain is dead on this device. Termux works because it runs NATIVE Android
                 // binaries (no ptrace); proot needs ptrace, which restrictive ROMs silently block. Give
                 // the user a terminal that CANNOT fail: the device's own mksh, run directly.
+                // First fast death is already proof — one prompt-less session is enough on a broken ROM.
                 crashStreak = 0
                 val reason = TerminalEngine.lastExitBuffer.trim().takeIf { it.isNotEmpty() }?.let { "\n$it".take(500) } ?: ""
                 TerminalEngine.startNativeSession(lastCols, lastRows)
