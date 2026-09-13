@@ -5,14 +5,20 @@ import android.content.Context
 import dev.ide.platform.ForkedToolVm
 import dev.ide.platform.log.Log
 import java.io.File
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+import java.nio.channels.FileChannel
+import java.nio.channels.FileLock
+import java.nio.file.Files
+import java.nio.file.StandardOpenOption
 import java.util.concurrent.Semaphore
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipInputStream
 
 /**
- * Shared on-device machinery for running R8 in a FORKED command-line VM (the release/minify OOM fix,
- * docs/build-process-isolation.md) — used by [ForkedR8Shrinker] (the build path) and the "Detect device
- * limit" settings action ([detectCeiling]).
+ * Shared on-device machinery for running R8/D8 in a FORKED command-line VM (the release/minify OOM fix,
+ * docs/build-process-isolation.md) — used by [ForkedR8Shrinker] (the build path), [dev.ide.android.ForkedD8Dexer]
+ * (the dex merge/one-pass) and the "Detect device limit" settings action ([detectCeiling]).
  *
  * A forked `dalvikvm`/`art` VM is NOT a zygote app process, so its `-Xmx` can exceed the app's `largeHeap`
  * cap (576MB on the measured device, ceiling ~1.5GB). R8's classes ship as a dedicated dex asset
@@ -37,24 +43,63 @@ object R8ForkSupport {
 
     fun launcher(): String? = LAUNCHERS.firstOrNull { File(it).exists() }
 
-    /** `dex\n035\0` header magic every dalvik dex starts with — cheap integrity check for an extracted file. */
+    /** `dex\n035\0` header magic every dalvik dex starts with. */
     private val DEX_MAGIC = byteArrayOf(0x64, 0x65, 0x78, 0x0a) // "dex\n"
 
+    /**
+     * Header-complete check for one dex: magic + `file_size` (bytes 32..35) == the on-disk length +
+     * `header_size` (36..39) == 0x70 + `endian_tag` (40..43) == 0x12345678. The [DEX_MAGIC]-only test below
+     * passes a TRUNCATED dex (a killed/lossy write keeps the first 4 bytes) — and a truncated dex is the
+     * classic "ForkedD8Dexer failed with `ClassNotFoundException: com.android.tools.r8.D8` while the R8
+     * probe passed" scenario: ART finds the classes that happen to precede the cut and misses the rest. A
+     * magic-only check let that straight onto the forked VM classpath.
+     */
+    private fun dexHeaderValid(f: File): Boolean = runCatching {
+        f.inputStream().use { i ->
+            val b = ByteArray(44)
+            if (i.read(b) != 44) return@runCatching false
+            if (!b.copyOfRange(0, 4).contentEquals(DEX_MAGIC)) return@runCatching false
+            val buf = ByteBuffer.wrap(b).order(ByteOrder.LITTLE_ENDIAN)
+            val fileSize = buf.getInt(32).toLong() and 0xFFFFFFFFL
+            val headerSize = buf.getInt(36)
+            val endianTag = buf.getInt(40)
+            headerSize == 0x70 && endianTag == 0x12345678 && fileSize == f.length()
+        }
+    }.getOrDefault(false)
+
     /** Whether [dexes] is a usable forked-VM classpath: non-empty, non-directory, non-zero-sized, and each
-     *  carrying the `dex\n` header. ART fails the WHOLE VM classpath for a corrupt entry, and the marker guard
+     *  carrying a consistent header. ART fails the WHOLE VM classpath for a corrupt entry, and the marker guard
      *  below can return a stale/truncated extraction whose marker still matches — so every path validates. */
     private fun valid(dexes: List<File>): Boolean = dexes.isNotEmpty() && dexes.all { f ->
-        f.isFile && f.length() > 0 && runCatching {
-            f.inputStream().use { i ->
-                val h = ByteArray(4)
-                i.read(h) == 4 && h.contentEquals(DEX_MAGIC)
-            }
-        }.getOrDefault(false)
+        f.isFile && f.length() > 0 && dexHeaderValid(f)
     }
 
     /** Clear any (possibly read-only) dexes/chunks in [dir] so a fresh extraction can't hit a read-only file. */
     private fun clearDir(dir: File) {
         dir.listFiles()?.forEach { runCatching { it.setWritable(true); it.delete() } }
+    }
+
+    /**
+     * Run [body] holding BOTH a process-local monitor and (when another process is extracting at the same
+     * time) an exclusive file lock on the extraction dir. The IDE process and the separate `:build` daemon can
+     * extract `r8.dex.zip` concurrently (the daemon for the build, the IDE e.g. for a "Detect device limit"
+     * probe / preview dexing): two interleaved extractions unlink + rewrite the same files and leave magic-valid
+     * but truncated dexes — exactly the `ClassNotFoundException: com.android.tools.r8.D8` reports. The lock
+     * makes extraction atomic across processes; the re-validated header check ([valid]) catches any fresh loss.
+     */
+    private fun <T> withExtractLock(dir: File, body: () -> T): T {
+        synchronized(R8ForkSupport) {
+            Files.createDirectories(dir.toPath())
+            val lockFile = File(dir, ".extract.lock")
+            FileChannel.open(lockFile.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE).use { ch ->
+                val lock: FileLock = ch.lock()
+                try {
+                    return body()
+                } finally {
+                    runCatching { lock.release() }
+                }
+            }
+        }
     }
 
     /**
@@ -81,32 +126,58 @@ object R8ForkSupport {
             clearDir(dir)
         }
         dir.mkdirs()
-        // Clear any stale (read-only) dexes from a prior extract so the fresh write can't hit a read-only file.
-        clearDir(dir)
-        return runCatching {
-            ctx.assets.open(R8_DEX_ASSET).use { ins ->
-                ZipInputStream(ins.buffered()).use { zis ->
-                    var e = zis.nextEntry
-                    while (e != null) {
-                        if (!e.isDirectory && e.name.endsWith(".dex")) {
-                            val f = File(dir, File(e.name).name)
-                            f.outputStream().use { out -> zis.copyTo(out) }
-                            f.setReadOnly() // ART won't load a writable dex on a VM classpath (W^X)
+        return withExtractLock(dir) {
+            // Re-read inside the lock: the other process may have just completed a fresh extraction whose
+            // dexes are already valid — re-extracting over them would needlessly race-free but rewrite the same.
+            val revalidated = dexes()?.takeIf { marker.exists() && marker.readText() == stamp }
+            if (revalidated != null && valid(revalidated)) return@withExtractLock revalidated
+            // Clear any stale (read-only) dexes from a prior extract so the fresh write can't hit a read-only file.
+            clearDir(dir)
+            runCatching {
+                ctx.assets.open(R8_DEX_ASSET).use { ins ->
+                    ZipInputStream(ins.buffered()).use { zis ->
+                        var e = zis.nextEntry
+                        while (e != null) {
+                            if (!e.isDirectory && e.name.endsWith(".dex")) {
+                                val f = File(dir, File(e.name).name)
+                                f.outputStream().use { out -> zis.copyTo(out) }
+                                f.setReadOnly() // ART won't load a writable dex on a VM classpath (W^X)
+                            }
+                            e = zis.nextEntry
                         }
-                        e = zis.nextEntry
                     }
                 }
-            }
-            marker.writeText(stamp)
-            val ds = dexes()?.takeIf { it.isNotEmpty() }
-            if (ds == null || !valid(ds)) {
-                log.warn("r8-fork: extracted dexes failed validation — forked-R8 unavailable, in-process fallback")
-                null
-            } else ds
-        }.onFailure { log.warn("r8-fork: failed to extract $R8_DEX_ASSET: ${it.message}") }.getOrNull()
+                marker.writeText(stamp)
+                val ds = dexes()?.takeIf { it.isNotEmpty() }
+                if (ds == null || !valid(ds)) {
+                    log.warn("r8-fork: extracted dexes failed validation — forked-R8 unavailable, in-process fallback")
+                    null
+                } else ds
+            }.onFailure { log.warn("r8-fork: failed to extract $R8_DEX_ASSET: ${it.message}") }.getOrNull()
+        }
     }
 
-    /** True if a forked `launcher -Xmx<n>m -cp <r8 dexes> R8 --version` starts (heap granted + R8 loaded). */
+    /** The error-frame signatures that mean "the tool's classes didn't load", not "the tool rejected input". */
+    private val LOAD_FAILURE = Regex("""(ClassNotFoundException|NoClassDefFoundError)""")
+
+    /** Whether [mainClass] loads in a forked [launcher] VM at [xmxMb] with [dexes] as the classpath. A load
+     *  failure leaves a `ClassNotFoundException`/`NoClassDefFoundError` stack in the merged output; a loaded
+     *  tool that merely dislikes the probe flag still counts (any exit code, no load-failure frames) — the
+     *  probe verifies the CLASS, not the flags. */
+    fun probeMain(launcher: String, dexes: List<File>, xmxMb: Int, mainClass: String): Boolean = runCatching {
+        val cp = dexes.joinToString(File.pathSeparator) { it.absolutePath }
+        val proc = ProcessBuilder(launcher, "-Xmx${xmxMb}m", "-cp", cp, mainClass, "--version")
+            .redirectErrorStream(true).start()
+        if (!proc.waitFor(30, TimeUnit.SECONDS)) {
+            proc.destroyForcibly()
+            return@runCatching false
+        }
+        val out = runCatching { proc.inputStream.bufferedReader().readText() }.getOrDefault("")
+        !LOAD_FAILURE.containsMatchIn(out) && !out.contains("Could not find class")
+    }.getOrDefault(false)
+
+    /** True if a forked `launcher -Xmx<n>m -cp <r8 dexes> com.android.tools.r8.R8 --version` starts (heap
+     *  granted + R8 loaded). */
     fun canFork(launcher: String, dexes: List<File>, xmxMb: Int): Boolean = runCatching {
         val cp = dexes.joinToString(File.pathSeparator) { it.absolutePath }
         val proc = ProcessBuilder(launcher, "-Xmx${xmxMb}m", "-cp", cp, "com.android.tools.r8.R8", "--version")
@@ -115,7 +186,8 @@ object R8ForkSupport {
             proc.destroyForcibly()
             return false
         }
-        proc.exitValue() == 0
+        val out = runCatching { proc.inputStream.bufferedReader().readText() }.getOrDefault("")
+        proc.exitValue() == 0 && !LOAD_FAILURE.containsMatchIn(out)
     }.getOrDefault(false)
 
     /**

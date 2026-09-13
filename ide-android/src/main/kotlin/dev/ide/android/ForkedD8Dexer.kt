@@ -9,6 +9,7 @@ import dev.ide.android.support.tools.MergePlan
 import dev.ide.android.support.tools.OffHeapArchiveDexer
 import dev.ide.android.support.tools.ToolResult
 import dev.ide.platform.log.Log
+import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -69,6 +70,16 @@ class ForkedD8Dexer(
         }
         // A merge that forks holds a global fork permit so the parallel merge tasks don't over-commit RAM.
         val r = onForkGate { delegate.dex(inputs, androidJar, minApi, release, outDir, threads, desugaredLibConfig) }
+        if (!r.success && isToolLoadFailure(r.log)) {
+            // The fork started (the R8/D8 startup probes passed at resolve time) yet D8's classes didn't load —
+            // a truncated/corrupt cached extraction (killed write, a second process rewriting the same dir) that
+            // slipped a header check. Don't fail the build on evidence that's local and re-fixable: log the
+            // evidence, then merge in-process as the pre-fork behavior did.
+            logForkEvidence("forked D8 merge failed to load the tool")
+            log.warn("forked-D8 merge: in-process retry after the forked D8 couldn't load its classes")
+            val retried = fallback.dex(inputs, androidJar, minApi, release, outDir, threads, desugaredLibConfig)
+            return retried.copy(log = listOf("dex merge: retried in-process after the forked D8 couldn't load") + retried.log)
+        }
         return note?.let { r.copy(log = listOf(it) + r.log) } ?: r
     }
 
@@ -89,7 +100,27 @@ class ForkedD8Dexer(
         }
         // Gate only the forked archive (dexer === delegate); an in-process archive is bounded by the app heap.
         val call = { dexer.dexArchive(inputs, classpath, androidJar, minApi, release, outDir, threads, desugaredLibConfig) }
-        return if (dexer === delegate) onForkGate(call) else call()
+        val r = if (dexer === delegate) onForkGate(call) else call()
+        if (dexer === delegate && !r.success && isToolLoadFailure(r.log)) {
+            // Same self-heal as [dex]: the fork couldn't load D8's classes, so archive in-process.
+            logForkEvidence("forked D8 archive failed to load the tool")
+            log.warn("forked-D8 archive: in-process retry after the forked D8 couldn't load its classes")
+            return fallback.dexArchive(inputs, classpath, androidJar, minApi, release, outDir, threads, desugaredLibConfig)
+        }
+        return r
+    }
+
+    /** Whether a tool log records the tool's CLASSES failing to load (as opposed to a real dex error). */
+    private fun isToolLoadFailure(log: List<String>): Boolean =
+        log.any { it.contains("ClassNotFoundException") || it.contains("NoClassDefFoundError") } ||
+            log.any { it.contains("Could not find class") }
+
+    /** Dump enough state to tell a fresh build's report what the fork was doing when its tool failed to load. */
+    private fun logForkEvidence(context: String) {
+        val dir = File(appContext.cacheDir, "r8-dex")
+        val dexes = dir.listFiles { f -> f.name.endsWith(".dex") }?.sortedBy { it.name }
+        log.warn("$context — launcher=${R8ForkSupport.launcher()}, xmx=${forkXmxMb}MB, dex=" +
+            (dexes?.joinToString(",") { "${it.name}=${it.length()}B" } ?: "none in $dir"))
     }
 
     /**
@@ -145,6 +176,13 @@ class ForkedD8Dexer(
             return inProcess("${R8ForkSupport.totalMemMb(appContext)}MB of device RAM can't back a forked VM heap")
         for (xmx in candidates) {
             if (R8ForkSupport.canFork(launcher, dexes, xmx)) {
+                // The R8 probe above proves the VM starts + R8 loads; the MERGE runs `com.android.tools.r8.D8`
+                // as its main, so prove THAT class (the same packaged dex, but a probe failure here is a cheap
+                // in-process fallback instead of a `ClassNotFoundException: com.android.tools.r8.D8` build).
+                if (!R8ForkSupport.probeMain(launcher, dexes, xmx, "com.android.tools.r8.D8")) {
+                    log.warn("forked-D8 merge: forked VM loads R8 but not D8 (${launcher} @ ${xmx}MB) → in-process D8")
+                    return inProcess("forked VM can't load com.android.tools.r8.D8")
+                }
                 note = "dex merge: forked VM, ${xmx}MB heap"
                 forkXmxMb = xmx
                 log.info("forked-D8 merge: runs in a forked $launcher -Xmx${xmx}m (${dexes.size} dex)")
