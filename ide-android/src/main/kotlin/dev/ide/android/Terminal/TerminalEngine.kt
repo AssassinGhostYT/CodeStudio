@@ -81,6 +81,12 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
     var lastExitBuffer: String = ""
         private set
 
+    /** True once the engine has switched the interactive session to the native Android shell (mksh) — a
+     *  fallback for ROMs where the proot chain is dead (ptrace/exec restricted), so the terminal WORKS
+     *  even without Alpine. */
+    var nativeModeUsed: Boolean = false
+        private set
+
     /** Path of the on-disk debug dump ([debugText]) — reliable even when the pty/status overlay show nothing. */
     fun debugFilePath(): String {
         val base = appContext?.getExternalFilesDir(null) ?: filesDir!!
@@ -526,6 +532,42 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
         session?.finishIfRunning()
         session = null
         _running.value = false
+    }
+
+    /**
+     * Start an interactive session on the device's OWN `/system/bin/sh` (mksh) — bionic, no proot, no
+     * rootfs, nothing to download, nothing for the ROM to block. Works on any device where regular apps
+     * (and Termux's native executables) run; it's the guaranteed fallback when the proot/Alpine chain
+     * dies on a restrictive ROM.
+     */
+    fun startNativeSession(cols: Int, rows: Int): Boolean {
+        if (_setup.value !is TerminalSetupState.Ready) {
+            Log.w(TAG, "startNativeSession called before Ready; ignoring")
+            return false
+        }
+        val current = session
+        if (current != null) {
+            if (_running.value) return true
+            runCatching { current.finishIfRunning() }
+            session = null
+        }
+        val home = appContext?.getExternalFilesDir(null)?.absolutePath ?: filesDir!!.absolutePath
+        val env = arrayOf(
+            "HOME=$home",
+            "PATH=/system/bin:/system/xbin:/vendor/bin:/sbin",
+            "TERM=xterm-256color",
+            "LANG=C.UTF-8",
+            "COLORTERM=truecolor",
+            "PS1=[\\u@\\h \\w]\\$ ",
+            "EXTERNAL_STORAGE=${System.getenv("EXTERNAL_STORAGE") ?: "/sdcard"}",
+        )
+        val s = TerminalSession("/system/bin/sh", home, emptyArray(), env, rows, this)
+        session = s
+        s.updateSize(cols, rows)
+        _running.value = true
+        nativeModeUsed = true
+        Log.i(TAG, "native mksh session started: cwd=$home")
+        return true
     }
 
     override fun writeCommand(line: String) {

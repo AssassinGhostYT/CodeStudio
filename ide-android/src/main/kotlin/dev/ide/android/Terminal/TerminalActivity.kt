@@ -303,7 +303,11 @@ class TerminalActivity : Activity() {
             when (val s = TerminalEngine.setup.value) {
                 is TerminalSetupState.Ready -> {
                     showStatus("Starting shell…")
-                    TerminalEngine.startSession(lastCols, lastRows)
+                    if (TerminalEngine.nativeModeUsed) {
+                        TerminalEngine.startNativeSession(lastCols, lastRows)
+                    } else {
+                        TerminalEngine.startSession(lastCols, lastRows)
+                    }
                     val session = TerminalEngine.session
                     if (session != null) {
                         lastShellStartMs = SystemClock.uptimeMillis()
@@ -340,12 +344,23 @@ class TerminalActivity : Activity() {
         if (!manual) {
             if (now - lastShellStartMs < 3_000) crashStreak++ else crashStreak = 0
             if (crashStreak >= 3) {
-                awaitingManualRestart = true
-                handler.removeCallbacksAndMessages(null)
+                // The proot chain is dead on this device. Termux works because it runs NATIVE Android
+                // binaries (no ptrace); proot needs ptrace, which restrictive ROMs silently block. Give
+                // the user a terminal that CANNOT fail: the device's own mksh, run directly.
+                crashStreak = 0
                 val reason = TerminalEngine.lastExitBuffer.trim().takeIf { it.isNotEmpty() }?.let { "\n$it".take(500) } ?: ""
-                showStatus("El shell terminó 3 veces seguidas.$reason\nTocá la terminal para reiniciar.")
-                runOnUiThread {
-                    Toast.makeText(this, "Shell caído — tocá la terminal para reiniciar", Toast.LENGTH_LONG).show()
+                TerminalEngine.startNativeSession(lastCols, lastRows)
+                val ns = TerminalEngine.session
+                if (ns != null) {
+                    lastShellStartMs = now
+                    runOnUiThread {
+                        attachView(ns)
+                        statusText?.text = "proot no arrancó en este equipo → shell nativo de Android (mksh).\n" +
+                            "Sin Alpine: no hay apk/apt. Compilá con la IDE.$reason"
+                        statusText?.visibility = View.VISIBLE
+                        handler.postDelayed({ statusText?.visibility = View.GONE }, 8_000)
+                    }
+                    watchForShellDeath(ns)
                 }
                 return
             }
@@ -354,7 +369,11 @@ class TerminalActivity : Activity() {
         crashStreak = 0
         lastShellStartMs = now
         handler.removeCallbacks(releaseModifiers)
-        TerminalEngine.startSession(lastCols, lastRows)
+        if (TerminalEngine.nativeModeUsed) {
+            TerminalEngine.startNativeSession(lastCols, lastRows)
+        } else {
+            TerminalEngine.startSession(lastCols, lastRows)
+        }
         val ns = TerminalEngine.session
         if (ns == null) {
             showStatus("No se pudo iniciar el shell")
