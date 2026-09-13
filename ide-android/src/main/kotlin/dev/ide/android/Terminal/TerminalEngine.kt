@@ -81,6 +81,23 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
     var lastExitBuffer: String = ""
         private set
 
+    /** Path of the on-disk debug dump ([debugText]) — reliable even when the pty/status overlay show nothing. */
+    fun debugFilePath(): String {
+        val base = appContext?.getExternalFilesDir(null) ?: filesDir!!
+        return File(base, "terminal-debug.txt").absolutePath
+    }
+
+    /** Write [text] to a file the user can open with the IDE's editor or share — the on-screen overlay
+     *  can be lost (black pty, tiny status), the file can't. */
+    private fun writeDebugText(text: String) {
+        runCatching {
+            val f = File(debugFilePath())
+            f.parentFile?.mkdirs()
+            f.writeText(text)
+            Log.i(TAG, "debug written to ${f.absolutePath}")
+        }
+    }
+
     override fun init(context: Context) {
         appContext = context.applicationContext
         filesDir = context.applicationContext.filesDir
@@ -483,6 +500,7 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
             if (!finished) {
                 proc.destroy()
                 out.append("proot lanzado y VIVO tras 20s (ash esperando input) — la cadena proot FUNCIONA")
+                writeDebugText(out.toString())
                 return out.toString()
             }
             proc.inputStream.bufferedReader().use { r ->
@@ -494,6 +512,8 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
                 if (runLog.exists()) out.append("\n--- init-run.log tail ---\n")
                     .append(runLog.readText().trim().take(1200))
             } catch (_: Exception) {}
+            out.append("\n\n=== archivo completo: ${debugFilePath()} ===")
+            writeDebugText("Sonda (sin pty):\n$out")
             out.toString()
         } catch (e: Exception) {
             out.toString() + "diagnose-failed: ${e.message}"
@@ -621,6 +641,10 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
             runLog.isNotEmpty() -> "--- init-host.log ---\n${runLog.trim().take(1500)}"
             else -> screen
         }
+        writeDebugText(
+            "=== terminal debug (${System.currentTimeMillis()}) ===\n$reason\n\n" +
+                "screen:\n$screen\n\ninit-run.log (full):\n${runLog.takeIf { it.isNotBlank() } ?: "(no existe — init-host.sh no se ejecutó)"}"
+        )
         if (lastExitBuffer.isNotBlank()) Log.i(TAG, "$reason; buffer:\n$lastExitBuffer")
         else Log.i(TAG, "$reason; empty buffer")
     }

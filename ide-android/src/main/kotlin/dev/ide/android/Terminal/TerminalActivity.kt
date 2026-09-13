@@ -386,16 +386,16 @@ class TerminalActivity : Activity() {
                     // the failure. Probe it directly (no pty) so stderr+exit code are unconditional.
                     scope.launch {
                         val d = withContext(Dispatchers.IO) { TerminalEngine.diagnose() }
-                        runOnUiThread {
-                            showStatus("Sonda (sin pty):\n$d")
-                        }
+                        runOnUiThread { showStatus("Sonda (sin pty):\n$d") }
                     }
-                    reason = "$reason\n\nEjecutando sonda sin pty…"
+                    reason = (reason ?: "buffer vacío") + "\n\nEjecutando sonda sin pty…"
                 }
-                val status = "Shell salió:\n${reason ?: "buffer vacío"}"
+                val dbg = TerminalEngine.debugFilePath()
+                val status = if (reason.contains("init-host.log")) reason
+                    else reason + "\n\n(esperá ~20s; el resultado completo queda en:\n$dbg)"
                 runOnUiThread {
                     showStatus(status)
-                    Toast.makeText(this@TerminalActivity, status, Toast.LENGTH_LONG).show()
+                    Toast.makeText(this@TerminalActivity, "Terminal falló — abrí:\n$dbg", Toast.LENGTH_LONG).show()
                 }
             }
         }, 3_000)
