@@ -76,6 +76,10 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
     private var nativeLibDir: String? = null
     override var session: TerminalSession? = null
 
+    /** The last session's emulator buffer, captured at exit so the UI can show the real failure reason. */
+    var lastExitBuffer: String = ""
+        private set
+
     override fun init(context: Context) {
         appContext = context.applicationContext
         filesDir = context.applicationContext.filesDir
@@ -543,7 +547,21 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
     // in `adb logcat -s TerminalEngine:*` instead of being silently swallowed by the view.
     override fun onTextChanged(c: TerminalSession) {}
     override fun onTitleChanged(c: TerminalSession) {}
-    override fun onSessionFinished(f: TerminalSession) { _running.value = false; session = null }
+    override fun onSessionFinished(f: TerminalSession) {
+        _running.value = false
+        dumpExitBuffer(f, "session finished")
+        session = null
+    }
+
+    /** Capture the finished session's emulator text into [lastExitBuffer] and log it, so a dead shell's
+     *  reason is visible both in `logcat -s TerminalEngine` AND on the Activity's status overlay. */
+    private fun dumpExitBuffer(finished: TerminalSession, reason: String) {
+        val emu = finished.getEmulator()
+        lastExitBuffer = emu?.getScreen()?.getSelectedText(0, 0, emu.mColumns, emu.getScreen().getActiveRows(), true)
+            ?: ""
+        if (lastExitBuffer.isNotBlank()) Log.i(TAG, "$reason; buffer:\n$lastExitBuffer")
+        else Log.i(TAG, "$reason; empty buffer")
+    }
     override fun onCopyTextToClipboard(s: TerminalSession, text: String) {
         val ctx = appContext ?: return
         runCatching {

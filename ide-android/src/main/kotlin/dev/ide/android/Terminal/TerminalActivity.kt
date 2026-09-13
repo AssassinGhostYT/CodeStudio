@@ -340,7 +340,8 @@ class TerminalActivity : Activity() {
             if (crashStreak >= 3) {
                 awaitingManualRestart = true
                 handler.removeCallbacksAndMessages(null)
-                showStatus("El shell terminó 3 veces seguidas. Tocá la terminal para reiniciar.")
+                val reason = TerminalEngine.lastExitBuffer.trim().takeIf { it.isNotEmpty() }?.let { "\n$it".take(300) } ?: ""
+                showStatus("El shell terminó 3 veces seguidas.$reason\nTocá la terminal para reiniciar.")
                 runOnUiThread {
                     Toast.makeText(this, "Shell caído — tocá la terminal para reiniciar", Toast.LENGTH_LONG).show()
                 }
@@ -364,24 +365,26 @@ class TerminalActivity : Activity() {
         watchForShellDeath(ns)
     }
 
-    /** 3 s after launch, log the shell buffer + whether it's alive (diagnostic path we've used to
-     *  chase proot/init failures — the user's "Process completed (code 127)" builds). */
+    /** 3 s after launch, log the shell buffer + whether it's alive. If it died, surface the REAL exit
+     *  reason on screen (status overlay + toast), not a black void — the buffer holds init-host.sh's
+     *  stderr (proot's error, ALPINE_ROOTFS_MISSING, "not found") so the user can report it. */
     private fun watchForShellDeath(session: TerminalSession) {
         handler.postDelayed({
             val alive = TerminalEngine.running.value
             val emu = session.getEmulator()
             val buf = emu?.getScreen()?.getSelectedText(
                 0, 0, emu.mColumns, emu.getScreen().getActiveRows(), true,
-            ) ?: ""
+            ) ?: TerminalEngine.lastExitBuffer
             Log.i(TAG, "shell-alive=$alive bufLen=${buf.length}")
             if (buf.isNotBlank()) Log.i(TAG, "shell-buffer:\n$buf")
             if (!alive) {
+                val reason = buf.trim()
+                    .takeIf { it.isNotEmpty() }?.take(400)
+                    ?: "shell exited; buffer vacío (proot/ash cayó sin texto)"
+                val status = "Shell salió:\n$reason"
                 runOnUiThread {
-                    Toast.makeText(
-                        this@TerminalActivity,
-                        "Shell exited — check logcat -s TerminalActivity:TerminalEngine",
-                        Toast.LENGTH_LONG,
-                    ).show()
+                    showStatus(status)
+                    Toast.makeText(this@TerminalActivity, status, Toast.LENGTH_LONG).show()
                 }
             }
         }, 3_000)
