@@ -661,7 +661,11 @@ object TerminalEngine : TerminalSessionClient, TerminalRuntime {
     // TerminalSessionClient — minimal; the vendored Termux session emits callbacks we don't need
     // to act on for the panel UI. Errors get logged so stalls in "Waiting for shell.." are visible
     // in `adb logcat -s TerminalEngine:*` instead of being silently swallowed by the view.
-    override fun onTextChanged(c: TerminalSession) {}
+    @Volatile
+    var onScreenChanged: ((TerminalSession) -> Unit)? = null
+    override fun onTextChanged(c: TerminalSession) {
+        onScreenChanged?.invoke(c)
+    }
     override fun onTitleChanged(c: TerminalSession) {}
     override fun onSessionFinished(f: TerminalSession) {
         _running.value = false

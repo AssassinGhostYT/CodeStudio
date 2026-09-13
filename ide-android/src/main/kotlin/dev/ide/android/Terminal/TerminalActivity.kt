@@ -96,6 +96,15 @@ class TerminalActivity : Activity() {
         super.onDestroy()
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Resumes may not fire onEmulatorSet again; start the cursor blinker explicitly so the
+        // view keeps invalidating (rendering fresh output) even if onTextChanged is quiet.
+        terminalView?.let { tv ->
+            if (activeSession() != null) tv.setTerminalCursorBlinkerState(true, true)
+        }
+    }
+
     private fun buildUi() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -314,6 +323,14 @@ class TerminalActivity : Activity() {
 
     private fun startOrAttachShell() {
         val existing = activeSession()
+        // The interactive host is the one place where screen updates must actually reach the
+        // TerminalView: the emulator only repaints on invalidate(), and the session announces new
+        // output through the engine's onTextChanged (TermuxRuntime/TerminalEngine).
+        val redrawHook: (TerminalSession) -> Unit = { _ ->
+            terminalView?.post { terminalView?.onScreenUpdated() }
+        }
+        TermuxRuntime.onScreenChanged = redrawHook
+        TerminalEngine.onScreenChanged = redrawHook
         if (existing != null && isActiveAlive()) {
             statusText?.visibility = View.GONE
             attachView(existing)
@@ -396,6 +413,7 @@ class TerminalActivity : Activity() {
         lastShellStartMs = SystemClock.uptimeMillis()
         crashStreak = 0
         attachView(s)
+        terminalView?.setTerminalCursorBlinkerState(true, true)
         runOnUiThread {
             if (banner != null) {
                 statusText?.text = banner

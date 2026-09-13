@@ -331,6 +331,13 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             put("ANDROID_TZDATA_ROOT", sysEnv["ANDROID_TZDATA_ROOT"] ?: "/apex/com.android.tzdata")
             put("BOOTCLASSPATH", sysEnv["BOOTCLASSPATH"] ?: "")
             put("DEX2OATBOOTCLASSPATH", sysEnv["DEX2OATBOOTCLASSPATH"] ?: "")
+            // Force termux-exec system_linker_exec regardless of SELinux context evaluation:
+            // on Android 10+ (SDK>=29), untrusted apps hit W^X execute_no_trans; the only safe path
+            // is /system/bin/linker64 which is always permitted.
+            put("ANDROID__BUILD_VERSION_SDK", Build.VERSION.SDK_INT.toString())
+            val seContext = runCatching { File("/proc/self/attr/current").readText().trim() }.getOrNull() ?: ""
+            if (seContext.isNotEmpty()) put("TERMUX__SE_PROCESS_CONTEXT", seContext)
+            put("TERMUX_EXEC__SYSTEM_LINKER_EXEC__MODE", "force")
         }
     }
 
@@ -444,8 +451,14 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
         runCatching { Os.chmod(file.absolutePath, 0x1ED) }.onFailure { file.setExecutable(true, false) }
     }
 
-    // TerminalSessionClient — same minimal set as TerminalEngine.
-    override fun onTextChanged(c: TerminalSession) {}
+    // TerminalSessionClient — same minimal set as TerminalEngine. The interactive host routes
+    // onTextChanged to the attached TerminalView via onScreenChanged so new output repaints
+    // immediately (the emulator view redraws only on invalidate()).
+    @Volatile
+    var onScreenChanged: ((TerminalSession) -> Unit)? = null
+    override fun onTextChanged(c: TerminalSession) {
+        onScreenChanged?.invoke(c)
+    }
     override fun onTitleChanged(c: TerminalSession) {}
     override fun onSessionFinished(f: TerminalSession) { _running.value = false; session = null }
     override fun onCopyTextToClipboard(s: TerminalSession, t: String) {}
