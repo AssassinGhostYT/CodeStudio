@@ -1,9 +1,12 @@
 package dev.ide.android.Terminal
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
 import android.system.Os
 import android.util.Log
+import android.widget.Toast
 import com.termux.app.TermuxInstaller
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
@@ -103,6 +106,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             writeAptConfig(prefix)
             installBionicCompat()
             writeSessionScript()
+            writeShellConfig(prefix)
             onProgress("Termux listo en ${prefix.absolutePath}")
             _setup.value = TerminalSetupState.Ready
             Log.i(TAG, "Termux userland ready at ${prefix.absolutePath}")
@@ -291,6 +295,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
         val prefix = prefixDir()
         val linkerPath = linker()
         val bash = File(prefix, "bin/bash").absolutePath
+        writeShellConfig(prefix)
         val args = arrayOf(linkerPath, bash, "-l")
         val env = buildEnvironment().map { (k, v) -> "$k=$v" }.toTypedArray()
         val s = TerminalSession(linkerPath, prefix.absolutePath, args, env, rows, this)
@@ -354,6 +359,30 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
         File(scriptsDir(), "session-host.sh").apply {
             writeText("#!/system/bin/sh\n")
             runCatching { Os.chmod(absolutePath, 0x1ED) }.onFailure { setExecutable(true, false) }
+        }
+    }
+
+    /**
+     * Give interactive bash a real prompt. Without PS1 bash shows its bare default (`bash-5.3$`).
+     * We render the root-style prompt users know from the old proot shell; the shell still runs as
+     * the app uid (no proot => no real root), so the trailing character is `$`, not `#`.
+     */
+    private fun writeShellConfig(prefix: File) {
+        val marker = "# cs-terminal-prompt"
+        val ps1Line =
+            "export PS1='\\[\\e[1;32m\\]root\\[\\e[0m\\]@\\[\\e[1;36m\\]localhost\\[\\e[0m\\]:\\[\\e[1;34m\\]\\w\\[\\e[0m\\]\\[\\e[1;37m\\]\\$\\[\\e[0m\\] '"
+        val target = listOf(
+            File(prefix, "etc/bash.bashrc"),
+            File(homeDir(), ".bashrc"),
+        )
+        for (f in target) {
+            runCatching {
+                if (!f.exists()) runCatching { f.parentFile?.mkdirs() }
+                if (!f.exists() || !f.readText().contains(marker)) {
+                    f.appendText("\n$marker\n$ps1Line\n")
+                    Log.i(TAG, "PS1 configurado en ${f.absolutePath}")
+                }
+            }.onFailure { Log.w(TAG, "writeShellConfig ${f.absolutePath}: ${it.message}") }
         }
     }
 
@@ -468,8 +497,25 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
     }
     override fun onTitleChanged(c: TerminalSession) {}
     override fun onSessionFinished(f: TerminalSession) { _running.value = false; session = null }
-    override fun onCopyTextToClipboard(s: TerminalSession, t: String) {}
-    override fun onPasteTextFromClipboard(s: TerminalSession?) {}
+    override fun onCopyTextToClipboard(s: TerminalSession, t: String) {
+        val ctx = appContext ?: return
+        runCatching {
+            (ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                .setPrimaryClip(ClipData.newPlainText(null, t))
+            Toast.makeText(ctx, "Copiado", Toast.LENGTH_SHORT).show()
+        }.onFailure { Log.e(TAG, "clipboard copy failed", it) }
+    }
+    override fun onPasteTextFromClipboard(s: TerminalSession?) {
+        val ctx = appContext ?: return
+        val target = s ?: session ?: return
+        runCatching {
+            val clip = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val item = clip.primaryClip?.getItemAt(0) ?: return
+            val text = item.coerceToText(ctx).toString()
+            if (text.isEmpty()) return
+            target.getEmulator()?.paste(text) ?: target.write(text)
+        }.onFailure { Log.e(TAG, "clipboard paste failed", it) }
+    }
     override fun onBell(s: TerminalSession) {}
     override fun onColorsChanged(s: TerminalSession) {}
     override fun onTerminalCursorStateChange(b: Boolean) {}

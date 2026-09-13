@@ -2,6 +2,8 @@ package dev.ide.android.Terminal
 
 import android.Manifest
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -68,8 +70,9 @@ import kotlinx.coroutines.withContext
  * terminal and the keys bar are padded by the real status/navigation inset), so the phone's gesture
  * bar never overlaps the keys.
  *
- * Copying: long-press is intercepted (no Termux-style text-selection overlays / mouse pointers); a
- * long-press grabs the visible screen text to the clipboard instead.
+ * Copying/pasting: Termux-style — long-press starts text selection (handles + floating Copy/Paste
+ * toolbar), and the keys bar's COPY/PASTE buttons copy the selected/visible text or paste the
+ * clipboard (bracketed-paste aware) into the active shell.
  *
  * Storage is requested exactly once (first launch): READ_EXTERNAL_STORAGE runtime prompt on ≤11,
  * one-tap jump to "All files access" settings on 12+ — never nagged again.
@@ -172,6 +175,9 @@ class TerminalActivity : Activity() {
             "TAB" to "\t", "CTRL" to MOD_CTRL, "ALT" to MOD_ALT, "←" to "\u001B[D", "↓" to "\u001B[B",
             "→" to "\u001B[C", "PGDN" to "\u001B[6~",
         )
+        addKeyRow(bar,
+            "COPY" to MOD_COPY, "PASTE" to MOD_PASTE,
+        )
         return bar
     }
 
@@ -225,6 +231,8 @@ class TerminalActivity : Activity() {
                 altHeld = !altHeld
                 if (altHeld) scheduleModifierReset()
             }
+            MOD_COPY -> { copyToClipboard() }
+            MOD_PASTE -> { pasteFromClipboard() }
             else -> {
                 val useCtrl = ctrlHeld
                 val useAlt = altHeld
@@ -259,6 +267,35 @@ class TerminalActivity : Activity() {
         '^'.code -> 30
         '_'.code -> 31
         else -> null
+    }
+
+    private fun clipboardManager() = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+
+    private fun copyToClipboard() {
+        val session = activeSession() ?: return
+        val tv = terminalView
+        val selected = tv?.selectedText?.takeIf { it.isNotEmpty() }
+            ?: run {
+                val emu = session.getEmulator() ?: return
+                val scr = emu.getScreen() ?: return
+                val t = scr.getSelectedText(0, 0, emu.mColumns, scr.getActiveRows(), true)
+                if (t.isEmpty()) null else t
+            } ?: return
+        runCatching {
+            clipboardManager().setPrimaryClip(ClipData.newPlainText(null, selected))
+            Toast.makeText(this, "Copiado", Toast.LENGTH_SHORT).show()
+        }.onFailure { Log.e(TAG, "clipboard copy failed", it) }
+    }
+
+    private fun pasteFromClipboard() {
+        val session = activeSession() ?: return
+        runCatching {
+            val item = clipboardManager().primaryClip?.getItemAt(0) ?: return
+            val text = item.coerceToText(this).toString()
+            if (text.isEmpty()) return
+            val emu = session.getEmulator()
+            if (emu != null) emu.paste(text) else session.write(text)
+        }.onFailure { Log.e(TAG, "clipboard paste failed", it) }
     }
 
     private fun createClient(tv: TerminalView) = object : TerminalViewClient {
@@ -539,6 +576,8 @@ class TerminalActivity : Activity() {
         private const val REQ_STORAGE = 42
         private const val MOD_CTRL = "\u0000mod-ctrl"
         private const val MOD_ALT = "\u0000mod-alt"
+        private const val MOD_COPY = "\u0000mod-copy"
+        private const val MOD_PASTE = "\u0000mod-paste"
         private const val RUNTIME_KEY = "runtime"
     }
 }
