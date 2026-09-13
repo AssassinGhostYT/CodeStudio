@@ -147,15 +147,17 @@
                 android:theme="@style/Theme.CodeStudio.Termux"
                 tools:replace="android:theme,android:exported" />
 
-        <!-- Standalone Alpine shell (Termux-style full-screen, black canvas + extra keys bar).
+        <!-- Standalone full-screen terminal (Termux-style, black canvas + extra keys bar).
              TerminalView/TerminalSession come from the vendored :termux:terminal + :termux:view
-             libraries; the shell itself is proot + Alpine rootfs (see TerminalEngine). Reuses the same
-             black DayNight theme as TermuxActivity; homes in on TerminalEngine's session if one is
-             already running (singleTask) so the shell survives leaving/re-entering full-screen. -->
+             libraries; the shell is the bundled Termux userland run native via linker64 (apt/bash),
+             degrading to the device's own mksh where that can't come up (see TerminalActivity's KDoc).
+             Hardware acceleration is forced on: the emulator re-rasterizes the whole grid while
+             typing, and the software renderer alone makes keys feel laggy on lower-end devices. -->
         <activity
                 android:name=".Terminal.TerminalActivity"
                 android:configChanges="orientation|screenSize|smallestScreenSize|density|screenLayout|keyboard|keyboardHidden|navigation"
                 android:exported="false"
+                android:hardwareAccelerated="true"
                 android:launchMode="singleTask"
                 android:resizeableActivity="true"
                 android:theme="@style/Theme.CodeStudio.Termux" />

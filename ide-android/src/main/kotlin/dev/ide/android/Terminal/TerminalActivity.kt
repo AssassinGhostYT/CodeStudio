@@ -36,19 +36,32 @@ import com.termux.view.TerminalViewClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * Standalone full-screen Alpine shell — Termux-style: black canvas + extra-keys bar, launched as its
+ * Standalone full-screen terminal — Termux-style: black canvas + extra-keys bar, launched as its
  * own Activity from the IDE toolbar's Terminal button.
  *
- * The engine is [TerminalEngine] (proot + Alpine rootfs, see its KDoc for why Termux's own bootstrap
- * can't exec on Android 11+). The in-IDE TerminalPanel tool window is deliberately NOT registered
+ * ## Engines (in priority order)
+ *
+ * 1. **[TermuxRuntime]** — the bundled Termux userland extracted to `<filesDir>/usr` and run NATIVE
+ *    via `/system/bin/linker64` + the `libtermux-exec` LD_PRELOAD shim. No ptrace, no proot, no
+ *    container: full `apt`/`pkg`/`bash` at device speed. This is the default when it comes up.
+ * 2. **[TerminalEngine]** native mode — Android's own `/system/bin/sh` (mksh). Pure fallback,
+ *    always works, but there is no package manager.
+ *
+ * proot (Alpine) is deliberately NOT attempted anymore: it needs ptrace, which modern Android
+ * kernels (android14) silently block for untrusted apps — the whole shim is dead weight on any
+ * ROM this app targets, so the fast path skips it.
+ *
+ * The chosen engine is persisted ("terminal"/"runtime"), so later opens jump straight to the
+ * working shell. The in-IDE TerminalPanel tool window is deliberately NOT registered
  * (AndroidIde.kt), so EditorCenter routes the toolbar button here via MainActivity.onOpenTerminal.
  *
  * Manifest: `.Terminal.TerminalActivity`, launchMode=singleTask, Theme.CodeStudio.Termux, exported=false.
- * On re-entry the shell keeps running (the session lives in [TerminalEngine], not the view): we attach
+ * On re-entry the shell keeps running (the session lives in the engine, not the view): we attach
  * the existing session if one is alive instead of starting a second copy.
  *
  * System insets: states/composition bars are respected (the screen draws edge-to-edge and both the
@@ -71,6 +84,7 @@ class TerminalActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         TerminalEngine.init(applicationContext)
+        TermuxRuntime.init(applicationContext)
         requestStorageOnce()
         buildUi()
         startOrAttachShell()
@@ -210,13 +224,13 @@ class TerminalActivity : Activity() {
                 handler.removeCallbacks(releaseModifiers)
                 if (useCtrl && command.length == 1) {
                     controlCode(command[0].code)?.let { code ->
-                        TerminalEngine.writeRaw(Char(code).toString())
+                        activeWriteRaw(Char(code).toString())
                         return
                     }
                 }
                 // Meta = ESC prefix (the one escape sequence every line editor understands) — the
                 // ALT key sends nothing of its own, it modifies the following character/token.
-                TerminalEngine.writeRaw(if (useAlt) "\u001B$command" else command)
+                activeWriteRaw(if (useAlt) "\u001B$command" else command)
             }
         }
     }
@@ -264,10 +278,10 @@ class TerminalActivity : Activity() {
         override fun onCodePoint(cp: Int, ctrl: Boolean, s: TerminalSession): Boolean {
             // Shell died (or is awaiting manual restart): revive it on the first keystroke so the
             // user is never stuck on a dead "[Process completed]" buffer.
-            if (TerminalEngine.setup.value is TerminalSetupState.Ready && TerminalEngine.session == null) {
+            if (activeSession() == null && activeEngine != ActiveEngine.NONE) {
                 restartShell(manual = true)
             }
-            val target = TerminalEngine.session ?: return false
+            val target = activeSession() ?: return false
             target.writeCodePoint(false, cp)
             return true
         }
@@ -287,96 +301,141 @@ class TerminalActivity : Activity() {
     private var lastShellStartMs = 0L
     private var crashStreak = 0
     private var awaitingManualRestart = false
+    private var restartInFlight = false
     private var lastCols = 80
     private var lastRows = 24
 
+    private enum class ActiveEngine { NONE, TERMUX, NATIVE }
+    private var activeEngine: ActiveEngine = ActiveEngine.NONE
+
+    private fun runtimePrefs() = getSharedPreferences("terminal", Context.MODE_PRIVATE)
+    private fun savedRuntime(): String? = runtimePrefs().getString(RUNTIME_KEY, null)
+    private fun setRuntime(r: String) { runtimePrefs().edit().putString(RUNTIME_KEY, r).apply() }
+
     private fun startOrAttachShell() {
-        val existing = TerminalEngine.session
-        if (existing != null && TerminalEngine.running.value) {
+        val existing = activeSession()
+        if (existing != null && isActiveAlive()) {
             statusText?.visibility = View.GONE
             attachView(existing)
             return
         }
         scope.launch {
             startAttempted = true
-            if (TerminalEngine.nativeModeUsed) {
-                // Already proved proot is dead on this device: go straight to the native shell — no
-                // Alpine extraction, no retries, instant prompt.
-                TerminalEngine.startNativeSession(lastCols, lastRows)
-                val native = TerminalEngine.session
-                if (native != null) {
-                    lastShellStartMs = SystemClock.uptimeMillis()
-                    crashStreak = 0
-                    attachView(native)
-                    runOnUiThread { statusText?.visibility = View.GONE }
-                    watchForShellDeath(native)
-                }
-                return@launch
-            }
-            TerminalEngine.ensureReady { msg -> showStatus(msg) }
-            when (val s = TerminalEngine.setup.value) {
-                is TerminalSetupState.Ready -> {
-                    showStatus("Starting shell…")
-                    if (TerminalEngine.nativeModeUsed) {
-                        TerminalEngine.startNativeSession(lastCols, lastRows)
+            when (savedRuntime()) {
+                "termux" -> startTermux()
+                "native" -> startNative(banner = null)
+                else -> {
+                    // First run on this install: try the real userland (apt, fast). proot is dead on
+                    // modern Android kernels (ptrace), so there is no Alpine attempt at all.
+                    showStatus("Preparando userland Termux (extracción única ~30 MB)…")
+                    TermuxRuntime.ensureReady { msg -> showStatus(msg) }
+                    if (TermuxRuntime.setup.value is TerminalSetupState.Ready) {
+                        setRuntime("termux")
+                        startTermux()
                     } else {
-                        TerminalEngine.startSession(lastCols, lastRows)
-                    }
-                    val session = TerminalEngine.session
-                    if (session != null) {
-                        lastShellStartMs = SystemClock.uptimeMillis()
-                        crashStreak = 0
-                        attachView(session)
-                        // Hide overlay NOW — terminal buffer is visible via the view.
-                        runOnUiThread { statusText?.visibility = View.GONE }
-                        watchForShellDeath(session)
+                        startNative(banner = "userland Termux no pudo instalarse → shell nativo de Android (mksh). Sin apt.")
                     }
                 }
-                is TerminalSetupState.Failed -> showStatus("Setup fallido: ${s.message}")
-                else -> showStatus("Preparando terminal…")
             }
         }
-        // A shell exit brings the prompt back automatically (no "[Process completed]" dead end):
-        // restart unless it dies repeatedly within 3 s (broken rootfs → manual restart instead).
+        // Die-away watcher: poll both engines' running flag; a clean exit triggers an auto-restart
+        // (or a degrade from Termux → native after a fast crash).
         scope.launch {
-            TerminalEngine.running.collect { runningNow ->
-                if (!runningNow && startAttempted &&
-                    TerminalEngine.setup.value is TerminalSetupState.Ready
-                ) {
-                    restartShell(manual = false)
+            while (true) {
+                delay(500)
+                if (!startAttempted || restartInFlight) continue
+                if (activeEngine == ActiveEngine.NONE) continue
+                if (!isActiveAlive()) {
+                    restartInFlight = true
+                    try {
+                        restartShell(manual = false)
+                    } finally {
+                        restartInFlight = false
+                    }
                 }
             }
         }
     }
 
-    /** Restart the shell (fresh prompt). Semi-automatic: guards against crash-loops, and the first
-     *  keystroke after a dead shell revives it manually ([manual]=true skips the loop protection). */
+    /** Startup arm: Termux userland (must already be Ready). */
+    private suspend fun startTermux() {
+        TermuxRuntime.ensureReady { msg -> showStatus(msg) }
+        if (TermuxRuntime.setup.value !is TerminalSetupState.Ready) {
+            activeEngine = ActiveEngine.NONE
+            setRuntime("native")
+            startNative(banner = "userland Termux no pudo instalarse → shell nativo de Android (mksh). Sin apt.")
+            return
+        }
+        setRuntime("termux")
+        activeEngine = ActiveEngine.TERMUX
+        TermuxRuntime.startSession(lastCols, lastRows)
+        val s = TermuxRuntime.session
+        if (s == null) {
+            activeEngine = ActiveEngine.NONE
+            startNative(banner = "userland Termux no arrancó → shell nativo de Android (mksh). Sin apt.")
+        } else {
+            finishStart(s)
+        }
+    }
+
+    /** Startup arm: the device's own mksh — cannot fail. Runs through [TerminalEngine]. */
+    private fun startNative(banner: String?) {
+        activeEngine = ActiveEngine.NATIVE
+        setRuntime("native")
+        TerminalEngine.startNativeSession(lastCols, lastRows)
+        val s = TerminalEngine.session
+        if (s == null) {
+            activeEngine = ActiveEngine.NONE
+            showStatus("No se pudo iniciar el shell nativo")
+        } else {
+            finishStart(s, banner)
+        }
+    }
+
+    private fun finishStart(s: TerminalSession, banner: String? = null) {
+        lastShellStartMs = SystemClock.uptimeMillis()
+        crashStreak = 0
+        attachView(s)
+        runOnUiThread {
+            if (banner != null) {
+                statusText?.text = banner
+                statusText?.visibility = View.VISIBLE
+                handler.postDelayed({ statusText?.visibility = View.GONE }, 8_000)
+            } else {
+                statusText?.visibility = View.GONE
+            }
+        }
+        watchForShellDeath(s)
+    }
+
+    private fun isActiveAlive(): Boolean = when (activeEngine) {
+        ActiveEngine.TERMUX -> TermuxRuntime.running.value
+        ActiveEngine.NATIVE -> TerminalEngine.running.value
+        ActiveEngine.NONE -> false
+    }
+
+    private fun activeSession(): TerminalSession? = when (activeEngine) {
+        ActiveEngine.TERMUX -> TermuxRuntime.session
+        ActiveEngine.NATIVE -> TerminalEngine.session
+        ActiveEngine.NONE -> TerminalEngine.session ?: TermuxRuntime.session
+    }
+
+    private fun activeWriteRaw(text: String) {
+        activeSession()?.write(text)
+    }
+
+    /** Restart the active shell (fresh prompt). Semi-automatic: guards against crash-loops, and the
+     *  first keystroke after a dead shell revives it manually ([manual]=true skips the protection). */
     private fun restartShell(manual: Boolean) {
-        val engine = TerminalEngine
-        if (engine.setup.value !is TerminalSetupState.Ready) return
         val now = SystemClock.uptimeMillis()
         if (!manual) {
             if (now - lastShellStartMs < 3_000) crashStreak++ else crashStreak = 0
-            if (crashStreak >= 1) {
-                // The proot chain is dead on this device. Termux works because it runs NATIVE Android
-                // binaries (no ptrace); proot needs ptrace, which restrictive ROMs silently block. Give
-                // the user a terminal that CANNOT fail: the device's own mksh, run directly.
-                // First fast death is already proof — one prompt-less session is enough on a broken ROM.
+            if (crashStreak >= 1 && activeEngine == ActiveEngine.TERMUX) {
+                // The Termux userland died within seconds — not the shell the user can rely on on
+                // this device. Degrade to the native mksh, which cannot fail the same way.
                 crashStreak = 0
-                val reason = TerminalEngine.lastExitBuffer.trim().takeIf { it.isNotEmpty() }?.let { "\n$it".take(500) } ?: ""
-                TerminalEngine.startNativeSession(lastCols, lastRows)
-                val ns = TerminalEngine.session
-                if (ns != null) {
-                    lastShellStartMs = now
-                    runOnUiThread {
-                        attachView(ns)
-                        statusText?.text = "proot no arrancó en este equipo → shell nativo de Android (mksh).\n" +
-                            "Sin Alpine: no hay apk/apt. Compilá con la IDE.$reason"
-                        statusText?.visibility = View.VISIBLE
-                        handler.postDelayed({ statusText?.visibility = View.GONE }, 8_000)
-                    }
-                    watchForShellDeath(ns)
-                }
+                activeEngine = ActiveEngine.NONE
+                startNative(banner = "userland Termux se cortó → shell nativo de Android (mksh). Sin apt.")
                 return
             }
         }
@@ -384,52 +443,38 @@ class TerminalActivity : Activity() {
         crashStreak = 0
         lastShellStartMs = now
         handler.removeCallbacks(releaseModifiers)
-        if (TerminalEngine.nativeModeUsed) {
-            TerminalEngine.startNativeSession(lastCols, lastRows)
-        } else {
-            TerminalEngine.startSession(lastCols, lastRows)
+        when (activeEngine) {
+            ActiveEngine.TERMUX -> {
+                TermuxRuntime.startSession(lastCols, lastRows)
+                val s = TermuxRuntime.session
+                if (s != null) finishStart(s) else showStatus("No se pudo reiniciar el userland Termux")
+            }
+            ActiveEngine.NATIVE -> {
+                TerminalEngine.startNativeSession(lastCols, lastRows)
+                val s = TerminalEngine.session
+                if (s != null) finishStart(s) else showStatus("No se pudo reiniciar el shell nativo")
+            }
+            ActiveEngine.NONE -> showStatus("No hay shell activo — volvé a abrir la terminal")
         }
-        val ns = TerminalEngine.session
-        if (ns == null) {
-            showStatus("No se pudo iniciar el shell")
-            return
-        }
-        runOnUiThread {
-            attachView(ns)
-            statusText?.visibility = View.GONE
-        }
-        watchForShellDeath(ns)
     }
 
-    /** 3 s after launch, log the shell buffer + whether it's alive. If it died, surface the REAL exit
-     *  reason on screen (status overlay + toast), not a black void — the buffer holds init-host.sh's
-     *  stderr (proot's error, ALPINE_ROOTFS_MISSING, "not found") so the user can report it. */
+    /** 3 s after launch, log the shell buffer + whether it's alive, and surface a real exit reason
+     *  on screen (status overlay + toast) instead of a silent black screen. */
     private fun watchForShellDeath(session: TerminalSession) {
         handler.postDelayed({
-            val alive = TerminalEngine.running.value
+            val alive = isActiveAlive()
             val emu = session.getEmulator()
             val buf = emu?.getScreen()?.getSelectedText(
                 0, 0, emu.mColumns, emu.getScreen().getActiveRows(), true,
-            ) ?: TerminalEngine.lastExitBuffer
+            ) ?: ""
             Log.i(TAG, "shell-alive=$alive bufLen=${buf.length}")
-            if (buf.isNotBlank()) Log.i(TAG, "shell-buffer:\n$buf")
+            if (buf.isNotBlank()) Log.i(TAG, "shell-buffer:\n${buf.take(1200)}")
             if (!alive) {
-                var reason = buf.trim().takeIf { it.isNotEmpty() }?.take(600)
-                if (reason == null || !reason.contains("init-host.log")) {
-                    // Session died without init-host.sh ever writing its run log: the exec/pty path lost
-                    // the failure. Probe it directly (no pty) so stderr+exit code are unconditional.
-                    scope.launch {
-                        val d = withContext(Dispatchers.IO) { TerminalEngine.diagnose() }
-                        runOnUiThread { showStatus("Sonda (sin pty):\n$d") }
-                    }
-                    reason = (reason ?: "buffer vacío") + "\n\nEjecutando sonda sin pty…"
-                }
+                val reason = buf.trim().takeIf { it.isNotEmpty() }?.take(600) ?: "buffer vacío"
                 val dbg = TerminalEngine.debugFilePath()
-                val status = if (reason.contains("init-host.log")) reason
-                    else reason + "\n\n(esperá ~20s; el resultado completo queda en:\n$dbg)"
                 runOnUiThread {
-                    showStatus(status)
-                    Toast.makeText(this@TerminalActivity, "Terminal falló — abrí:\n$dbg", Toast.LENGTH_LONG).show()
+                    showStatus("El shell se cerró:\n$reason\n\n(detalles en:\n$dbg)")
+                    Toast.makeText(this@TerminalActivity, "Shell cerrado — reiniciando…", Toast.LENGTH_LONG).show()
                 }
             }
         }, 3_000)
@@ -444,8 +489,8 @@ class TerminalActivity : Activity() {
         tv.post { tv.requestFocus() }
     }
 
-    // TerminalEngine.ensureReady's onProgress and the setup state land on background threads; route
-    // every status update through runOnUiThread.
+    // ensureReady's onProgress and the setup state land on background threads; route every status
+    // update through runOnUiThread.
     private fun showStatus(text: String) {
         runOnUiThread { statusText?.let { it.text = text; it.visibility = View.VISIBLE } }
     }
@@ -476,5 +521,6 @@ class TerminalActivity : Activity() {
         private const val REQ_STORAGE = 42
         private const val MOD_CTRL = "\u0000mod-ctrl"
         private const val MOD_ALT = "\u0000mod-alt"
+        private const val RUNTIME_KEY = "runtime"
     }
 }
