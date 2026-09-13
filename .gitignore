@@ -50,6 +50,10 @@ docs/*.png
 *.aab
 *.apk
 
+# Alpine rootfs bundles — downloaded by fetchAlpineRootfs into src/main/assets/alpine/
+# (see ide-android/build.gradle.kts:743; never commit the 11 MB binary blobs)
+ide-android/src/main/assets/alpine/
+
 # Release announcement drafts (never commit; they feed `gh release create` from the working tree only)
 discord_release_*.txt
 
