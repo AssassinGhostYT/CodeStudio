@@ -20,7 +20,7 @@ import java.util.zip.ZipInputStream
  * On-device Termux-userland engine — the "bootstrap + shell" runtime shipped by the vendored
  * `:termux:application`'s `libtermux-bootstrap.so` (JNI `TermuxInstaller.getZip()`).
  *
- * ## Why `/system/bin/linker64` + `libtermux-exec.so` instead of proot
+ * ## Why `/system/bin/linker64` + a bundled `libexecbridge.so` instead of proot
  *
  * The Interpreter-shipped Termux ELF binaries (e.g. `bin/bash`, interp `/system/bin/linker64`,
  * NEEDED libs Termux-built living under `<filesDir>/usr/lib`) cannot be exec'd directly from
@@ -36,14 +36,14 @@ import java.util.zip.ZipInputStream
  *     /system/bin/linker64 /abs/path/to/mybinary
  *
  * and it will dlopen + run the binary from app-data. SELinux only ever sees `system_linker_exec`
- * (which untrusted_app IS allowed to execute), so the call succeeds. `libtermux-exec-so` is a
+ * (which untrusted_app IS allowed to execute), so the call succeeds. Our bundled `libexecbridge.so` is a
  * `LD_PRELOAD` shim whose overridden `exec(3)` family (execve/execvp/execvpe) rewrites every exec
  * of a Termux binary into `/system/bin/linker64 <bin> …` transparently. We therefore:
  *
  *   1. Launch the *first* process as `/system/bin/linker64 <prefix>/bin/sh` (or bash) with
- *      `LD_PRELOAD=<prefix>/lib/libtermux-exec.so`, `LD_LIBRARY_PATH=<prefix>/lib:/system/lib64`.
+ *      `LD_PRELOAD=<nativeLibDir>/libexecbridge.so`, `LD_LIBRARY_PATH=<prefix>/lib:/system/lib64`.
  *      The linker is a permitted exec target, so it never hits the SELinux wall.
- *   2. Every child it spawns inherits the same env, so `libtermux-exec` keeps intercepting their
+ *   2. Every child it spawns inherits the same env, so the bundled shim keeps intercepting their
  *      exec calls — the whole userland (dash, node, python, apt-get, dpkg…) runs without a single
  *      direct kernel exec of an app-data ELF.
  *
@@ -57,7 +57,8 @@ import java.util.zip.ZipInputStream
  * The bootstrap zip embedded in `libtermux-bootstrap.so` is extracted to `<filesDir>/usr`, with
  * SYMLINKS.txt (`src←dst`, U+2190) recreated via `Os.symlink`, exactly like the vendored
  * `TermuxInstaller`. One of the bundled termux-exec variants is installed as
- * `usr/lib/libtermux-exec.so` (the standard name Termux uses for the preload shim).
+ * `usr/lib/libtermux-exec.so` (the standard name Termux uses for the preload shim; our env now
+ * overrides `LD_PRELOAD` to the bundled `libexecbridge.so` which performs the same rewrite).
  */
 object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
 
@@ -84,6 +85,10 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
     private fun tmpDir() = File(filesDir!!, "tmp").apply { mkdirs() }
     private fun scriptsDir() = File(filesDir!!, "scripts").apply { mkdirs() }
     private fun termuxExec() = File(prefixDir(), "lib/libtermux-exec.so")
+    private fun execBridge() = File(
+        appContext?.applicationInfo?.nativeLibraryDir ?: "/data/local/tmp",
+        "libexecbridge.so",
+    )
     private fun linker() = if (File("/system/bin/linker64").exists()) "/system/bin/linker64" else "/system/bin/linker"
 
     override suspend fun ensureReady(onProgress: (String) -> Unit) = withContext(Dispatchers.IO) {
@@ -271,7 +276,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
 
     // ── Interactive session ──────────────────────────────────────────────
     // First process is /system/bin/linker64 (a permitted exec target) running bash from app-data.
-    // libtermux-exec (LD_PRELOAD, inherited by every child) rewrites subsequent execs to linker64.
+    // execbridge (LD_PRELOAD, inherited by every child) rewrites subsequent execs to linker64.
     //
     // argv must be [linker, bash, "-l"] — NOT [bash, "-l"]. `execvp(linker, argv)` passes argv
     // through verbatim, so argv[0] has to be the linker path for it to enter loader mode
@@ -302,6 +307,8 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             put("PREFIX", prefix.absolutePath)
             put("TERMUX_PREFIX", prefix.absolutePath)
             put("TERMUX__PREFIX", prefix.absolutePath)
+            // execbridge routes execs of app-data ELFs/scripts (under CS_PREFIX) through the linker.
+            put("CS_PREFIX", "${prefix.absolutePath}/")
             // The termux-exec shim + its is-enabled check read the SDK level to decide between the
             // direct/linker variants (the scripts fall back to getprop; pass it explicitly so the
             // C shim never needs /system/bin/getprop).
@@ -309,7 +316,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             put("HOME", homeDir().absolutePath)
             put("PATH", "${prefix.absolutePath}/bin:${prefix.absolutePath}/bin/applets:/system/bin:/sbin:/bin")
             put("LD_LIBRARY_PATH", "${prefix.absolutePath}/lib:/system/lib64:/system/lib")
-            put("LD_PRELOAD", termuxExec().absolutePath)
+            put("LD_PRELOAD", execBridge().absolutePath)
             put("TERM", "xterm-256color")
             put("LANG", "C.UTF-8")
             put("COLORTERM", "truecolor")
