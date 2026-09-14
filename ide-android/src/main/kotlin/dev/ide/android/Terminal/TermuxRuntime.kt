@@ -108,6 +108,8 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             installBionicCompat()
             writeSessionScript()
             writeShellConfig(prefix)
+            writePkgWrapper(prefix)
+            writeDpkgWrapper(prefix)
             onProgress("Termux listo en ${prefix.absolutePath}")
             _setup.value = TerminalSetupState.Ready
             Log.i(TAG, "Termux userland ready at ${prefix.absolutePath}")
@@ -268,7 +270,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             Dir::Etc "$p/etc/apt/";
             Dir::Etc::SourceList "$p/etc/apt/sources.list";
             Dir::Etc::SourceParts "";
-            Dir::Bin::dpkg "$p/bin/dpkg";
+            Dir::Bin::dpkg "$p/bin/_cs-dpkg";
             Dir::Bin::Methods "$p/lib/apt/methods/";
             Dir::Bin::apt-key "$p/bin/apt-key";
             Dpkg::Options:: "--force-configure-any";
@@ -410,6 +412,8 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
         writeShellConfig(prefix)
         writeAptConfig(prefix)
         scrubStalePaths(prefix)
+        writePkgWrapper(prefix)
+        writeDpkgWrapper(prefix)
         val args = arrayOf(linkerPath, bash, "-l")
         val env = buildEnvironment().map { (k, v) -> "$k=$v" }.toTypedArray()
         val s = TerminalSession(linkerPath, prefix.absolutePath, args, env, rows, this)
@@ -571,6 +575,52 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
                 Log.i(TAG, "inputrc escrito en ${f.absolutePath}")
             }
         }.onFailure { Log.w(TAG, "writeInputrc: ${it.message}") }
+    }
+
+    /**
+     * The AAIDE bootstrap's `pkg` is a baked-in script with `/data/data/com.tom.rv2ide` paths
+     * inside; the iterative scrub corruptions are unrecoverable. Replace it with a clean wrapper
+     * that just delegates to apt (both use the same subcommand names: update, install, …).
+     * Written on every startSession to heal the damage done to the original file.
+     */
+    private fun writePkgWrapper(prefix: File) {
+        val pkg = File(prefix, "bin/pkg")
+        val sh = "/system/bin/sh"
+        runCatching {
+            pkg.writeText(
+                """
+                |#!/$sh
+                |# CodeStudio pkg → apt wrapper (replaces corrupted AAIDE pkg script)
+                |export TERMUX_APP_PACKAGE_MANAGER=apt
+                |exec "${prefix.absolutePath}/bin/apt" "${'$'}@"
+                """.trimMargin().replace("\n|", "\n") + "\n",
+            )
+            ensureExecutable(pkg)
+            Log.i(TAG, "pkg wrapper escrito en ${pkg.absolutePath}")
+        }.onFailure { Log.w(TAG, "writePkgWrapper: ${it.message}") }
+    }
+
+    /**
+     * apt spawns dpkg helpers (dpkg-deb, dpkg-split, sh, tar …) from a *minimal* PATH that
+     * doesn't include $PREFIX/bin or /system/bin. Wrap dpkg with a tiny shell script that
+     * ensures those dirs are on PATH first, then execs the real dpkg binary. Also satisfies
+     * our `Dir::Bin::dpkg` pointing at `$PREFIX/bin/_cs-dpkg`.
+     */
+    private fun writeDpkgWrapper(prefix: File) {
+        val wrapper = File(prefix, "bin/_cs-dpkg")
+        val realDpkg = File(prefix, "bin/dpkg").absolutePath
+        val p = prefix.absolutePath
+        runCatching {
+            wrapper.writeText(
+                """
+                |#!/system/bin/sh
+                |case ":${'$'}PATH:" in *":${'$'}PREFIX/bin:"*) ;; *) export PATH="$p/bin:$p/bin/applets:/system/bin:/sbin:/bin:${'$'}PATH" ;; esac
+                |exec "$realDpkg" "${'$'}@"
+                """.trimMargin().replace("\n|", "\n") + "\n",
+            )
+            ensureExecutable(wrapper)
+            Log.i(TAG, "_cs-dpkg wrapper escrito en ${wrapper.absolutePath}")
+        }.onFailure { Log.w(TAG, "writeDpkgWrapper: ${it.message}") }
     }
 
     override fun stopSession() {
