@@ -116,9 +116,15 @@ class TerminalActivity : Activity() {
         // Edge-to-edge: content draws under the status/nav bars and we pad by the real insets, so
         // nothing (keys bar included) hides behind the phone's gesture/navigation bar.
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            view.setPadding(0, bars.top, 0, bars.bottom)
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
+            // With edge-to-edge the soft keyboard only arrives as an IME inset; pad the bottom by
+            // whichever is bigger so the terminal + extra-keys bar sit ABOVE the keyboard and never
+            // get covered by it.
+            val bottom = maxOf(bars.bottom, ime.bottom)
+            view.setPadding(0, bars.top, 0, bottom)
             WindowInsetsCompat.CONSUMED
         }
 
