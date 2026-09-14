@@ -129,13 +129,20 @@ static int exec_prefix(const char *path, char *const argv[], char *const envp[],
          * (toybox always ships env/sh). NOTE: argv[0] manipulations must not change the
          * original script path or arg ordering (env <arg> script form preserved). */
         bool interp_ok = (access(interp, X_OK) == 0);
+        const char *cs = getenv("CS_PREFIX");
+        bool ours = (cs != NULL && starts_with(interp, cs));
+        bool in_data = starts_with(interp, "/data/");
         const char *use_interp = interp;
         char *fallback = NULL;
-        if (!interp_ok && starts_with(interp, "/data/data/")) {
+        /* Under permissive SELinux a FOREIGN app's ELF (e.g. the stale AAIDE
+         * prefix /data/data/com.tom.rv2ide/...) is readable/executable, so
+         * access() says OK — but exec of another app's private ELF is killed by
+         * the app sandbox with SIGSYS (signal 31). Never trust a /data/
+         * interpreter that isn't ours, nor one under our prefix that's missing. */
+        if (in_data && (!ours || !interp_ok)) {
             const char *base = strrchr(interp, '/');
             if (base != NULL) {
                 const char *const dirs[] = { "usr/bin/", "bin/", NULL };
-                const char *cs = getenv("CS_PREFIX");
                 char cand[512];
                 int ci;
                 for (ci = 0; dirs[ci]; ci++) {
