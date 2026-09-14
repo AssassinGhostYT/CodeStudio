@@ -238,7 +238,8 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
     /**
      * apt-get/dpkg on stock Termux assume `/data/data/com.termux/files/usr`. Without proot we can't
      * bind-mount our real prefix onto that path, so instead mirror OpenClaw's fix: an `etc/apt/apt.conf`
-     * with `Dir "/"` and every path pointed at our real prefix.
+     * with `Dir "/"` and every path pointed at our real prefix. `buildEnvironment()` sets `APT_CONFIG`
+     * to this file so apt actually reads it (its compiled-in `Dir::Etc` is the stale rv2ide path).
      */
     private fun writeAptConfig(prefix: File) {
         val aptConf = File(prefix, "etc/apt/apt.conf")
@@ -333,6 +334,10 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             put("CURL_CA_BUNDLE", "${prefix.absolutePath}/etc/tls/cert.pem")
             put("GIT_SSL_CAINFO", "${prefix.absolutePath}/etc/tls/cert.pem")
             put("OPENSSL_CONF", "${prefix.absolutePath}/etc/tls/openssl.cnf")
+            // This AAIDE-class bootstrap compiled apt/dpkg against /data/data/com.tom.rv2ide/files/usr;
+            // without proot it can't see that dir, so apt ignores our existing apt.conf. Force it to
+            // read our config, which redirects every Dir::* path to the real prefix.
+            put("APT_CONFIG", "${prefix.absolutePath}/etc/apt/apt.conf")
             put("NODE_OPTIONS", "--openssl-config=${prefix.absolutePath}/etc/tls/openssl.cnf --unhandled-rejections=warn -r ${bionicCompatPath()}")
             // Android system roots — the linker + namespace read these.
             put("ANDROID_ART_ROOT", sysEnv["ANDROID_ART_ROOT"] ?: "/apex/com.android.art")
