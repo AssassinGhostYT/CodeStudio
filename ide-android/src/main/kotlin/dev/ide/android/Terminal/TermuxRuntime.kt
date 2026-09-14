@@ -585,14 +585,14 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
      */
     private fun writePkgWrapper(prefix: File) {
         val pkg = File(prefix, "bin/pkg")
-        val sh = "/system/bin/sh"
+        val p = prefix.absolutePath
         runCatching {
             pkg.writeText(
                 """
-                |#!/$sh
+                |#!$p/bin/bash
                 |# CodeStudio pkg → apt wrapper (replaces corrupted AAIDE pkg script)
                 |export TERMUX_APP_PACKAGE_MANAGER=apt
-                |exec "${prefix.absolutePath}/bin/apt" "${'$'}@"
+                |exec "$p/bin/apt" "${'$'}@"
                 """.trimMargin().replace("\n|", "\n") + "\n",
             )
             ensureExecutable(pkg)
@@ -613,7 +613,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
         runCatching {
             wrapper.writeText(
                 """
-                |#!/system/bin/sh
+                |#!$p/bin/bash
                 |case ":${'$'}PATH:" in *":${'$'}PREFIX/bin:"*) ;; *) export PATH="$p/bin:$p/bin/applets:/system/bin:/sbin:/bin:${'$'}PATH" ;; esac
                 |exec "$realDpkg" "${'$'}@"
                 """.trimMargin().replace("\n|", "\n") + "\n",
