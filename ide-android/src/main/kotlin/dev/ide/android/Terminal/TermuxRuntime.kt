@@ -17,6 +17,7 @@ import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.nio.file.Files
 import java.util.zip.ZipInputStream
 
 /**
@@ -247,6 +248,13 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
     private fun writeAptConfig(prefix: File) {
         val aptConf = File(prefix, "etc/apt/apt.conf")
         val p = prefix.absolutePath
+        // Termux .debs bake the FULL absolute prefix (/data/data/com.termux/files/usr, or the
+        // AAIDE flavor /data/data/com.tom.rv2ide/files/usr) into every data.tar member. To make
+        // dpkg unpack them into OUR prefix (filesDir/usr) without proot, point --instdir at the
+        // files dir and create a symlink farm so the baked-in app path resolves to our prefix:
+        //   filesDir/data/data/{com.termux,com.tom.rv2ide,com.codestudio.ide}/files/usr -> filesDir/usr
+        // dpkg then follows the symlink and files land exactly where the bootstrap put them.
+        ensurePrefixSymlinkFarm(filesDir!!, prefix)
         // This AAIDE bootstrap's termux-tools postinst never ran (it assumed com.tom.rv2ide), so the
         // apt dirs it was supposed to create are missing. apt hard-fails when these don't exist, so
         // create them here (idempotent; also run on every startSession to heal existing installs).
@@ -275,16 +283,89 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             Dir::Bin::apt-key "$p/bin/apt-key";
             Dpkg::Options:: "--force-configure-any";
             Dpkg::Options:: "--force-bad-path";
-            Dpkg::Options:: "--instdir=$p";
+            // Termux .debs bake the FULL absolute prefix into every member (data/data/com.termux/…,
+            // AAIDE flavor data/data/com.tom.rv2ide/…). --instdir=$p used to leave them NESTED under
+            // $p/data/data/… (why node/npm/wget installed but never appeared on PATH). Point instdir
+            // at the app FILES dir; the symlink farm in ensurePrefixSymlinkFarm then maps
+            // filesDir/data/data/<app>/files/usr -> filesDir/usr so files land in the real prefix.
+            Dpkg::Options:: "--instdir=${filesDir?.absolutePath}";
             Acquire::AllowInsecureRepositories "true";
-            // The ACS repo signs InRelease with a key not present in this bootstrap's keyring; the
-            // lists fetch fine (hash-verified) so don't block installs on our hobby mirror's key.
+            // Both the AAIDE ACS repo and official termux-main sign InRelease with keys not in this
+            // bootstrap's (termux-tools never ran its postinst) keyring; lists are hash-verified so
+            // installs must not be blocked on signature state.
             Acquire::AllowUnauthenticated "true";
             Acquire::https::CaInfo "${systemCaBundle().absolutePath}";
             """.trimIndent() + "\n",
         )
         Log.i(TAG, "apt.conf escrito en $aptConf")
+        writeSourcesList(prefix)
     }
+
+    /**
+     * Re-map the absolute app prefixes that Termux debs are baked for onto our real prefix, so
+     * dpkg (with --instdir=<filesDir>) unpacks every member exactly where the bootstrap lives.
+     * Files under filesDir/data/data/<app>/files/usr that would be created as REAL dirs are
+     * replaced: only the leaf `usr` is a symlink to <filesDir>/usr, matching how Termux lays out
+     * its own tree but without needing /data/data/com.termux to exist on-device.
+     */
+    private fun ensurePrefixSymlinkFarm(filesDir: File, prefix: File) {
+        val target = prefix.absolutePath
+        val apps = listOf("com.termux", "com.tom.rv2ide", "com.codestudio.ide")
+        for (app in apps) {
+            val leaf = File(filesDir, "data/data/$app/files/usr")
+            runCatching {
+                val leafPath = leaf.toPath()
+                Files.isSymbolicLink(leafPath).let { isLink ->
+                    if (isLink) {
+                        val dest = Files.readSymbolicLink(leafPath).toString()
+                        if (dest == target) return@runCatching   // already correct
+                        Files.delete(leafPath)                   // stale link; re-point below
+                    } else if (leaf.isFile) {
+                        leaf.delete()                            // stray regular file; replace
+                    } else if (leaf.isDirectory) {
+                        // REAL dir (not a link): leftover from an old --instdir=$p install. Note
+                        // we must NOT deleteRecursively a symlink-to-dir (it would walk the actual
+                        // prefix); that's why the isLink branch above always wins for links.
+                        leaf.deleteRecursively()
+                    }
+                }
+                listOf("data/data", "data/data/$app", "data/data/$app/files")
+                    .forEach { segment -> File(filesDir, segment).mkdirs() }
+                Os.symlink(target, leaf.absolutePath)
+                Log.i(TAG, "symlink-farm: ${leaf.absolutePath} -> $target")
+            }.onFailure { Log.w(TAG, "symlink-farm skip ${leaf.absolutePath}: ${it.message}") }
+        }
+    }
+
+    /**
+     * Point apt at the OFFICIAL termux-main repo instead of the AAIDE/ACS hobby mirror (whose debs
+     * are the stale com.tom.rv2ide flavor and which lacks nodejs/npm/nodejs-lts). Official debs are
+     * current, signed by termux, and their absolute /data/data/com.termux/… members resolve through
+     * ensurePrefixSymlinkFarm. Idempotent; written on every startSession to heal user edits.
+     */
+    private fun writeSourcesList(prefix: File) {
+        val sources = File(prefix, "etc/apt/sources.list")
+        val p = prefix.absolutePath
+        runCatching {
+            val keep = if (sources.exists()) sources.readText() else ""
+            val officialLine = "deb [trusted=yes] https://packages.termux.dev/apt/termux-main stable main\n"
+            if (keep.contains(officialLine.trim())) {
+                Log.i(TAG, "sources.list ya apunta al repo oficial")
+                return
+            }
+            val policy =
+                postInstalledSourcesListMarker() + // distinct anchor so we never re-append
+                keep.lines().filter { line ->
+                    val l = line.trim()
+                    l.isNotEmpty() && !l.startsWith("#") && !l.startsWith("deb")
+                }.joinToString("\n")
+            sources.writeText(policy + (if (policy.endsWith("\n")) "" else "\n") + officialLine)
+            Log.i(TAG, "sources.list redirigido a packages.termux.dev (adaptado de $p/etc/apt/sources.list)")
+        }.onFailure { Log.w(TAG, "writeSourcesList: ${it.message}") }
+    }
+
+    private fun postInstalledSourcesListMarker(): String =
+        "# Codestudio: repos reemplazados por termux-main oficial; reselect con 'pkg mirror-set' o reescribe\n"
 
     private fun mkdirsQuiet(dir: File) {
         if (dir.exists()) return
