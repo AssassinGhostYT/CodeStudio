@@ -429,7 +429,10 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             // C shim never needs /system/bin/getprop).
             put("ANDROID__BUILD_VERSION_SDK", Build.VERSION.SDK_INT.toString())
             put("HOME", homeDir().absolutePath)
-            put("PATH", "${prefix.absolutePath}/bin:${prefix.absolutePath}/bin/applets:/system/bin:/sbin:/bin")
+            // opencode's installer drops its binary in ~/.opencode/bin and pastes the export into
+            // ~/.bashrc; login shells (bash -l, our session mode) never read .bashrc directly, so
+            // also put it on PATH here to make `opencode` resolvable right away.
+            put("PATH", "${prefix.absolutePath}/bin:${prefix.absolutePath}/bin/applets:${homeDir().absolutePath}/.opencode/bin:/system/bin:/sbin:/bin")
             put("LD_LIBRARY_PATH", "${prefix.absolutePath}/lib:/system/lib64:/system/lib")
             put("LD_PRELOAD", execBridge().absolutePath)
             put("TERM", "xterm-256color")
@@ -486,6 +489,11 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
         val marker = "# cs-terminal-prompt"
         val ps1Line =
             "export PS1='\\[\\e[1;32m\\]root\\[\\e[0m\\]@\\[\\e[1;36m\\]localhost\\[\\e[0m\\]:\\[\\e[1;34m\\]\\w\\[\\e[0m\\]\\[\\e[1;37m\\]\\$\\[\\e[0m\\] '"
+        // We launch bash as a LOGIN shell (-l), which reads ~/.profile but NOT ~/.bashrc. Termux's
+        // and opencode's setup both live in ~/.bashrc (PS1, PATH exports, aliases), so make ~/.profile
+        // source it; otherwise login shells ignore those settings and we'd keep seeing `bash-5.3$`.
+        val profileMarker = "# cs-terminal-profile"
+        val profileLine = "[ -f \"\$HOME/.bashrc\" ] && . \"\$HOME/.bashrc\" 2>/dev/null"
         val target = listOf(
             File(prefix, "etc/bash.bashrc"),
             File(homeDir(), ".bashrc"),
@@ -499,6 +507,14 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
                 }
             }.onFailure { Log.w(TAG, "writeShellConfig ${f.absolutePath}: ${it.message}") }
         }
+        val profile = File(homeDir(), ".profile")
+        runCatching {
+            if (!profile.exists()) profile.parentFile?.mkdirs()
+            if (!profile.exists() || !profile.readText().contains(profileMarker)) {
+                profile.appendText("\n$profileMarker\n$profileLine\n")
+                Log.i(TAG, "profile carga .bashrc en ${profile.absolutePath}")
+            }
+        }.onFailure { Log.w(TAG, "writeShellConfig profile: ${it.message}") }
     }
 
     override fun stopSession() {
