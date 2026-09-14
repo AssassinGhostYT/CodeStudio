@@ -256,6 +256,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             "$p/var/cache/apt/lists/partial",
             "$p/var/lib/apt/lists/partial",
             "$p/var/lib/dpkg/updates",
+            "$p/var/log/apt",
         ).forEach { mkdirsQuiet(File(it)) }
         aptConf.writeText(
             """
@@ -336,7 +337,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
      * (arbitrary length change is fine for text; ELF binaries are skipped). Guarded by a marker.
      */
     private fun scrubStalePaths(prefix: File) {
-        val marker = File(homeDir(), ".codestudio/apt-scrubbed-v2")
+        val marker = File(homeDir(), ".codestudio/apt-scrubbed-v3")
         if (marker.exists()) return
         val staleFile = "/data/data/com.tom.rv2ide/files/usr"
         val stalePkg = "/data/data/com.tom.rv2ide"
@@ -356,6 +357,9 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
                     }
                     val text = bytes.toString(Charsets.UTF_8)
                     var updated = text
+                    // v1 scrubber replaced just the package name, mangling paths to <real>/files/usr;
+                    // undo that before applying the clean replacements below.
+                    updated = updated.replace("$real/files/usr", real)
                     updated = updated.replace(staleFile, real)
                     updated = updated.replace(stalePkg, real)
                     if (updated != text) {
@@ -422,8 +426,10 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             put("PREFIX", prefix.absolutePath)
             put("TERMUX_PREFIX", prefix.absolutePath)
             put("TERMUX__PREFIX", prefix.absolutePath)
-            // execbridge routes execs of app-data ELFs/scripts (under CS_PREFIX) through the linker.
-            put("CS_PREFIX", "${prefix.absolutePath}/")
+            // execbridge routes execs of app-data ELFs/scripts through the linker. Cover the WHOLE
+            // files dir (usr/ AND home/): tools like opencode install binaries under ~/.opencode/bin,
+            // outside $PREFIX, and direct exec of those would hit W^X and die with EACCES.
+            put("CS_PREFIX", "${filesDir}/")
             // The termux-exec shim + its is-enabled check read the SDK level to decide between the
             // direct/linker variants (the scripts fall back to getprop; pass it explicitly so the
             // C shim never needs /system/bin/getprop).
@@ -449,8 +455,11 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             put("OPENSSL_CONF", "${prefix.absolutePath}/etc/tls/openssl.cnf")
             // This AAIDE-class bootstrap compiled apt/dpkg against /data/data/com.tom.rv2ide/files/usr;
             // without proot it can't see that dir, so apt ignores our existing apt.conf. Force it to
-            // read our config, which redirects every Dir::* path to the real prefix.
+            // read our config, which redirects every Dir::* path to the real prefix. dpkg also has
+            // the stale path compiled in and this old apt doesn't forward --admindir, so tell dpkg
+            // directly where its database lives via DPKG_ADMINDIR.
             put("APT_CONFIG", "${prefix.absolutePath}/etc/apt/apt.conf")
+            put("DPKG_ADMINDIR", "${prefix.absolutePath}/var/lib/dpkg")
             put("NODE_OPTIONS", "--openssl-config=${prefix.absolutePath}/etc/tls/openssl.cnf --unhandled-rejections=warn -r ${bionicCompatPath()}")
             // Android system roots — the linker + namespace read these.
             put("ANDROID_ART_ROOT", sysEnv["ANDROID_ART_ROOT"] ?: "/apex/com.android.art")

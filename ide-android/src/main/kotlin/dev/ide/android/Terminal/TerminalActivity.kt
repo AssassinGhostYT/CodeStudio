@@ -71,8 +71,8 @@ import kotlinx.coroutines.withContext
  * bar never overlaps the keys.
  *
  * Copying/pasting: Termux-style — long-press starts text selection (handles + floating Copy/Paste
- * toolbar), and the keys bar's COPY/PASTE buttons copy the selected/visible text or paste the
- * clipboard (bracketed-paste aware) into the active shell.
+ * toolbar), which copies to the clipboard; pasting from a phone clipboard happens through the
+ * TerminalView's bracketed-paste path on paste action.
  *
  * Storage is requested exactly once (first launch): READ_EXTERNAL_STORAGE runtime prompt on ≤11,
  * one-tap jump to "All files access" settings on 12+ — never nagged again.
@@ -180,9 +180,6 @@ class TerminalActivity : Activity() {
         addKeyRow(bar,
             "TAB" to "\t", "CTRL" to MOD_CTRL, "ALT" to MOD_ALT, "←" to "\u001B[D", "↓" to "\u001B[B",
             "→" to "\u001B[C", "PGDN" to "\u001B[6~",
-        )
-        addKeyRow(bar,
-            "COPY" to MOD_COPY, "PASTE" to MOD_PASTE,
         )
         return bar
     }
