@@ -104,6 +104,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             installTermuxExec(prefix)
             patchTermuxExecShebangs(prefix)
             writeAptConfig(prefix)
+            scrubStalePaths(prefix)
             installBionicCompat()
             writeSessionScript()
             writeShellConfig(prefix)
@@ -244,6 +245,18 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
     private fun writeAptConfig(prefix: File) {
         val aptConf = File(prefix, "etc/apt/apt.conf")
         val p = prefix.absolutePath
+        // This AAIDE bootstrap's termux-tools postinst never ran (it assumed com.tom.rv2ide), so the
+        // apt dirs it was supposed to create are missing. apt hard-fails when these don't exist, so
+        // create them here (idempotent; also run on every startSession to heal existing installs).
+        listOf(
+            "$p/etc/apt/apt.conf.d",
+            "$p/etc/apt/preferences.d",
+            "$p/etc/apt/sources.list.d",
+            "$p/var/cache/apt/archives/partial",
+            "$p/var/cache/apt/lists/partial",
+            "$p/var/lib/apt/lists/partial",
+            "$p/var/lib/dpkg/updates",
+        ).forEach { mkdirsQuiet(File(it)) }
         aptConf.writeText(
             """
             Dir "/";
@@ -261,9 +274,96 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             Dpkg::Options:: "--force-bad-path";
             Dpkg::Options:: "--instdir=$p";
             Acquire::AllowInsecureRepositories "true";
+            Acquire::https::CaInfo "${systemCaBundle().absolutePath}";
             """.trimIndent() + "\n",
         )
         Log.i(TAG, "apt.conf escrito en $aptConf")
+    }
+
+    private fun mkdirsQuiet(dir: File) {
+        if (dir.exists()) return
+        runCatching { dir.mkdirs() }.onFailure { Log.w(TAG, "no se pudo crear ${dir.absolutePath}: $it") }
+    }
+
+    /**
+     * Build a PEM CA bundle from the Android trust store. The AAIDE bootstrap's ca-certificates /
+     * tls setup is broken for our package, and apt/curl/node need a real bundle: /system/etc/security/
+     * cacerts (and the conscrypt APEX one) always exist, so concatenate their PEM files once into
+     * $HOME/.codestudio/cacert.pem. Idempotent and recreated if missing.
+     */
+    private fun systemCaBundle(): File {
+        val out = File(homeDir(), ".codestudio/cacert.pem")
+        if (out.length() > 0) return out
+        val namespaces = listOf(
+            File("/apex/com.android.conscrypt/cacerts"),
+            File("/system/etc/security/cacerts"),
+        )
+        runCatching {
+            val src: List<File> = namespaces
+                .filter { d -> d.isDirectory }
+                .flatMap { d -> d.listFiles()?.toList() ?: emptyList() }
+                .filter { f -> f.isFile && f.length() > 8 }
+                .filter { f -> runCatching { String(f.readBytes().let { b -> b.copyOfRange(0, minOf(512, b.size)) }, Charsets.US_ASCII).contains("-----BEGIN") }.getOrDefault(false) }
+                .sortedBy { f -> f.absolutePath }
+            if (src.isEmpty()) return@runCatching
+            out.parentFile?.mkdirs()
+            val tmp = File(out.parentFile, "cacert.pem.tmp")
+            FileOutputStream(tmp).use { fos ->
+                for (f in src) {
+                    runCatching {
+                        val data = f.readBytes()
+                        if (data.isNotEmpty()) {
+                            fos.write(data, 0, data.size)
+                            fos.write('\n'.code)
+                        }
+                    }
+                }
+            }
+            val size = tmp.length()
+            if (size > 0 && tmp.renameTo(out)) Log.i(TAG, "CA bundle generado: ${out.absolutePath} ($size bytes)")
+            else tmp.delete()
+        }.onFailure { Log.e(TAG, "no se pudo generar CA bundle: $it") }
+        return out
+    }
+
+    /**
+     * The AAIDE bootstrap was compiled for /data/data/com.tom.rv2ide, and several shell scripts /
+     * maintainer scripts (pkg, postinst under var/lib/dpkg) hardcode that absolute path. Without
+     * proot that dir doesn't exist, so rewriting the text files to our real prefix fixes them
+     * (arbitrary length change is fine for text; ELF binaries are skipped). Guarded by a marker.
+     */
+    private fun scrubStalePaths(prefix: File) {
+        val marker = File(homeDir(), ".codestudio/apt-scrubbed")
+        if (marker.exists()) return
+        val stale = "/data/data/com.tom.rv2ide"
+        val real = prefix.absolutePath
+        val roots = listOf("bin", "libexec", "etc", "share", "lib", "var/lib/dpkg")
+            .map { File(prefix, it) }.filter { it.isDirectory }
+        var fixed = 0
+        var skipped = 0
+        for (root in roots) {
+            root.walkTopDown().forEach { f ->
+                if (!f.isFile || f.length() > (4 * 1024 * 1024)) return@forEach
+                runCatching {
+                    val bytes = f.readBytes()
+                    if (bytes.indexOf(0x01.toByte()) >= 0 || bytes.indexOf(0x00.toByte()) >= 0) {
+                        skipped++ // binary/ELF: same-length-only patching, skip
+                        return@forEach
+                    }
+                    val text = bytes.toString(Charsets.UTF_8)
+                    if (text.contains(stale)) {
+                        val exec = f.canExecute()
+                        f.writeText(text.replace(stale, real))
+                        if (exec) f.setExecutable(true, false)
+                        fixed++
+                        Log.i(TAG, "path stale corregido en ${f.absolutePath}")
+                    }
+                }.onFailure { skipped++ }
+            }
+        }
+        marker.parentFile?.mkdirs()
+        marker.writeText("ok: $fixed fix, $skipped skip\n")
+        Log.i(TAG, "scrubStalePaths: $fixed archivos corregidos, $skipped omitidos")
     }
 
     private fun installBionicCompat() {
@@ -297,6 +397,8 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
         val linkerPath = linker()
         val bash = File(prefix, "bin/bash").absolutePath
         writeShellConfig(prefix)
+        writeAptConfig(prefix)
+        scrubStalePaths(prefix)
         val args = arrayOf(linkerPath, bash, "-l")
         val env = buildEnvironment().map { (k, v) -> "$k=$v" }.toTypedArray()
         val s = TerminalSession(linkerPath, prefix.absolutePath, args, env, rows, this)
@@ -329,10 +431,11 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             put("TMPDIR", tmpDir().absolutePath)
             put("TMP", tmpDir().absolutePath)
             put("TEMP", tmpDir().absolutePath)
-            put("SSL_CERT_FILE", "${prefix.absolutePath}/etc/tls/cert.pem")
+            val caBundle = systemCaBundle().absolutePath
+            put("SSL_CERT_FILE", caBundle)
             put("SSL_CERT_DIR", "/system/etc/security/cacerts")
-            put("CURL_CA_BUNDLE", "${prefix.absolutePath}/etc/tls/cert.pem")
-            put("GIT_SSL_CAINFO", "${prefix.absolutePath}/etc/tls/cert.pem")
+            put("CURL_CA_BUNDLE", caBundle)
+            put("GIT_SSL_CAINFO", caBundle)
             put("OPENSSL_CONF", "${prefix.absolutePath}/etc/tls/openssl.cnf")
             // This AAIDE-class bootstrap compiled apt/dpkg against /data/data/com.tom.rv2ide/files/usr;
             // without proot it can't see that dir, so apt ignores our existing apt.conf. Force it to
