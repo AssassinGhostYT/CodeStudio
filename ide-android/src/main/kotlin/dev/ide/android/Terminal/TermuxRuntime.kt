@@ -460,6 +460,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             // directly where its database lives via DPKG_ADMINDIR.
             put("APT_CONFIG", "${prefix.absolutePath}/etc/apt/apt.conf")
             put("DPKG_ADMINDIR", "${prefix.absolutePath}/var/lib/dpkg")
+            put("INPUTRC", "${homeDir().absolutePath}/.codestudio/inputrc")
             put("NODE_OPTIONS", "--openssl-config=${prefix.absolutePath}/etc/tls/openssl.cnf --unhandled-rejections=warn -r ${bionicCompatPath()}")
             // Android system roots — the linker + namespace read these.
             put("ANDROID_ART_ROOT", sysEnv["ANDROID_ART_ROOT"] ?: "/apex/com.android.art")
@@ -524,6 +525,52 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
                 Log.i(TAG, "profile carga .bashrc en ${profile.absolutePath}")
             }
         }.onFailure { Log.w(TAG, "writeShellConfig profile: ${it.message}") }
+        writeInputrc()
+    }
+
+    /**
+     * The AAIDE bootstrap's terminfo is incomplete: readline doesn't recognize ESC[H / ESC[F / ESC[5~ /
+     * ESC[6~ and instead ECHOES the leftover bytes (you see `~~~` for PGUP/PGDN) and ignores the
+     * arrows' cursor-motion. An explicit inputrc bypasses terminfo — every function key is bound to
+     * its readline function directly. Pointed to via INPUTRC in buildEnvironment().
+     */
+    private fun writeInputrc() {
+        val f = File(homeDir(), ".codestudio/inputrc")
+        val marker = "# cs-terminal-inputrc"
+        val content = """
+            $marker
+            set editing-mode emacs
+            set keymap emacs
+            set bell-style none
+            set completion-ignore-case on
+            set show-all-if-ambiguous on
+            set blink-matching-paren on
+            set enable-bracketed-paste off
+            ${'$'}if term=xterm-256color
+            "\e[H": beginning-of-line
+            "\e[OH": beginning-of-line
+            "\e[1~": beginning-of-line
+            "\e[F": end-of-line
+            "\e[OF": end-of-line
+            "\e[4~": end-of-line
+            "\e[A": previous-history
+            "\e[B": next-history
+            "\e[C": forward-char
+            "\e[D": backward-char
+            "\e[5~": beginning-of-history
+            "\e[6~": end-of-history
+            "\e[3~": delete-char
+            "\e[2~": quoted-insert
+            "\e[Z": complete
+            ${'$'}endif
+        """.trimIndent() + "\n"
+        runCatching {
+            if (!f.exists() || !f.readText().contains(marker)) {
+                f.parentFile?.mkdirs()
+                f.writeText(content)
+                Log.i(TAG, "inputrc escrito en ${f.absolutePath}")
+            }
+        }.onFailure { Log.w(TAG, "writeInputrc: ${it.message}") }
     }
 
     override fun stopSession() {
