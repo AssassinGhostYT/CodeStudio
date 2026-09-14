@@ -88,10 +88,13 @@ static bool parse_shebang(const char *path, const char **pinterp, const char **p
     while (*s == ' ' || *s == '\t') s++;
     char *end = s; while (*end && *end != ' ' && *end != '\t') end++;
     if (end == s) return false;
-    char *interp = strdup(s);
+    bool has_arg = (*end == ' ' || *end == '\t');
     *end = '\0';
-    s = end + 1; while (*s == ' ' || *s == '\t') s++;
+    char *interp = strdup(s);
+    if (!interp) return false;
     *pinterp = interp;
+    if (!has_arg) return true; /* no arg on the shebang line — don't read on past the line NUL */
+    s = end + 1; while (*s == ' ' || *s == '\t') s++;
     *parg = *s ? strdup(s) : NULL;
     return true;
 }
