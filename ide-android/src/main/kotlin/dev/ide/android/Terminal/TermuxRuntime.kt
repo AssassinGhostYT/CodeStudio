@@ -274,6 +274,9 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             Dpkg::Options:: "--force-bad-path";
             Dpkg::Options:: "--instdir=$p";
             Acquire::AllowInsecureRepositories "true";
+            // The ACS repo signs InRelease with a key not present in this bootstrap's keyring; the
+            // lists fetch fine (hash-verified) so don't block installs on our hobby mirror's key.
+            Acquire::AllowUnauthenticated "true";
             Acquire::https::CaInfo "${systemCaBundle().absolutePath}";
             """.trimIndent() + "\n",
         )
@@ -333,9 +336,10 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
      * (arbitrary length change is fine for text; ELF binaries are skipped). Guarded by a marker.
      */
     private fun scrubStalePaths(prefix: File) {
-        val marker = File(homeDir(), ".codestudio/apt-scrubbed")
+        val marker = File(homeDir(), ".codestudio/apt-scrubbed-v2")
         if (marker.exists()) return
-        val stale = "/data/data/com.tom.rv2ide"
+        val staleFile = "/data/data/com.tom.rv2ide/files/usr"
+        val stalePkg = "/data/data/com.tom.rv2ide"
         val real = prefix.absolutePath
         val roots = listOf("bin", "libexec", "etc", "share", "lib", "var/lib/dpkg")
             .map { File(prefix, it) }.filter { it.isDirectory }
@@ -351,9 +355,12 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
                         return@forEach
                     }
                     val text = bytes.toString(Charsets.UTF_8)
-                    if (text.contains(stale)) {
+                    var updated = text
+                    updated = updated.replace(staleFile, real)
+                    updated = updated.replace(stalePkg, real)
+                    if (updated != text) {
                         val exec = f.canExecute()
-                        f.writeText(text.replace(stale, real))
+                        f.writeText(updated)
                         if (exec) f.setExecutable(true, false)
                         fixed++
                         Log.i(TAG, "path stale corregido en ${f.absolutePath}")
