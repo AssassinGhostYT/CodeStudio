@@ -203,6 +203,10 @@ class TerminalActivity : Activity() {
                 setOnClickListener { applyKey(command) }
             }
             button.setBackgroundColor(Color.rgb(28, 28, 30))
+            when (label) {
+                "CTRL" -> ctrlButton = button
+                "ALT" -> altButton = button
+            }
             button.setOnTouchListener { v, event ->
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> v.alpha = 0.6f
@@ -219,20 +223,42 @@ class TerminalActivity : Activity() {
 
     // Sticky CTRL/ALT modifiers (Termux-style): tap toggles the modifier; the NEXT key is the one
     // modified (Ctrl+A = 0x01, Alt+X = ESC X). They auto-release after 2 s if untouched so they
-    // never get stuck.
+    // never get stuck. The active button is highlighted (blue) like Termux highlights extra keys.
     private var ctrlHeld = false
     private var altHeld = false
-    private val releaseModifiers = Runnable { ctrlHeld = false; altHeld = false }
+    private var ctrlButton: TextView? = null
+    private var altButton: TextView? = null
+    private val modDefaultBg = Color.rgb(28, 28, 30)
+    private val modActiveBg = Color.rgb(58, 130, 191)
+    private val modDefaultFg = Color.rgb(220, 220, 220)
+    private val releaseModifiers = Runnable {
+        ctrlHeld = false
+        altHeld = false
+        updateModifierVisuals()
+    }
+
+    private fun updateModifierVisuals() {
+        ctrlButton?.let {
+            it.setBackgroundColor(if (ctrlHeld) modActiveBg else modDefaultBg)
+            it.setTextColor(if (ctrlHeld) Color.WHITE else modDefaultFg)
+        }
+        altButton?.let {
+            it.setBackgroundColor(if (altHeld) modActiveBg else modDefaultBg)
+            it.setTextColor(if (altHeld) Color.WHITE else modDefaultFg)
+        }
+    }
 
     private fun applyKey(command: String) {
         when (command) {
             MOD_CTRL -> {
                 ctrlHeld = !ctrlHeld
-                if (ctrlHeld) scheduleModifierReset()
+                if (ctrlHeld) scheduleModifierReset() else handler.removeCallbacks(releaseModifiers)
+                updateModifierVisuals()
             }
             MOD_ALT -> {
                 altHeld = !altHeld
-                if (altHeld) scheduleModifierReset()
+                if (altHeld) scheduleModifierReset() else handler.removeCallbacks(releaseModifiers)
+                updateModifierVisuals()
             }
             MOD_COPY -> { copyToClipboard() }
             MOD_PASTE -> { pasteFromClipboard() }
@@ -242,6 +268,7 @@ class TerminalActivity : Activity() {
                 ctrlHeld = false
                 altHeld = false
                 handler.removeCallbacks(releaseModifiers)
+                updateModifierVisuals()
                 if (useCtrl && command.length == 1) {
                     controlCode(command[0].code)?.let { code ->
                         activeWriteRaw(Char(code).toString())
