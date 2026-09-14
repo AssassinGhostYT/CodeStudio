@@ -120,20 +120,44 @@ static int exec_prefix(const char *path, char *const argv[], char *const envp[],
             free((char *)interp); free((char *)arg);
             return real(path, argv, envp);
         }
+        /* AAIDE-class bootstrap debs ship maintainer scripts with a STALE shebang
+         * (#!/data/data/com.tom.rv2ide/files/usr/bin/sh) that doesn't exist in this
+         * package. Without proot the kernel/linker can't map that path, so the script
+         * dies and any package carrying such scripts fails its upgrade (nano, …).
+         * If the requested interpreter is under /data/data/ and missing, fall back to
+         * <CS_PREFIX>usr/bin/<basename> — our own copy of the same tool (sh, bash, …). */
+        bool interp_ok = (access(interp, X_OK) == 0);
+        const char *use_interp = interp;
+        char *fallback = NULL;
+        if (!interp_ok && starts_with(interp, "/data/data/")) {
+            const char *cs = getenv("CS_PREFIX");
+            if (cs != NULL) {
+                const char *base = strrchr(interp, '/');
+                if (base != NULL) {
+                    size_t n = strlen(cs) + strlen("usr/bin/") + strlen(base + 1) + 1;
+                    fallback = (char *)malloc(n);
+                    if (fallback) {
+                        snprintf(fallback, n, "%susr/bin/%s", cs, base + 1);
+                        if (access(fallback, X_OK) == 0) use_interp = fallback;
+                        else { free(fallback); fallback = NULL; }
+                    }
+                }
+            }
+        }
         /* Route script through linker: argv = [linker, interp, arg?, script, argv[1]...] */
         int argc = 0; while (argv[argc]) argc++;
         int slots = 1 + 1 + (arg ? 1 : 0) + 1 + argc; /* linker + interp + arg? + script + rest + NULL */
         char **nv = (char **)malloc(sizeof(char *) * (size_t)slots);
-        if (!nv) { free((char *)interp); free((char *)arg); errno = ENOMEM; return -1; }
+        if (!nv) { free((char *)interp); free((char *)arg); free(fallback); errno = ENOMEM; return -1; }
         int i = 0;
         nv[i++] = (char *)LINKER();
-        nv[i++] = (char *)interp;
+        nv[i++] = (char *)use_interp;
         if (arg) nv[i++] = (char *)arg;
         nv[i++] = (char *)path;        /* script, visible as $0 for interp */
         for (int j = 1; argv[j]; j++) nv[i++] = argv[j];
         nv[i] = NULL;
         int ret = real(LINKER(), nv, envp);
-        free(nv); free((char *)interp); free((char *)arg);
+        free(nv); free((char *)interp); free((char *)arg); free(fallback);
         return ret;
     }
 
