@@ -123,23 +123,38 @@ static int exec_prefix(const char *path, char *const argv[], char *const envp[],
         /* AAIDE-class bootstrap debs ship maintainer scripts with a STALE shebang
          * (#!/data/data/com.tom.rv2ide/files/usr/bin/sh) that doesn't exist in this
          * package. Without proot the kernel/linker can't map that path, so the script
-         * dies and any package carrying such scripts fails its upgrade (nano, …).
-         * If the requested interpreter is under /data/data/ and missing, fall back to
-         * <CS_PREFIX>usr/bin/<basename> — our own copy of the same tool (sh, bash, …). */
+         * dies and any package carrying such scripts fails its upgrade (nano, nodejs…).
+         * If the requested interpreter is under /data/data/ and missing, try candidates
+         * in order: <CS_PREFIX>usr/bin/<base>, <CS_PREFIX>bin/<base>, /system/bin/<base>
+         * (toybox always ships env/sh). NOTE: argv[0] manipulations must not change the
+         * original script path or arg ordering (env <arg> script form preserved). */
         bool interp_ok = (access(interp, X_OK) == 0);
         const char *use_interp = interp;
         char *fallback = NULL;
         if (!interp_ok && starts_with(interp, "/data/data/")) {
-            const char *cs = getenv("CS_PREFIX");
-            if (cs != NULL) {
-                const char *base = strrchr(interp, '/');
-                if (base != NULL) {
-                    size_t n = strlen(cs) + strlen("usr/bin/") + strlen(base + 1) + 1;
-                    fallback = (char *)malloc(n);
-                    if (fallback) {
-                        snprintf(fallback, n, "%susr/bin/%s", cs, base + 1);
-                        if (access(fallback, X_OK) == 0) use_interp = fallback;
-                        else { free(fallback); fallback = NULL; }
+            const char *base = strrchr(interp, '/');
+            if (base != NULL) {
+                const char *const dirs[] = { "usr/bin/", "bin/", NULL };
+                const char *cs = getenv("CS_PREFIX");
+                char cand[512];
+                int ci;
+                for (ci = 0; dirs[ci]; ci++) {
+                    if (cs != NULL) {
+                        snprintf(cand, sizeof(cand), "%s%s%s", cs, dirs[ci], base + 1);
+                    } else {
+                        snprintf(cand, sizeof(cand), "/%s%s", dirs[ci], base + 1);
+                    }
+                    if (access(cand, X_OK) == 0) {
+                        fallback = strdup(cand);
+                        use_interp = fallback;
+                        break;
+                    }
+                }
+                if (use_interp == interp) {
+                    snprintf(cand, sizeof(cand), "/system/bin/%s", base + 1);
+                    if (access(cand, X_OK) == 0) {
+                        fallback = strdup(cand);
+                        use_interp = fallback;
                     }
                 }
             }
