@@ -466,7 +466,8 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
      * Routine heal run on every startSession (NOT marker-guarded: must repair whatever apt/dpkg
      * installs later). Fixes the three recurring user-visible breakages on the device:
      *
-     * 1) Maintainer scripts (var/lib/dpkg/info/*.prerm|preinst|postrm|postinst) of BOTH the AAIDE
+     * 1) Maintainer scripts (the .prerm/.preinst/.postrm/.postinst files under var/lib/dpkg/info)
+     *    of BOTH the AAIDE
      *    bootstrap (shebang/paths /data/data/com.tom.rv2ide/...) and the official termux-main debs
      *    (shebang/paths /data/data/com.termux/...) point at app dirs that don't exist here; exec of
      *    update-alternatives behind their `-x` guards trips seccomp (signal 31) and kills apt
