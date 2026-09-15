@@ -282,7 +282,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             Dir::Bin::dpkg "$p/bin/_cs-dpkg";
             Dir::Bin::Methods "$p/lib/apt/methods/";
             Dir::Bin::apt-key "$p/bin/apt-key";
-            DPkg::Post-Invoke { "$p/bin/_cs-heal $p" >/dev/null 2>&1 || true; };
+            DPkg::Post-Invoke "$p/bin/_cs-heal $p >/dev/null 2>&1 || true";
             Dpkg::Options:: "--force-configure-any";
             Dpkg::Options:: "--force-bad-path";
             // Termux .debs bake the FULL absolute prefix into every member (data/data/com.termux/…,
