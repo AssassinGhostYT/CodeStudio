@@ -106,6 +106,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             patchTermuxExecShebangs(prefix)
             writeAptConfig(prefix)
             scrubStalePaths(prefix)
+            healTermuxState(prefix)
             installBionicCompat()
             writeSessionScript()
             writeShellConfig(prefix)
@@ -281,6 +282,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             Dir::Bin::dpkg "$p/bin/_cs-dpkg";
             Dir::Bin::Methods "$p/lib/apt/methods/";
             Dir::Bin::apt-key "$p/bin/apt-key";
+            DPkg::Post-Invoke { "$p/bin/_cs-heal $p" >/dev/null 2>&1 || true; };
             Dpkg::Options:: "--force-configure-any";
             Dpkg::Options:: "--force-bad-path";
             // Termux .debs bake the FULL absolute prefix into every member (data/data/com.termux/…,
@@ -460,6 +462,86 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
         Log.i(TAG, "scrubStalePaths: $fixed archivos corregidos, $skipped omitidos")
     }
 
+    /**
+     * Routine heal run on every startSession (NOT marker-guarded: must repair whatever apt/dpkg
+     * installs later). Fixes the three recurring user-visible breakages on the device:
+     *
+     * 1) Maintainer scripts (var/lib/dpkg/info/*.prerm|preinst|postrm|postinst) of BOTH the AAIDE
+     *    bootstrap (shebang/paths /data/data/com.tom.rv2ide/...) and the official termux-main debs
+     *    (shebang/paths /data/data/com.termux/...) point at app dirs that don't exist here; exec of
+     *    update-alternatives behind their `-x` guards trips seccomp (signal 31) and kills apt
+     *    upgrades. Rewrite every such absolute prefix to our real one, so files resolve.
+     * 2) `termux-tools` from the AAIDE bootstrap ships Version "v1.0-1" in dpkg status — not a valid
+     *    Debian version, so dpkg emits parsing warnings on every operation. Normalize it in-place.
+     * 3) termux-keyring installs trusted.gpg.d entries as symlinks to /data/data/com.termux/...,
+     *    which can't resolve on this device (com.termux is not installed), leaving apt's keyring
+     *    empty (NO_PUBKEY warnings). Re-point them at our real share/termux-keyring dir.
+     */
+    private fun healTermuxState(prefix: File) {
+        val real = prefix.absolutePath
+        val dpkgInfo = File(prefix, "var/lib/dpkg/info")
+
+        if (dpkgInfo.isDirectory) {
+            var scriptsFixed = 0
+            dpkgInfo.listFiles { f ->
+                val n = f.name
+                n.endsWith(".prerm") || n.endsWith(".preinst") || n.endsWith(".postrm") || n.endsWith(".postinst") || n.endsWith(".triggers")
+            }?.forEach { f ->
+                runCatching {
+                    if (f.length() > (4 * 1024 * 1024)) return@forEach
+                    val bytes = f.readBytes()
+                    if (bytes.indexOf(0x01.toByte()) >= 0 || bytes.indexOf(0x00.toByte()) >= 0) return@forEach
+                    val text = bytes.toString(Charsets.UTF_8)
+                    var updated = text
+                    for (app in listOf("com.termux", "com.tom.rv2ide", "com.codestudio.ide")) {
+                        updated = updated.replace("/data/data/$app/files/usr", real)
+                    }
+                    // Also neutralize update-alternatives guards pointing at foreign app dirs that
+                    // DON'T exist-here-but-do-on-device (com.tom.rv2ide IS installed on the device,
+                    // so its update-alternatives WOULD be -x true and its exec trips seccomp 31).
+                    updated = updated.replace("-x \"/data/data/com.tom.rv2ide/files/usr/bin/update-alternatives\"", "-x \"$real/bin/update-alternatives\"")
+                    if (updated != text) {
+                        val exec = f.canExecute()
+                        f.writeText(updated)
+                        if (exec) f.setExecutable(true, false)
+                        scriptsFixed++
+                    }
+                }.onFailure { }
+            }
+            if (scriptsFixed > 0) Log.i(TAG, "heal: $scriptsFixed scripts de mantenimiento con prefijo corregido")
+        }
+
+        // Normalize the invalid termux-tools version (v1.0-1 -> 1.0-1) so dpkg stops warning.
+        val status = File(prefix, "var/lib/dpkg/status")
+        runCatching {
+            if (status.exists()) {
+                val text = status.readText()
+                val fixed = text.replace("\nVersion: v1.0-1\n", "\nVersion: 1.0-1\n")
+                if (fixed != text) { status.writeText(fixed); Log.i(TAG, "heal: version de termux-tools normalizada") }
+            }
+        }.onFailure { Log.w(TAG, "heal status: ${it.message}") }
+
+        // Re-point keyring symlinks that resolve to the nonexistent com.termux app dir.
+        val trustedD = File(prefix, "etc/apt/trusted.gpg.d")
+        val keyRingDir = File(prefix, "share/termux-keyring")
+        if (trustedD.isDirectory) {
+            trustedD.listFiles { f -> f.name.endsWith(".gpg") }?.forEach { link ->
+                runCatching {
+                    if (link.isFile && link.length() > 0) return@forEach // real key file already present
+                    // The real keys live in share/termux-keyring/, named exactly like the link
+                    // (e.g. 2096779623.gpg). termux-keyring's own links point at the nonexistent
+                    // com.termux app dir, so rebuild each one against our real prefix.
+                    val target = File(keyRingDir, link.name)
+                    if (!target.isFile) return@forEach
+                    if (link.delete()) {
+                        java.nio.file.Files.createSymbolicLink(link.toPath(), target.toPath())
+                        Log.i(TAG, "heal: keyring ${link.name} -> ${target.absolutePath}")
+                    }
+                }.onFailure { }
+            }
+        }
+    }
+
     private fun installBionicCompat() {
         val patchDir = File(homeDir(), ".codestudio/patches").apply { mkdirs() }
         val target = File(patchDir, "bionic-compat.js")
@@ -493,6 +575,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
         writeShellConfig(prefix)
         writeAptConfig(prefix)
         scrubStalePaths(prefix)
+        healTermuxState(prefix)
         writePkgWrapper(prefix)
         writeDpkgWrapper(prefix)
         val args = arrayOf(linkerPath, bash, "-l")
@@ -689,19 +772,56 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
      */
     private fun writeDpkgWrapper(prefix: File) {
         val wrapper = File(prefix, "bin/_cs-dpkg")
+        val heal = File(prefix, "bin/_cs-heal").absolutePath
         val realDpkg = File(prefix, "bin/dpkg").absolutePath
         val p = prefix.absolutePath
+        writeHealScript(prefix)
         runCatching {
             wrapper.writeText(
                 """
                 |#!$p/bin/bash
                 |case ":${'$'}PATH:" in *":${'$'}PREFIX/bin:"*) ;; *) export PATH="$p/bin:$p/bin/applets:/system/bin:/sbin:/bin:${'$'}PATH" ;; esac
+                |"$heal" "$p" >/dev/null 2>&1 || true
                 |exec "$realDpkg" "${'$'}@"
                 """.trimMargin().replace("\n|", "\n") + "\n",
             )
             ensureExecutable(wrapper)
             Log.i(TAG, "_cs-dpkg wrapper escrito en ${wrapper.absolutePath}")
         }.onFailure { Log.w(TAG, "writeDpkgWrapper: ${it.message}") }
+    }
+
+    /**
+     * Write the shell counterpart of healTermuxState so every dpkg invocation runs the heal
+     * *again* — apt/dpkg install fresh maintainer scripts mid-transaction that startSession
+     * hasn't seen yet, and each new-termux deb bakes /data/data/com.termux/… paths that would
+     * otherwise trip seccomp (signal 31) or break the trusted.gpg.d keyring symlinks.
+     */
+    private fun writeHealScript(prefix: File) {
+        val heal = File(prefix, "bin/_cs-heal")
+        val p = prefix.absolutePath
+        runCatching {
+            heal.writeText(
+                """
+                |#!$p/bin/bash
+                |P="${'$'}{1:-$p}"
+                |for f in "${'$'}P"/var/lib/dpkg/info/*.prerm "${'$'}P"/var/lib/dpkg/info/*.preinst "${'$'}P"/var/lib/dpkg/info/*.postrm "${'$'}P"/var/lib/dpkg/info/*.postinst "${'$'}P"/var/lib/dpkg/info/*.triggers; do
+                |  [ -f "${'$'}f" ] || continue
+                |  sed -i 's#/data/data/com\.tom\.rv2ide/files/usr#'"${'$'}P"'#g; s#/data/data/com\.termux/files/usr#'"${'$'}P"'#g' "${'$'}f" 2>/dev/null
+                |done
+                |S="${'$'}P/var/lib/dpkg/status"
+                |[ -f "${'$'}S" ] && sed -i 's/^Version: v1\.0-1$/Version: 1.0-1/' "${'$'}S" 2>/dev/null
+                |D="${'$'}P/etc/apt/trusted.gpg.d"; K="${'$'}P/share/termux-keyring"
+                |for g in "${'$'}D"/*.gpg; do
+                |  [ -f "${'$'}g" ] && [ -s "${'$'}g" ] && continue
+                |  rm -f "${'$'}g" 2>/dev/null
+                |  [ -f "${'$'}K/${'$'}{g##*/}" ] && ln -s "${'$'}K/${'$'}{g##*/}" "${'$'}g" 2>/dev/null
+                |done
+                |exit 0
+                """.trimMargin().replace("\n|", "\n") + "\n",
+            )
+            ensureExecutable(heal)
+            Log.i(TAG, "_cs-heal escrito en ${heal.absolutePath}")
+        }.onFailure { Log.w(TAG, "writeHealScript: ${it.message}") }
     }
 
     override fun stopSession() {
