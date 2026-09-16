@@ -497,7 +497,11 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
                 runCatching {
                     if (f.length() > (4 * 1024 * 1024)) return@forEach
                     val disabled = File(f.parentFile, f.name + ".csnoscript")
-                    if (!disabled.exists() && f.renameTo(disabled)) scriptsDisabled++
+                    // Always disable: a stale .csnoscript from the previous version must not
+                    // shield a fresh script that dpkg wrote during the last failed run — the
+                    // whole point is to move every script out before dpkg sees it again.
+                    disabled.delete()
+                    if (f.renameTo(disabled)) scriptsDisabled++
                 }.onFailure { }
             }
             // .triggers aren't executed, but still need path-rewriting for foreign prefix paths.
@@ -850,7 +854,7 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
                 |P="${'$'}{1:-$p}"
                 |for f in "${'$'}P"/var/lib/dpkg/info/*.preinst "${'$'}P"/var/lib/dpkg/info/*.prerm "${'$'}P"/var/lib/dpkg/info/*.postrm "${'$'}P"/var/lib/dpkg/info/*.postinst; do
                 |  [ -f "${'$'}f" ] || continue
-                |  [ -f "${'$'}f.csnoscript" ] || mv -f "${'$'}f" "${'$'}f.csnoscript" 2>/dev/null
+                |  mv -f "${'$'}f" "${'$'}f.csnoscript" 2>/dev/null
                 |done
                 |T="${'$'}P/var/lib/dpkg/tmp.ci"
                 |[ -d "${'$'}T" ] && rm -f "${'$'}T"/{preinst,prerm,postrm,postinst} "${'$'}T"/*.{preinst,prerm,postrm,postinst} 2>/dev/null
