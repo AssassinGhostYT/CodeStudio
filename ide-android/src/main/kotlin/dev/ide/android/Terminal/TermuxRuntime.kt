@@ -517,6 +517,40 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
             if (scriptsFixed > 0) Log.i(TAG, "heal: $scriptsFixed scripts de mantenimiento con prefijo corregido")
         }
 
+        // update-alternatives: ANY exec of the bundled termux-tools one trips seccomp
+        // (SIGSYS 31) and kills the whole apt/dpkg run. The guard-nullification above covers
+        // `-x`/`test -x` checks; this no-op stub additionally neutralizes unguarded
+        // PATH-resolved calls ("$PREFIX/bin/update-alternatives") from any package. The real
+        // implementation is preserved in bin/update-alternatives.termux as a backup first.
+        val binDir = File(prefix, "bin")
+        val uaLink = File(binDir, "update-alternatives")
+        runCatching {
+            val stub = "#!/system/bin/sh\nexit 0\n"
+            if (binDir.isDirectory || binDir.mkdirs()) {
+                if (uaLink.exists() && uaLink.isFile && uaLink.length() < (1 shl 22)) {
+                    val isStub = runCatching { uaLink.readText() == stub }.getOrDefault(false)
+                    if (!isStub) {
+                        val backup = File(binDir, "update-alternatives.termux")
+                        if (!backup.exists()) {
+                            runCatching { java.nio.file.Files.copy(uaLink.toPath(), backup.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING) }
+                        }
+                        uaLink.writeText(stub)
+                        uaLink.setExecutable(true, false)
+                        Log.i(TAG, "heal: update-alternatives reemplazado por stub no-op")
+                    }
+                } else if (uaLink.exists() && !uaLink.isFile) {
+                    uaLink.delete()
+                    uaLink.writeText(stub)
+                    uaLink.setExecutable(true, false)
+                    Log.i(TAG, "heal: update-alternatives (enlace) reemplazado por stub no-op")
+                } else if (!uaLink.exists()) {
+                    uaLink.writeText(stub)
+                    uaLink.setExecutable(true, false)
+                    Log.i(TAG, "heal: update-alternatives stub no-op creado")
+                }
+            }
+        }.onFailure { }
+
         // Normalize the invalid termux-tools version (v1.0-1 -> 1.0-1) so dpkg stops warning.
         val status = File(prefix, "var/lib/dpkg/status")
         runCatching {
