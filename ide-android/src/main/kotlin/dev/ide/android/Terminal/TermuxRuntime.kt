@@ -497,10 +497,15 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
                     for (app in listOf("com.termux", "com.tom.rv2ide", "com.codestudio.ide")) {
                         updated = updated.replace("/data/data/$app/files/usr", real)
                     }
-                    // Also neutralize update-alternatives guards pointing at foreign app dirs that
-                    // DON'T exist-here-but-do-on-device (com.tom.rv2ide IS installed on the device,
-                    // so its update-alternatives WOULD be -x true and its exec trips seccomp 31).
-                    updated = updated.replace("-x \"/data/data/com.tom.rv2ide/files/usr/bin/update-alternatives\"", "-x \"$real/bin/update-alternatives\"")
+                    // Neutralize update-alternatives guards: ANY exec of it trips seccomp (signal
+                    // 31) and kills the maintainer script mid-run, failing dpkg/apt. The guard may
+                    // point at a foreign app dir (com.termux, com.tom.rv2ide installed on-device),
+                    // the real prefix after the rewrite above, or the $PREFIX shell var, with or
+                    // without quoting — nullify them all to a path that can never exist on-device.
+                    updated = updated.replace(Regex("-x\\s+\"([^\"]*update-alternatives)\""), "-x \"/data/data/null/update-alternatives\"")
+                    updated = updated.replace(Regex("-x\\s+([^;\\s\"']*update-alternatives[^;\\s\"']*)"), "-x /data/data/null/update-alternatives")
+                    updated = updated.replace(Regex("test -x\\s+\"([^\"]*update-alternatives)\""), "test -x \"/data/data/null/update-alternatives\"")
+                    updated = updated.replace(Regex("test -x\\s+([^;\\s\"']*update-alternatives[^;\\s\"']*)"), "test -x /data/data/null/update-alternatives")
                     if (updated != text) {
                         val exec = f.canExecute()
                         f.writeText(updated)
