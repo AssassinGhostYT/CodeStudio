@@ -483,38 +483,41 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
         val dpkgInfo = File(prefix, "var/lib/dpkg/info")
 
         if (dpkgInfo.isDirectory) {
-            var scriptsFixed = 0
+            var scriptsDisabled = 0
+            // dpkg launches maintainer-script interpreters with a bare exec (no /system/bin/linker64
+            // wrapper, as the app uses in runInPrefix); that direct exec of an app-data ELF trips the
+            // app's seccomp and the child dies SIGSYS 31. So ANY maintainer script — for removal,
+            // config or post-install — kills the dpkg transaction no matter its content. The only
+            // reliable neutralization is to move the script files away before dpkg sees them:
+            // without a prerm/postinst the package is handled fine (verified: --configure passes).
             dpkgInfo.listFiles { f ->
                 val n = f.name
-                n.endsWith(".prerm") || n.endsWith(".preinst") || n.endsWith(".postrm") || n.endsWith(".postinst") || n.endsWith(".triggers")
+                n.endsWith(".preinst") || n.endsWith(".prerm") || n.endsWith(".postinst") || n.endsWith(".postrm")
             }?.forEach { f ->
                 runCatching {
                     if (f.length() > (4 * 1024 * 1024)) return@forEach
-                    val bytes = f.readBytes()
-                    if (bytes.indexOf(0x01.toByte()) >= 0 || bytes.indexOf(0x00.toByte()) >= 0) return@forEach
-                    val text = bytes.toString(Charsets.UTF_8)
-                    var updated = text
-                    for (app in listOf("com.termux", "com.tom.rv2ide", "com.codestudio.ide")) {
-                        updated = updated.replace("/data/data/$app/files/usr", real)
-                    }
-                    // Neutralize update-alternatives guards: ANY exec of it trips seccomp (signal
-                    // 31) and kills the maintainer script mid-run, failing dpkg/apt. The guard may
-                    // point at a foreign app dir (com.termux, com.tom.rv2ide installed on-device),
-                    // the real prefix after the rewrite above, or the $PREFIX shell var, with or
-                    // without quoting — nullify them all to a path that can never exist on-device.
-                    updated = updated.replace(Regex("-x\\s+\"([^\"]*update-alternatives)\""), "-x \"/data/data/null/update-alternatives\"")
-                    updated = updated.replace(Regex("-x\\s+([^;\\s\"']*update-alternatives[^;\\s\"']*)"), "-x /data/data/null/update-alternatives")
-                    updated = updated.replace(Regex("test -x\\s+\"([^\"]*update-alternatives)\""), "test -x \"/data/data/null/update-alternatives\"")
-                    updated = updated.replace(Regex("test -x\\s+([^;\\s\"']*update-alternatives[^;\\s\"']*)"), "test -x /data/data/null/update-alternatives")
-                    if (updated != text) {
-                        val exec = f.canExecute()
-                        f.writeText(updated)
-                        if (exec) f.setExecutable(true, false)
-                        scriptsFixed++
-                    }
+                    val disabled = File(f.parentFile, f.name + ".csnoscript")
+                    if (!disabled.exists() && f.renameTo(disabled)) scriptsDisabled++
                 }.onFailure { }
             }
-            if (scriptsFixed > 0) Log.i(TAG, "heal: $scriptsFixed scripts de mantenimiento con prefijo corregido")
+            // .triggers aren't executed, but still need path-rewriting for foreign prefix paths.
+            dpkgInfo.listFiles { f -> f.name.endsWith(".triggers") }?.forEach { f ->
+                runCatching {
+                    if (f.length() > (4 * 1024 * 1024)) return@forEach
+                    val text = f.readText()
+                    val updated = text.replace("/data/data/com.termux/files/usr", real)
+                        .replace("/data/data/com.tom.rv2ide/files/usr", real)
+                    if (updated != text) f.writeText(updated)
+                }.onFailure { }
+            }
+            if (scriptsDisabled > 0) Log.i(TAG, "heal: $scriptsDisabled scripts de mantenimiento desactivados (.csnoscript)")
+        }
+        // Leftover unpack-time scripts live in tmp.ci; clear them too so they can never be run.
+        runCatching {
+            val tmpCi = File(prefix, "var/lib/dpkg/tmp.ci")
+            if (tmpCi.isDirectory) {
+                tmpCi.listFiles()?.forEach { if (it.isFile && (it.name.endsWith(".preinst") || it.name.endsWith(".prerm") || it.name.endsWith(".postinst") || it.name.endsWith(".postrm"))) it.delete() }
+            }
         }
 
         // update-alternatives: ANY exec of the bundled termux-tools one trips seccomp
@@ -833,8 +836,9 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
     /**
      * Write the shell counterpart of healTermuxState so every dpkg invocation runs the heal
      * *again* — apt/dpkg install fresh maintainer scripts mid-transaction that startSession
-     * hasn't seen yet, and each new-termux deb bakes /data/data/com.termux/… paths that would
-     * otherwise trip seccomp (signal 31) or break the trusted.gpg.d keyring symlinks.
+     * hasn't seen yet. Direct exec of any maintainer script trips the app's seccomp (SIGSYS 31),
+     * so prerm/preinst/postrm/postinst files are moved aside (dpkg then runs configure fine
+     * without them). Also keeps the trusted.gpg.d keyring symlinks working.
      */
     private fun writeHealScript(prefix: File) {
         val heal = File(prefix, "bin/_cs-heal")
@@ -844,10 +848,12 @@ object TermuxRuntime : TerminalSessionClient, TerminalRuntime {
                 """
                 |#!$p/bin/bash
                 |P="${'$'}{1:-$p}"
-                |for f in "${'$'}P"/var/lib/dpkg/info/*.prerm "${'$'}P"/var/lib/dpkg/info/*.preinst "${'$'}P"/var/lib/dpkg/info/*.postrm "${'$'}P"/var/lib/dpkg/info/*.postinst "${'$'}P"/var/lib/dpkg/info/*.triggers; do
+                |for f in "${'$'}P"/var/lib/dpkg/info/*.preinst "${'$'}P"/var/lib/dpkg/info/*.prerm "${'$'}P"/var/lib/dpkg/info/*.postrm "${'$'}P"/var/lib/dpkg/info/*.postinst; do
                 |  [ -f "${'$'}f" ] || continue
-                |  sed -i 's#/data/data/com\.tom\.rv2ide/files/usr#'"${'$'}P"'#g; s#/data/data/com\.termux/files/usr#'"${'$'}P"'#g' "${'$'}f" 2>/dev/null
+                |  [ -f "${'$'}f.csnoscript" ] || mv -f "${'$'}f" "${'$'}f.csnoscript" 2>/dev/null
                 |done
+                |T="${'$'}P/var/lib/dpkg/tmp.ci"
+                |[ -d "${'$'}T" ] && rm -f "${'$'}T"/{preinst,prerm,postrm,postinst} "${'$'}T"/*.{preinst,prerm,postrm,postinst} 2>/dev/null
                 |S="${'$'}P/var/lib/dpkg/status"
                 |[ -f "${'$'}S" ] && sed -i 's/^Version: v1\.0-1$/Version: 1.0-1/' "${'$'}S" 2>/dev/null
                 |D="${'$'}P/etc/apt/trusted.gpg.d"; K="${'$'}P/share/termux-keyring"
