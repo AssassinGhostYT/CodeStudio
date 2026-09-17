@@ -24,11 +24,14 @@ class MaterialYouTemplateTest {
 
     @Test
     fun declaresGoogleMaterialDependencyOnTheAppModule() {
-        val deps = MaterialYouAppTemplate.dependencies(args())
-        assertEquals(1, deps.size)
-        assertEquals("app", deps.single().module)
-        assertEquals(AndroidTemplateSupport.MATERIAL_COORDINATE, deps.single().coordinate)
-        assertEquals("implementation", deps.single().scope)
+        withScaffold { scaffold, root ->
+            MaterialYouAppTemplate.generate(scaffold, args())
+            val buildFile = root.resolve("app/build.gradle.kts").readText()
+            assertTrue(
+                "implementation(\"${AndroidTemplateSupport.MATERIAL_COORDINATE}\")" in buildFile,
+                "the app module declares the Google Material Components dependency",
+            )
+        }
     }
 
     @Test
