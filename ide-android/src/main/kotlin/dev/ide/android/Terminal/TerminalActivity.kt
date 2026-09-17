@@ -50,13 +50,14 @@ import kotlinx.coroutines.withContext
  *
  * 1. **[TermuxRuntime]** — the bundled Termux userland extracted to `<filesDir>/usr` and run NATIVE
  *    via `/system/bin/linker64` + the `libtermux-exec` LD_PRELOAD shim. No ptrace, no proot, no
- *    container: full `apt`/`pkg`/`bash` at device speed. This is the default when it comes up.
- * 2. **[TerminalEngine]** native mode — Android's own `/system/bin/sh` (mksh). Pure fallback,
+ *    container: full `apt`/`pkg`/`bash` at device speed. First pick on a fresh install.
+ * 2. **[UbuntuRuntime]** — a real Ubuntu 22.04 arm64 rootfs (ubuntu-base, downloaded once at
+ *    runtime to `$PREFIX/local/ubuntu`, ~27 MB) running under the app's bundled proot
+ *    (libproot.so + libloader.so). Ubuntu's glibc ELFs resolve ld-linux-aarch64.so.1 from INSIDE the
+ *    rootfs, so the ptrace-execve proot path works here (the historical Alpine failure was
+ *    unresolved Termux deps, not ptrace).
+ * 3. **[TerminalEngine]** native mode — Android's own `/system/bin/sh` (mksh). Pure fallback,
  *    always works, but there is no package manager.
- *
- * proot (Alpine) is deliberately NOT attempted anymore: it needs ptrace, which modern Android
- * kernels (android14) silently block for untrusted apps — the whole shim is dead weight on any
- * ROM this app targets, so the fast path skips it.
  *
  * The chosen engine is persisted ("terminal"/"runtime"), so later opens jump straight to the
  * working shell. The in-IDE TerminalPanel tool window is deliberately NOT registered
@@ -88,6 +89,7 @@ class TerminalActivity : Activity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         TerminalEngine.init(applicationContext)
         TermuxRuntime.init(applicationContext)
+        UbuntuRuntime.init(applicationContext)
         requestStorageOnce()
         buildUi()
         startOrAttachShell()
@@ -381,7 +383,7 @@ class TerminalActivity : Activity() {
     private var lastCols = 80
     private var lastRows = 24
 
-    private enum class ActiveEngine { NONE, TERMUX, NATIVE }
+    private enum class ActiveEngine { NONE, TERMUX, UBUNTU, NATIVE }
     private var activeEngine: ActiveEngine = ActiveEngine.NONE
 
     private fun runtimePrefs() = getSharedPreferences("terminal", Context.MODE_PRIVATE)
@@ -398,6 +400,7 @@ class TerminalActivity : Activity() {
         }
         TermuxRuntime.onScreenChanged = redrawHook
         TerminalEngine.onScreenChanged = redrawHook
+        UbuntuRuntime.onScreenChanged = redrawHook
         if (existing != null && isActiveAlive()) {
             statusText?.visibility = View.GONE
             attachView(existing)
@@ -407,17 +410,19 @@ class TerminalActivity : Activity() {
             startAttempted = true
             when (savedRuntime()) {
                 "termux" -> startTermux()
+                "ubuntu" -> startUbuntu()
                 "native" -> startNative(banner = null)
                 else -> {
-                    // First run on this install: try the real userland (apt, fast). proot is dead on
-                    // modern Android kernels (ptrace), so there is no Alpine attempt at all.
+                    // First run on this install: try the real userland (apt, fast). If Termux can't
+                    // come up, fall back to the Ubuntu proot rootfs (needs glibc for the tooling
+                    // chain), then to the device's own mksh.
                     showStatus("Preparando userland Termux (extracción única ~30 MB)…")
                     TermuxRuntime.ensureReady { msg -> showStatus(msg) }
                     if (TermuxRuntime.setup.value is TerminalSetupState.Ready) {
                         setRuntime("termux")
                         startTermux()
                     } else {
-                        startNative(banner = "userland Termux no pudo instalarse → shell nativo de Android (mksh). Sin apt.")
+                        startUbuntu()
                     }
                 }
             }
@@ -462,6 +467,28 @@ class TerminalActivity : Activity() {
         }
     }
 
+    /** Startup arm: the Ubuntu 22.04 proot rootfs (must already be Ready). */
+    private suspend fun startUbuntu() {
+        showStatus("Preparando Ubuntu 22.04 (descarga única ~27 MB)…")
+        UbuntuRuntime.ensureReady { msg -> showStatus(msg) }
+        if (UbuntuRuntime.setup.value !is TerminalSetupState.Ready) {
+            activeEngine = ActiveEngine.NONE
+            setRuntime("native")
+            startNative(banner = "Ubuntu no pudo instalarse → shell nativo de Android (mksh). Sin apt.")
+            return
+        }
+        setRuntime("ubuntu")
+        activeEngine = ActiveEngine.UBUNTU
+        UbuntuRuntime.startSession(lastCols, lastRows)
+        val s = UbuntuRuntime.session
+        if (s == null) {
+            activeEngine = ActiveEngine.NONE
+            startNative(banner = "Ubuntu no arrancó → shell nativo de Android (mksh). Sin apt.")
+        } else {
+            finishStart(s)
+        }
+    }
+
     /** Startup arm: the device's own mksh — cannot fail. Runs through [TerminalEngine]. */
     private fun startNative(banner: String?) {
         activeEngine = ActiveEngine.NATIVE
@@ -495,14 +522,16 @@ class TerminalActivity : Activity() {
 
     private fun isActiveAlive(): Boolean = when (activeEngine) {
         ActiveEngine.TERMUX -> TermuxRuntime.running.value
+        ActiveEngine.UBUNTU -> UbuntuRuntime.running.value
         ActiveEngine.NATIVE -> TerminalEngine.running.value
         ActiveEngine.NONE -> false
     }
 
     private fun activeSession(): TerminalSession? = when (activeEngine) {
         ActiveEngine.TERMUX -> TermuxRuntime.session
+        ActiveEngine.UBUNTU -> UbuntuRuntime.session
         ActiveEngine.NATIVE -> TerminalEngine.session
-        ActiveEngine.NONE -> TerminalEngine.session ?: TermuxRuntime.session
+        ActiveEngine.NONE -> TerminalEngine.session ?: TermuxRuntime.session ?: UbuntuRuntime.session
     }
 
     private fun activeWriteRaw(text: String) {
@@ -517,10 +546,19 @@ class TerminalActivity : Activity() {
             if (now - lastShellStartMs < 3_000) crashStreak++ else crashStreak = 0
             if (crashStreak >= 1 && activeEngine == ActiveEngine.TERMUX) {
                 // The Termux userland died within seconds — not the shell the user can rely on on
-                // this device. Degrade to the native mksh, which cannot fail the same way.
+                // this device. Try the Ubuntu rootfs next (startUbuntu handles the Ready check and
+                // falls back to the native mksh if Ubuntu cannot come up either).
                 crashStreak = 0
                 activeEngine = ActiveEngine.NONE
-                startNative(banner = "userland Termux se cortó → shell nativo de Android (mksh). Sin apt.")
+                scope.launch { startUbuntu() }
+                return
+            }
+            if (crashStreak >= 1 && activeEngine == ActiveEngine.UBUNTU) {
+                // Ubuntu also died fast — degrade to the native mksh, which cannot fail the same way.
+                crashStreak = 0
+                activeEngine = ActiveEngine.NONE
+                setRuntime("native")
+                startNative(banner = "Ubuntu se cortó → shell nativo de Android (mksh). Sin apt.")
                 return
             }
         }
@@ -533,6 +571,11 @@ class TerminalActivity : Activity() {
                 TermuxRuntime.startSession(lastCols, lastRows)
                 val s = TermuxRuntime.session
                 if (s != null) finishStart(s) else showStatus("No se pudo reiniciar el userland Termux")
+            }
+            ActiveEngine.UBUNTU -> {
+                UbuntuRuntime.startSession(lastCols, lastRows)
+                val s = UbuntuRuntime.session
+                if (s != null) finishStart(s) else showStatus("No se pudo reiniciar el Ubuntu")
             }
             ActiveEngine.NATIVE -> {
                 TerminalEngine.startNativeSession(lastCols, lastRows)
