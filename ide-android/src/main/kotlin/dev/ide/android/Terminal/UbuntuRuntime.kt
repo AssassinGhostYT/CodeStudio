@@ -88,7 +88,7 @@ object UbuntuRuntime : TerminalSessionClient, TerminalRuntime {
     private fun prootLoader32() = File(nativeLibDir!!, "libloader32.so").takeIf { it.exists() }
     private fun tallocLib() = File(nativeLibDir!!, "libtalloc.so").takeIf { it.exists() }
 
-    override suspend fun ensureReady(onProgress: (String) -> Unit = {}) = withContext(Dispatchers.IO) {
+    override suspend fun ensureReady(onProgress: (String) -> Unit) = withContext(Dispatchers.IO) {
         if (_setup.value is TerminalSetupState.Ready) return@withContext
         if (_setup.value is TerminalSetupState.Downloading || _setup.value is TerminalSetupState.Extracting) return@withContext
         try {
@@ -398,7 +398,7 @@ object UbuntuRuntime : TerminalSessionClient, TerminalRuntime {
     // Reuses the ReTerminal orchestration: the FIRST process is /system/bin/sh (bionic, resolves
     // natively), init-ubuntu-host.sh assembles the proot argv with the Android 11+ bind mounts and
     // launches proot against $PREFIX/local/ubuntu; proot then runs init-ubuntu (Ubuntu's bash -l).
-    override fun startSession(cols: Int = 80, rows: Int = 24) {
+    override fun startSession(cols: Int, rows: Int) {
         val current = session
         if (current != null) {
             if (_running.value) return
