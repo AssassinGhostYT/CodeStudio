@@ -43,8 +43,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -431,16 +431,16 @@ private fun QuickAccessRow(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            QuickAccessTile(CaIcons.clock, stringResource(Res.string.quick_recent), Modifier.weight(1f), onRecent)
-            QuickAccessTile(CaIcons.layers, stringResource(Res.string.quick_templates), Modifier.weight(1f), onTemplates)
-            QuickAccessTile(CaIcons.star, stringResource(Res.string.quick_favorites), Modifier.weight(1f), onFavorites)
-            QuickAccessTile(CaIcons.archive, stringResource(Res.string.quick_backups), Modifier.weight(1f), onBackups)
+            QuickAccessTile(painterResource(Res.drawable.recientes), stringResource(Res.string.quick_recent), Modifier.weight(1f), onRecent)
+            QuickAccessTile(painterResource(Res.drawable.plantillas), stringResource(Res.string.quick_templates), Modifier.weight(1f), onTemplates)
+            QuickAccessTile(painterResource(Res.drawable.favoritos), stringResource(Res.string.quick_favorites), Modifier.weight(1f), onFavorites)
+            QuickAccessTile(painterResource(Res.drawable.respaldos), stringResource(Res.string.quick_backups), Modifier.weight(1f), onBackups)
         }
     }
 }
 
 @Composable
-private fun QuickAccessTile(icon: ImageVector, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun QuickAccessTile(icon: Painter, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val shape = RoundedCornerShape(Ca.radius.lg)
     Column(
@@ -457,7 +457,7 @@ private fun QuickAccessTile(icon: ImageVector, label: String, modifier: Modifier
             Modifier.size(40.dp).background(Ide.colors.success.copy(alpha = 0.15f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(icon, null, Modifier.size(20.dp), tint = Ide.colors.success)
+            Image(icon, null, Modifier.size(24.dp))
         }
         Text(
             label,
@@ -478,33 +478,53 @@ private fun QuickAccessTile(icon: ImageVector, label: String, modifier: Modifier
 @Composable
 private fun EmptyStateProjectsCard(onCreate: () -> Unit) {
     val shape = RoundedCornerShape(Ca.radius.lg)
+    val interaction = remember { MutableInteractionSource() }
     Column(
         Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surface, shape)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
             .padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Box(
-            Modifier.size(72.dp).background(Ide.colors.success.copy(alpha = 0.12f), CircleShape),
-            contentAlignment = Alignment.Center,
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Icon(CaIcons.folderOpen, null, Modifier.size(36.dp), tint = Ide.colors.success)
+            Column(
+                Modifier.weight(1f),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                // The "aun" image doubles as the create action: tapping it opens the New-Project flow.
+                Box(
+                    Modifier
+                        .size(72.dp)
+                        .background(Ide.colors.success.copy(alpha = 0.12f), CircleShape)
+                        .pressScale(interaction)
+                        .clickable(interaction, indication = null, onClick = onCreate),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Image(painterResource(Res.drawable.aun), null, Modifier.size(64.dp))
+                }
+                Text(
+                    stringResource(Res.string.no_projects_title),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                )
+                Text(
+                    stringResource(Res.string.no_projects_content),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            // "aun1" — decorative, a bit bigger, purely visual (no click).
+            Image(painterResource(Res.drawable.aun1), null, Modifier.size(120.dp))
         }
-        Text(
-            stringResource(Res.string.no_projects_title),
-            color = MaterialTheme.colorScheme.onSurface,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            stringResource(Res.string.no_projects_content),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center,
-        )
         TextButton(onClick = onCreate) {
             Text(
                 stringResource(Res.string.new_project),

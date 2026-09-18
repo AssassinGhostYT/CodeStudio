@@ -1,6 +1,7 @@
 package dev.ide.ui.components
 
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,6 +36,7 @@ import dev.ide.ui.generated.resources.your_codestudio_files
 import dev.ide.ui.generated.resources.your_codestudio_files_content
 import dev.ide.ui.icons.CaIcons
 import dev.ide.ui.theme.Ca
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -62,13 +64,7 @@ fun StorageAccessCard(path: String?, onOpenInFiles: (() -> Unit)?, modifier: Mod
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(
-                Modifier.size(34.dp).background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(Ca.radius.sm)),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(CaIcons.folder, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-            }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f)) {
                 Text(stringResource(Res.string.your_codestudio_files), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
                 Text(
@@ -77,6 +73,8 @@ fun StorageAccessCard(path: String?, onOpenInFiles: (() -> Unit)?, modifier: Mod
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
+            // The "archivos" image on the right — decorative, visual only.
+            Image(painterResource(Res.drawable.archivos), null, Modifier.size(120.dp))
         }
         // The path itself — tap to copy (handy for adb / a PC file manager).
         val interaction = remember { MutableInteractionSource() }
