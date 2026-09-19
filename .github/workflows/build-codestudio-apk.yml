@@ -50,7 +50,7 @@ jobs:
           tar -zxvf opencode.tar.gz -C agent-impl/files/opencode/agents/opencode/1.18.18/
           rm opencode.tar.gz
 
-      - name: Diagnostic: regenerate ide-ui resources and dump inventories
+      - name: Diagnostic - regenerate ide-ui resources and dump inventories
         continue-on-error: true
         run: |
           ./gradlew :ide-ui:prepareComposeResourcesTaskForCommonMain :ide-ui:generateResourceAccessorsForCommonMain --console=plain 2>&1 | tee -a /tmp/diag.log
