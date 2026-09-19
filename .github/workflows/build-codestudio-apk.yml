@@ -64,17 +64,6 @@ jobs:
             cat ide-ui/build/generated/compose/resourceGenerator/kotlin/commonMainResourceAccessors/dev/ide/ui/generated/resources/*.kt
           } 2>&1 | tee -a /tmp/diag.log
 
-      - name: Upload diagnostic
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: codestudio-diag
-          path: |
-            /tmp/diag.log
-            /tmp/gradle.log
-            /tmp/failtail.txt
-          if-no-files-found: warn
-
       - name: Build profile APK
         run: |
           set -o pipefail
@@ -87,6 +76,17 @@ jobs:
             grep -nE '^e: |^w: |ERROR|error:|FAILED|Caused by:|What went wrong|> Task ' /tmp/gradle.log \
               | tail -80 | while IFS= read -r line; do echo "::error::$line"; done
           fi
+
+      - name: Upload diagnostic
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: codestudio-diag
+          path: |
+            /tmp/diag.log
+            /tmp/gradle.log
+            /tmp/failtail.txt
+          if-no-files-found: warn
 
       - name: Find APK
         run: find . -type f -name "*.apk" -print
