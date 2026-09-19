@@ -111,7 +111,9 @@ object TreeIcons {
         register("kotlin", TreeIcon.Glyph(BrandIcons.kotlin, IconTint.Fixed(Color(0xFF7F52FF))))
         register("xml", TreeIcon.Glyph(BrandIcons.xml, IconTint.Original))
         register("dart", TreeIcon.Glyph(BrandIcons.dart, IconTint.Fixed(Color(0xFF0175C2))))
-        register("flutter", TreeIcon.Glyph(BrandIcons.flutter, IconTint.Fixed(Color(0xFF54C5F8))))
+        // Flutter brand primary blue (#0468D7 — flutter.dev/brand). The previous #54C5F8 was a washed-out
+        // sky tint instead of the official blue, so the mark read as "wrong color" in the tree/templates.
+        register("flutter", TreeIcon.Glyph(BrandIcons.flutter, IconTint.Fixed(Color(0xFF0468D7))))
         // ProGuard/R8 keep-rule files (`proguard-rules.pro`, `consumer-rules.pro`) — the shrinker config.
         register("proguard", TreeIcon.Badge("R8", Color(0xFF56B6C2)))
         // Data / config formats — colored letter badges, JSON as the braces glyph (it fits perfectly).
