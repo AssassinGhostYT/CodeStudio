@@ -53,27 +53,7 @@ jobs:
       - name: Build profile APK
         run: |
           set -o pipefail
-          rm -rf ide-ui/build
-          ./gradlew :ide-android:assembleProfile --rerun-tasks -Pkotlin.incremental=false -I .github/printsrc.gradle 2>&1 | tee /tmp/gradle.log || { tail -200 /tmp/gradle.log > /tmp/failtail.txt; exit 1; }
-
-      - name: Report build errors
-        if: ${{ always() }}
-        run: |
-          if [ -f /tmp/gradle.log ]; then
-            grep -nE '^e: |^w: |ERROR|error:|FAILED|Caused by:|What went wrong|> Task ' /tmp/gradle.log \
-              | tail -80 | while IFS= read -r line; do echo "::error::$line"; done
-          fi
-
-      - name: Upload diagnostic
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: codestudio-diag
-          path: |
-            /tmp/diag.log
-            /tmp/gradle.log
-            /tmp/failtail.txt
-          if-no-files-found: warn
+          ./gradlew :ide-android:assembleProfile --console=plain
 
       - name: Find APK
         run: find . -type f -name "*.apk" -print
