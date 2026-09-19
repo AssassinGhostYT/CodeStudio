@@ -431,10 +431,10 @@ private fun QuickAccessRow(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            QuickAccessTile(painterResource(Res.drawable.recientes), stringResource(Res.string.quick_recent), Modifier.weight(1f), onRecent)
-            QuickAccessTile(painterResource(Res.drawable.plantillas), stringResource(Res.string.quick_templates), Modifier.weight(1f), onTemplates)
-            QuickAccessTile(painterResource(Res.drawable.favoritos), stringResource(Res.string.quick_favorites), Modifier.weight(1f), onFavorites)
-            QuickAccessTile(painterResource(Res.drawable.respaldos), stringResource(Res.string.quick_backups), Modifier.weight(1f), onBackups)
+            QuickAccessTile(painterResource(Res.drawable.quick_recent), stringResource(Res.string.quick_recent), Modifier.weight(1f), onRecent)
+            QuickAccessTile(painterResource(Res.drawable.quick_templates), stringResource(Res.string.quick_templates), Modifier.weight(1f), onTemplates)
+            QuickAccessTile(painterResource(Res.drawable.quick_favorites), stringResource(Res.string.quick_favorites), Modifier.weight(1f), onFavorites)
+            QuickAccessTile(painterResource(Res.drawable.quick_backups), stringResource(Res.string.quick_backups), Modifier.weight(1f), onBackups)
         }
     }
 }
@@ -506,7 +506,7 @@ private fun EmptyStateProjectsCard(onCreate: () -> Unit) {
                         .clickable(interaction, indication = null, onClick = onCreate),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Image(painterResource(Res.drawable.aun), null, Modifier.size(64.dp))
+                    Image(painterResource(Res.drawable.tile_new), null, Modifier.size(64.dp))
                 }
                 Text(
                     stringResource(Res.string.no_projects_title),
@@ -522,8 +522,8 @@ private fun EmptyStateProjectsCard(onCreate: () -> Unit) {
                     textAlign = TextAlign.Center,
                 )
             }
-            // "aun1" — decorative, a bit bigger, purely visual (no click).
-            Image(painterResource(Res.drawable.aun1), null, Modifier.size(120.dp))
+            // "tile_new_art" — decorative, a bit bigger, purely visual (no click).
+            Image(painterResource(Res.drawable.tile_new_art), null, Modifier.size(120.dp))
         }
         TextButton(onClick = onCreate) {
             Text(

@@ -73,8 +73,8 @@ fun StorageAccessCard(path: String?, onOpenInFiles: (() -> Unit)?, modifier: Mod
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
-            // The "archivos" image on the right — decorative, visual only.
-            Image(painterResource(Res.drawable.archivos), null, Modifier.size(120.dp))
+            // The "storage_files" image on the right — decorative, visual only.
+            Image(painterResource(Res.drawable.storage_files), null, Modifier.size(120.dp))
         }
         // The path itself — tap to copy (handy for adb / a PC file manager).
         val interaction = remember { MutableInteractionSource() }
