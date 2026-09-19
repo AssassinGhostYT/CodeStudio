@@ -50,6 +50,18 @@ jobs:
           tar -zxvf opencode.tar.gz -C agent-impl/files/opencode/agents/opencode/1.18.18/
           rm opencode.tar.gz
 
+      - name: Diagnostic: regenerate ide-ui resources and dump inventories
+        continue-on-error: true
+        run: |
+          ./gradlew :ide-ui:prepareComposeResourcesTaskForCommonMain :ide-ui:generateResourceAccessorsForCommonMain --console=plain
+          echo "=== checkout drawable ==="
+          ls -la ide-ui/src/commonMain/composeResources/drawable
+          echo "=== preparedResources drawable ==="
+          find ide-ui/build/generated/compose/resourceGenerator/preparedResources -path "*drawable*" -name "*.png" | sort
+          echo "=== generated accessor files ==="
+          find ide-ui/build/generated/compose/resourceGenerator/kotlin/commonMainResourceAccessors -name "*.kt" | sort
+          cat ide-ui/build/generated/compose/resourceGenerator/kotlin/commonMainResourceAccessors/dev/ide/ui/generated/resources/*.kt
+
       - name: Build profile APK
         run: |
           set -o pipefail
