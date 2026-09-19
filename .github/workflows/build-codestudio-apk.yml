@@ -72,12 +72,13 @@ jobs:
           path: |
             /tmp/diag.log
             /tmp/gradle.log
+            /tmp/failtail.txt
           if-no-files-found: warn
 
       - name: Build profile APK
         run: |
           set -o pipefail
-          ./gradlew :ide-android:assembleProfile --stacktrace 2>&1 | tee /tmp/gradle.log
+          ./gradlew :ide-android:assembleProfile --stacktrace 2>&1 | tee /tmp/gradle.log || { tail -200 /tmp/gradle.log > /tmp/failtail.txt; exit 1; }
 
       - name: Report build errors
         if: ${{ always() }}
