@@ -29,6 +29,14 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
+      # Disable Kotlin incremental compilation for CI. One-shot CI builds gain nothing from it, and a
+      # restored incremental-compilation cache can produce phantom "unresolved reference" errors after the
+      # classpath changes (a clean build of the same commit compiles fine). Full compilation is robust.
+      - name: Disable Kotlin incremental compilation (CI)
+        run: |
+          mkdir -p ~/.gradle
+          echo "kotlin.incremental=false" >> ~/.gradle/gradle.properties
+
       - name: Provision OpenCode v1.18.18 verified asset
         run: |
           mkdir -p agent-impl/files/opencode/agents/opencode/1.18.18
