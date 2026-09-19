@@ -53,7 +53,8 @@ jobs:
       - name: Build profile APK
         run: |
           set -o pipefail
-          ./gradlew :ide-android:assembleProfile --stacktrace -I .github/printsrc.gradle 2>&1 | tee /tmp/gradle.log || { tail -200 /tmp/gradle.log > /tmp/failtail.txt; exit 1; }
+          rm -rf ide-ui/build
+          ./gradlew :ide-android:assembleProfile --rerun-tasks -Pkotlin.incremental=false -I .github/printsrc.gradle 2>&1 | tee /tmp/gradle.log || { tail -200 /tmp/gradle.log > /tmp/failtail.txt; exit 1; }
 
       - name: Report build errors
         if: ${{ always() }}

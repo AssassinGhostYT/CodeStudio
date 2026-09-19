@@ -7,6 +7,8 @@ allprojects {
             } catch (Exception e) {
                 println "   sources-probe-error: " + e.message
             }
+            println "   incremental=" + it.incremental
+            println "   buildCacheEnabled=" + it.buildCacheEnabled
             def f = it.project.file('build/generated/compose/resourceGenerator/kotlin/commonMainResourceAccessors/dev/ide/ui/generated/resources/Drawable0.commonMain.kt')
             println "=== GENERATED DRAWABLE0 (" + it.project.path + ") ==="
             if (f.exists()) {
