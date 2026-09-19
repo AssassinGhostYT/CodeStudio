@@ -50,24 +50,10 @@ jobs:
           tar -zxvf opencode.tar.gz -C agent-impl/files/opencode/agents/opencode/1.18.18/
           rm opencode.tar.gz
 
-      - name: Diagnostic - regenerate ide-ui resources and dump inventories
-        continue-on-error: true
-        run: |
-          ./gradlew :ide-ui:prepareComposeResourcesTaskForCommonMain :ide-ui:generateResourceAccessorsForCommonMain --console=plain 2>&1 | tee -a /tmp/diag.log
-          {
-            echo "=== checkout drawable ==="
-            ls -la ide-ui/src/commonMain/composeResources/drawable
-            echo "=== preparedResources drawable ==="
-            find ide-ui/build/generated/compose/resourceGenerator/preparedResources -path "*drawable*" -name "*.png" | sort
-            echo "=== generated accessor files ==="
-            find ide-ui/build/generated/compose/resourceGenerator/kotlin/commonMainResourceAccessors -name "*.kt" | sort
-            cat ide-ui/build/generated/compose/resourceGenerator/kotlin/commonMainResourceAccessors/dev/ide/ui/generated/resources/*.kt
-          } 2>&1 | tee -a /tmp/diag.log
-
       - name: Build profile APK
         run: |
           set -o pipefail
-          ./gradlew :ide-android:assembleProfile --stacktrace 2>&1 | tee /tmp/gradle.log || { tail -200 /tmp/gradle.log > /tmp/failtail.txt; exit 1; }
+          ./gradlew :ide-android:assembleProfile --stacktrace -I .github/printsrc.gradle 2>&1 | tee /tmp/gradle.log || { tail -200 /tmp/gradle.log > /tmp/failtail.txt; exit 1; }
 
       - name: Report build errors
         if: ${{ always() }}

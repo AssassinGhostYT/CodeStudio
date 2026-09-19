@@ -1,0 +1,30 @@
+allprojects {
+    tasks.matching { it.name == 'compileKotlinDesktop' }.configureEach {
+        it.doFirst {
+            println "=== COMPILE SOURCES (" + it.project.path + ") ==="
+            try {
+                it.sources.files.findAll { it.exists() }.each { println "   SRCS: " + it }
+            } catch (Exception e) {
+                println "   sources-probe-error: " + e.message
+            }
+            def f = it.project.file('build/generated/compose/resourceGenerator/kotlin/commonMainResourceAccessors/dev/ide/ui/generated/resources/Drawable0.commonMain.kt')
+            println "=== GENERATED DRAWABLE0 (" + it.project.path + ") ==="
+            if (f.exists()) {
+                f.readLines('UTF-8').findAll { it =~ /internal val Res\.drawable\./ }.each { println "   " + it.trim() }
+            } else {
+                println "   (NO Drawable0 file present)"
+            }
+        }
+    }
+    tasks.matching { it.name == 'generateResourceAccessorsForCommonMain' }.configureEach {
+        it.doLast {
+            def f = it.project.file('build/generated/compose/resourceGenerator/kotlin/commonMainResourceAccessors/dev/ide/ui/generated/resources/Drawable0.commonMain.kt')
+            println "=== AFTER GENERATE (" + it.project.path + ") ==="
+            if (f.exists()) {
+                f.readLines('UTF-8').findAll { it =~ /internal val Res\.drawable\./ }.each { println "   " + it.trim() }
+            } else {
+                println "   (NO Drawable0 file present)"
+            }
+        }
+    }
+}
