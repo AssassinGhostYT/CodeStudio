@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.ide.ui.generated.resources.Res
 import dev.ide.ui.generated.resources.storage_copy_path
+import dev.ide.ui.generated.resources.storage_files
 import dev.ide.ui.generated.resources.open_in_the_file_manager
 import dev.ide.ui.generated.resources.your_codestudio_files
 import dev.ide.ui.generated.resources.your_codestudio_files_content

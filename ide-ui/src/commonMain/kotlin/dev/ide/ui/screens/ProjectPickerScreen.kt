@@ -98,6 +98,8 @@ import dev.ide.ui.generated.resources.quick_recent
 import dev.ide.ui.generated.resources.quick_section_title
 import dev.ide.ui.generated.resources.quick_templates
 import dev.ide.ui.generated.resources.settings_hub_title
+import dev.ide.ui.generated.resources.tile_new
+import dev.ide.ui.generated.resources.tile_new_art
 import dev.ide.ui.generated.resources.your_files
 import dev.ide.ui.generated.resources.your_projects
 import dev.ide.ui.icons.CaIcons
