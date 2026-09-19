@@ -53,14 +53,26 @@ jobs:
       - name: Diagnostic: regenerate ide-ui resources and dump inventories
         continue-on-error: true
         run: |
-          ./gradlew :ide-ui:prepareComposeResourcesTaskForCommonMain :ide-ui:generateResourceAccessorsForCommonMain --console=plain
-          echo "=== checkout drawable ==="
-          ls -la ide-ui/src/commonMain/composeResources/drawable
-          echo "=== preparedResources drawable ==="
-          find ide-ui/build/generated/compose/resourceGenerator/preparedResources -path "*drawable*" -name "*.png" | sort
-          echo "=== generated accessor files ==="
-          find ide-ui/build/generated/compose/resourceGenerator/kotlin/commonMainResourceAccessors -name "*.kt" | sort
-          cat ide-ui/build/generated/compose/resourceGenerator/kotlin/commonMainResourceAccessors/dev/ide/ui/generated/resources/*.kt
+          ./gradlew :ide-ui:prepareComposeResourcesTaskForCommonMain :ide-ui:generateResourceAccessorsForCommonMain --console=plain 2>&1 | tee -a /tmp/diag.log
+          {
+            echo "=== checkout drawable ==="
+            ls -la ide-ui/src/commonMain/composeResources/drawable
+            echo "=== preparedResources drawable ==="
+            find ide-ui/build/generated/compose/resourceGenerator/preparedResources -path "*drawable*" -name "*.png" | sort
+            echo "=== generated accessor files ==="
+            find ide-ui/build/generated/compose/resourceGenerator/kotlin/commonMainResourceAccessors -name "*.kt" | sort
+            cat ide-ui/build/generated/compose/resourceGenerator/kotlin/commonMainResourceAccessors/dev/ide/ui/generated/resources/*.kt
+          } 2>&1 | tee -a /tmp/diag.log
+
+      - name: Upload diagnostic
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: codestudio-diag
+          path: |
+            /tmp/diag.log
+            /tmp/gradle.log
+          if-no-files-found: warn
 
       - name: Build profile APK
         run: |
