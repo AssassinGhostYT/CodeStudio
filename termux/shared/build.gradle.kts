@@ -58,7 +58,11 @@ dependencies {
     implementation(libs.common.markwon.recycler)
     implementation(libs.google.material)
     implementation(libs.google.guava)
-    implementation(libs.common.hiddenApiBypass)
+    // LSPosed hidden API bypass: compile-only so it is NOT packaged into the Play release AAB
+    // (Google flagged org.lsposed.hiddenapibypass as a non-compliant API-bypass SDK). ReflectionUtils
+    // guards every call in try/catch, so at runtime on release the class is absent and the fallback
+    // path runs silently. Debug builds get it via :ide-android's debugImplementation.
+    compileOnly(libs.common.hiddenApiBypass)
 
     // Do not increment version higher than 1.0.0-alpha09 since it will break ViewUtils and needs to be looked into
     // noinspection GradleDependency

@@ -916,6 +916,11 @@ dependencies {
     // list it here directly. Adding the transitive modules alongside causes AAPT to merge resources twice and
     // fail with "Duplicate key Theme_AppCompat_Light_Dialog" (defined in :termux:shared/styles.xml).
     implementation(project(":termux:application"))
+    // LSPosed hidden-API bypass used by :termux:shared's ReflectionUtils to break Android's hidden-API
+    // reflection restrictions on the IN-APP runtime. :termux:shared declares it as `compileOnly` so it never
+    // ships in the release AAB (Google flags org.lsposed.hiddenapibypass as a non-compliant SDK); including it
+    // here as `debugImplementation` keeps the full bypass working in local debug builds only.
+    debugImplementation(libs.common.hiddenApiBypass)
     // In-IDE proot engine (libproot.so + libloader.so + libtalloc.so compiled from ReTerminal's MIT-licensed
     // source via NDK/CMake). The module exposes no Java/Kotlin API — `:ide-android` consumes its jniLibs
     // via the AAR merge and TerminalEngine.kt reads `applicationInfo.nativeLibraryDir` at runtime. See
