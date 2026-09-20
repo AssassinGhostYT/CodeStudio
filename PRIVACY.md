@@ -1,7 +1,7 @@
 # Política de Privacidad
 
 **Aplicación:** CodeStudio
-**Fecha de entrada en vigor:** 19 de septiembre de 2026
+**Fecha de entrada en vigor:** 20 de septiembre de 2026
 **Versión de la política:** 2.0
 
 Esta política describe de forma clara y completa cómo la aplicación CodeStudio (en adelante, "la aplicación" o "la app") maneja la información, con qué fines la utiliza y qué control tienes sobre ella. CodeStudio es un entorno de desarrollo integrado (IDE) que se ejecuta completamente en tu dispositivo Android. No necesitas crear una cuenta y no te pedimos tus datos personales para utilizarla.
