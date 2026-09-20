@@ -45,9 +45,8 @@ internal object AgentSettingsPage : SettingsPage {
             key = "provider",
             title = "Provider",
             description = "Which AI provider the agent uses.",
-            default = "opencode",
+            default = "anthropic",
             options = listOf(
-                SettingControl.Choice.Option("opencode", "OpenCode Zen (Free)"),
                 SettingControl.Choice.Option("anthropic", "Anthropic (Claude)"),
                 SettingControl.Choice.Option("openai", "OpenAI"),
                 SettingControl.Choice.Option("gemini", "Google Gemini"),
@@ -77,12 +76,6 @@ internal object AgentSettingsPage : SettingsPage {
             title = "OpenRouter API key",
             description = "Used when the provider is OpenRouter.",
             placeholder = "sk-or-...",
-        ),
-        SettingControl.Text(
-            key = "opencodeKey",
-            title = "OpenCode API key",
-            description = "Used when the provider is OpenCode Zen. Optional for the free tier.",
-            placeholder = "Opcional para Free Tier",
         ),
         SettingControl.Text(
             key = "model",

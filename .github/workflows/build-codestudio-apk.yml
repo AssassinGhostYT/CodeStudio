@@ -37,19 +37,6 @@ jobs:
           mkdir -p ~/.gradle
           echo "kotlin.incremental=false" >> ~/.gradle/gradle.properties
 
-      - name: Provision OpenCode v1.18.18 verified asset
-        run: |
-          mkdir -p agent-impl/files/opencode/agents/opencode/1.18.18
-          curl --retry 5 --retry-connrefused --retry-delay 3 -sL https://github.com/anomalyco/opencode/releases/download/v1.18.18/opencode-linux-arm64.tar.gz -o opencode.tar.gz
-          CALC_SHA=$(sha256sum opencode.tar.gz | awk '{print $1}')
-          EXPECTED_SHA="dcb1b5ec5687b43f87749560021f9203f3809e0ce5ae44ff9be8ae17083fe4ba"
-          if [ "$CALC_SHA" != "$EXPECTED_SHA" ]; then
-            echo "SHA256 mismatch! Expected $EXPECTED_SHA but got $CALC_SHA"
-            exit 1
-          fi
-          tar -zxvf opencode.tar.gz -C agent-impl/files/opencode/agents/opencode/1.18.18/
-          rm opencode.tar.gz
-
       - name: Build profile APK
         run: |
           set -o pipefail

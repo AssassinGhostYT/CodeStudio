@@ -37,9 +37,6 @@ private const val LAST_PROJECT_PREF = "session.lastProject"
 /** App preference gating the resume-last-project behavior. Unset/anything-but-"false" = on (the default). */
 private const val REOPEN_LAST_PROJECT_PREF = "session.reopenLastProject"
 
-private const val MIGRATION_ACK_PREF = "migration.acknowledged"
-private const val ONBOARDING_SEEN_PREF = "onboarding.seen"
-
 /** Why the project-import flow stopped, rendered by the host as a localized notice. */
 sealed interface ImportError {
     /** A picked (or handed-in) file was not a readable `.caproj` package. */
@@ -145,20 +142,6 @@ class CodeStudioAppState(
     var keystoreImportPath: String? by mutableStateOf(null)
         private set
 
-    // ---- first-launch sheets ----
-
-    var showMigration: Boolean by mutableStateOf(backend.settings.preference(MIGRATION_ACK_PREF) != "true")
-        private set
-    var showOnboarding: Boolean by mutableStateOf(backend.settings.preference(ONBOARDING_SEEN_PREF) != "true")
-        private set
-
-    /** Opt-in analytics: prompt only when collection is available and the user has not decided yet (null). The
-     *  re-toggle lives in the editor's More menu (a settings surface), not permanently on the project picker. */
-    var showAnalytics: Boolean by mutableStateOf(
-        backend.diagnostics.analyticsAvailable() && backend.diagnostics.analyticsConsent() == null
-    )
-        private set
-
     // ---- project sharing + import ----
 
     /** Bumped after a project is deleted so the picker re-reads the (now smaller) on-disk project list. */
@@ -203,8 +186,7 @@ class CodeStudioAppState(
     /** Whether the system back gesture has somewhere in-app to go. False on the picker landing, where back
      *  exits the app as usual. */
     val canNavigateBack: Boolean
-        get() = screen != Screen.Projects || homeTab != HomeTab.Projects || showOnboarding || showMigration ||
-            showAnalytics
+        get() = screen != Screen.Projects || homeTab != HomeTab.Projects
 
     // Session resume across a process kill: the project that was on screen last run (captured up-front, before
     // any bridge runs, so the tracking below cannot clear it before the resume reads it) and whether resume is
@@ -472,37 +454,16 @@ class CodeStudioAppState(
         screen = Screen.StoreItem
     }
 
-    // ---- first-launch sheets ----
-
-    fun dismissMigration() {
-        showMigration = false
-        backend.settings.setPreference(MIGRATION_ACK_PREF, "true")
-    }
-
-    fun dismissOnboarding() {
-        showOnboarding = false
-        backend.settings.setPreference(ONBOARDING_SEEN_PREF, "true")
-    }
-
-    fun setAnalyticsConsent(granted: Boolean) {
-        showAnalytics = false
-        backend.diagnostics.setAnalyticsConsent(granted)
-    }
-
     // ---- back navigation ----
 
     /**
      * The system back gesture routed through in-app navigation instead of letting it close the app. The host
      * registers this above the editor's own overlay handler, so an open sheet/dialog is closed first (the
      * deeper handler wins) and this only sees screen-level back: pop a sub-screen to the editor, the editor to
-     * the project picker, or dismiss the first-launch sheets.
+     * the project picker.
      */
     fun navigateBack() {
         when {
-            showOnboarding -> dismissOnboarding()
-            showMigration -> dismissMigration()
-            showAnalytics -> setAnalyticsConsent(false)
-
             // The keystore Create/Import sub-screens step back to their manager, not all the way out.
             screen == Screen.KeystoreCreate || screen == Screen.KeystoreImport -> screen = Screen.KeystoreManager
             // The hub's sub-screens step back to the hub; the keystore manager honours its entry origin.

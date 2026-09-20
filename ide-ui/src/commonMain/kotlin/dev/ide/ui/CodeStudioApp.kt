@@ -25,7 +25,6 @@ import dev.ide.ui.backend.FileActions
 import dev.ide.ui.backend.IdeBackend
 import dev.ide.ui.backend.UiAccent
 import dev.ide.ui.components.AdSlot
-import dev.ide.ui.components.OnboardingSheet
 import dev.ide.ui.ext.UiPluginHost
 import dev.ide.ui.generated.resources.Res
 import dev.ide.ui.generated.resources.import_gradle_failed
@@ -46,8 +45,7 @@ import org.jetbrains.compose.resources.stringResource
  * The shell's own state and the flows that drive it live in [CodeStudioAppState]; this body is the theme,
  * the back gesture, the screen host ([AppNavGraph]), and the app-wide overlays. Screens transition with a
  * platform-differentiated feel ([ScreenHost]); the active project's UI state is re-keyed on
- * [IdeBackend.projectEpoch] so creating/opening a project rebuilds the tree and tabs. A first-launch
- * [OnboardingSheet] introduces the IDE over the picker.
+ * [IdeBackend.projectEpoch] so creating/opening a project rebuilds the tree and tabs.
  */
 @Composable
 fun CodeStudioApp(
@@ -155,17 +153,6 @@ fun CodeStudioApp(
                     backend = backend,
                     state = state,
                     fileActions = fileActions,
-                    onPicker = app.screen == Screen.Projects && app.homeTab == HomeTab.Projects,
-                    showMigration = app.showMigration,
-                    onBackup = app::backupAndShare,
-                    onDismissMigration = app::dismissMigration,
-                    showOnboarding = app.showOnboarding,
-                    // Final CTA: send the user straight into the Create-Project flow.
-                    onGetStarted = { app.createProject() },
-                    onFinishOnboarding = app::dismissOnboarding,
-                    showAnalytics = app.showAnalytics,
-                    onAllowAnalytics = { app.setAnalyticsConsent(true) },
-                    onDeclineAnalytics = { app.setAnalyticsConsent(false) },
                     importError = importErrorMessage,
                     onDismissImportError = app::dismissImportError,
                     importBusy = app.importBusy,

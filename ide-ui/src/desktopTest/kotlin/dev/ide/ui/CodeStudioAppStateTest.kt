@@ -159,29 +159,6 @@ class CodeStudioAppStateTest {
     }
 
     @Test
-    fun firstLaunchSheetsAreDismissedBeforeAnyScreen() = runTest {
-        val backend = AppBackend() // nothing acknowledged yet
-        val app = appState(backend)
-        advanceUntilIdle()
-        assertTrue(app.showOnboarding)
-        assertTrue(app.showMigration)
-        assertTrue(app.showAnalytics)
-
-        app.navigateBack()
-        assertFalse(app.showOnboarding)
-        assertEquals("true", backend.prefs["onboarding.seen"])
-        app.navigateBack()
-        assertFalse(app.showMigration)
-        assertEquals("true", backend.prefs["migration.acknowledged"])
-        app.navigateBack()
-        assertFalse(app.showAnalytics)
-        assertEquals(false, backend.analyticsConsent)
-        // The sheets never moved the user off the picker.
-        assertEquals(Screen.Projects, app.screen)
-        assertFalse(app.canNavigateBack)
-    }
-
-    @Test
     fun openingAProjectLandsInTheEditor() = runTest {
         val backend = settled()
         val app = appState(backend)

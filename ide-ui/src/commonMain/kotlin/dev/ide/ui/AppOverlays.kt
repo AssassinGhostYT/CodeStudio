@@ -4,13 +4,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import dev.ide.ui.backend.FileActions
 import dev.ide.ui.backend.IdeBackend
-import dev.ide.ui.components.AnalyticsConsentSheet
 import dev.ide.ui.components.BetaInfo
 import dev.ide.ui.components.BuildNotificationGate
 import dev.ide.ui.components.BusyOverlay
 import dev.ide.ui.components.ErrorDialog
-import dev.ide.ui.components.MigrationNotice
-import dev.ide.ui.components.OnboardingSheet
 import dev.ide.ui.components.PermissionDialog
 import dev.ide.ui.components.RunConflictDialog
 import dev.ide.ui.ext.OverlayContext
@@ -22,49 +19,20 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * The app-wide overlays layered over the current screen, split out of [CodeStudioApp] so its body stays
- * navigation + layout. Two groups: the one-at-a-time first-launch sheets (build-system migration notice, the
- * onboarding tour, analytics consent) shown only over the project picker ([onPicker]); and the always-on
- * dialogs (run-sandbox permission prompt, first-build notification gate, run-conflict confirmation, the
- * non-fatal error dialog, and the unrecognized-`.caproj` notice). Each is an already-encapsulated composable;
- * this only gates visibility and wires the callbacks.
+ * navigation + layout. The always-on dialogs (run-sandbox permission prompt, first-build notification gate,
+ * run-conflict confirmation, the non-fatal error dialog, and the unrecognized-`.caproj` notice). Each is an
+ * already-encapsulated composable; this only gates visibility and wires the callbacks.
  */
 @Composable
 internal fun AppOverlays(
     backend: IdeBackend,
     state: IdeUiState,
     fileActions: FileActions,
-    /** True when the picker landing is showing — the only place the first-launch sheets appear. */
-    onPicker: Boolean,
-    showMigration: Boolean,
-    onBackup: suspend () -> Unit,
-    onDismissMigration: () -> Unit,
-    showOnboarding: Boolean,
-    onGetStarted: () -> Unit,
-    onFinishOnboarding: () -> Unit,
-    showAnalytics: Boolean,
-    onAllowAnalytics: () -> Unit,
-    onDeclineAnalytics: () -> Unit,
     importError: String?,
     onDismissImportError: () -> Unit,
     /** True while a picked Gradle folder is being copied + imported — shows the blocking busy overlay. */
     importBusy: Boolean = false,
 ) {
-    // Upgrade notice first (the build-system migration warning), then the feature tour — both over the picker
-    // only, one at a time.
-    MigrationNotice(visible = showMigration && onPicker, onBackup = onBackup, onDismiss = onDismissMigration)
-    OnboardingSheet(
-        visible = showOnboarding && !showMigration && onPicker,
-        // Final CTA: send the user straight into the Create-Project flow so the tour ends on a concrete action.
-        onGetStarted = onGetStarted,
-        onFinish = onFinishOnboarding,
-    )
-    // Opt-in analytics consent — last of the first-launch sheets, after onboarding/migration.
-    AnalyticsConsentSheet(
-        visible = showAnalytics && !showOnboarding && !showMigration && onPicker,
-        onAllow = onAllowAnalytics,
-        onDecline = onDeclineAnalytics,
-        onLearnMore = if (fileActions.canOpenUrl) ({ fileActions.openUrl(BetaInfo.PRIVACY_URL) }) else null,
-    )
     // The run sandbox's permission prompt — overlays everything while a guarded program is blocked.
     PermissionDialog(backend)
     // Plugin-contributed app-wide overlays (e.g. the AI agent's write-permission prompt). Each decides its own
