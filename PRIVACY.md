@@ -1,84 +1,100 @@
-# Privacy Policy
+# Política de Privacidad
 
-**App:** CodeStudio
-**Effective date:** 20 June 2026
+**Aplicación:** CodeStudio
+**Fecha de entrada en vigor:** 19 de septiembre de 2026
+**Versión de la política:** 2.0
 
-This policy explains what information the CodeStudio Android app handles, why, and the choices you have. CodeStudio is a code editor and build environment that runs on your device. You do not need an account to use it.
+Esta política describe de forma clara y completa cómo la aplicación CodeStudio (en adelante, "la aplicación" o "la app") maneja la información, con qué fines la utiliza y qué control tienes sobre ella. CodeStudio es un entorno de desarrollo integrado (IDE) que se ejecuta completamente en tu dispositivo Android. No necesitas crear una cuenta y no te pedimos tus datos personales para utilizarla.
 
-## Summary
+Recomendamos leer este documento completo. Está redactado para ser transparente, no para ocultar nada detrás de tecnicismos.
 
-- CodeStudio does not require you to sign in and does not ask for your name, email, phone number, or location.
-- The app does not read, upload, or share the source code, files, or projects you work on. Your projects stay on your device.
-- The only data the app sends about you is optional performance and crash telemetry. It is turned off by default and is sent only if you choose to turn it on.
-- You can turn telemetry on or off at any time in the app.
+---
 
-## Information the app collects
+## 1. El principio más importante: tus proyectos son tuyos
 
-### Optional performance and stability telemetry (off by default)
+Nada de lo que escribes con CodeStudio sale de tu dispositivo salvo en los casos excepcionales y expresamente consentidos por ti que se detallan en esta política. Concretamente:
 
-On first launch the app shows a prompt asking whether you want to share anonymous performance data. Nothing is collected unless you tap "Allow". You can change your choice later from the project picker.
+- La aplicación **no lee, sube ni comparte** tu código fuente, los nombres de tus archivos, los nombres de tus proyectos, ni el contenido de ningún documento.
+- Tu proyecto, tus archivos, tus ajustes y tus claves de firma de Android (los keystores usados para publicar tus apps) **se guardan y permanecen localmente** en tu dispositivo.
+- No creamos cuentas de usuario, no pedimos tu nombre, correo electrónico, teléfono ni ubicación, y no tenemos ninguna manera de identificarte personalmente.
 
-If you turn it on, the app sends:
+## 2. Información que la aplicación recopila
 
-- **App and device information:** app version and build number, Android API level, device model and manufacturer, CPU architecture (ABI), and device language (locale).
-- **Performance measurements:** how long app startup, project indexing, builds, code completion, and code analysis take, reported as durations and as aggregated summaries (for example a count and average over a period), not as a record of individual keystrokes.
-- **Build outcomes:** whether a build or run succeeded or failed, and how long it took.
-- **Crash and error reports:** a scrubbed report when the app crashes or hits an internal error. The report contains the exception type and the app's own stack frames only. Exception messages, file paths, and any code are removed before the report is created.
-- **Identifiers:** a random install identifier (a UUID generated on your device that is not linked to your identity or any account) and a per-session identifier used to group events from one app launch.
+### 2.1 Telemetría opcional de rendimiento y estabilidad (desactivada por defecto)
 
-### What the app never collects
+La única información que la aplicación podría enviar sobre tu uso es una **telemetría anónima de rendimiento y estabilidad**. Esta telemetría:
 
-- Your source code, file contents, file names, or project names.
-- File system paths.
-- Which features you use (there is no feature-usage tracking).
-- Advertising identifiers, device serial numbers, IMEI, account information, contacts, or precise location.
-- Anything that identifies you personally.
+- Está **desactivada de forma predeterminada**. La primera vez que abres la app se te pregunta si deseas activarla, y nada se recopila ni se envía hasta que tú tocas "Permitir".
+- Se puede activar o desactivar en cualquier momento desde los ajustes de la app. Si la desactivas, también se descarta cualquier dato que estuviera pendiente de envío.
+- Solo recopila **datos agregados y de rendimiento**, nunca el contenido de tu código ni evento a evento lo que escribes.
 
-If you do not turn on telemetry, none of the above leaves your device. Turning telemetry off also discards any data that was waiting to be sent.
+Si decides activarla, la aplicación envía lo siguiente:
 
-## Permissions the app requests
+- **Información de la aplicación y del dispositivo:** versión y número de compilación de la app, nivel de API de Android, modelo y fabricante del dispositivo, arquitectura de la CPU (ABI) e idioma de la interfaz.
+- **Mediciones de rendimiento:** cuánto tarda la app en arrancar, en indexar el proyecto, en compilar, en completar código y en hacer análisis de código. Estas mediciones se registran como duraciones y como resúmenes agregados (por ejemplo, un recuento y un promedio), no como un registro de teclas individuales.
+- **Resultado de compilaciones:** si una compilación o ejecución tuvo éxito o falló, y cuánto tardó.
+- **Informes de errores y de bloqueos (crash):** un informe depurado cuando la app falla o encuentra un error interno. El informe contiene únicamente el tipo de excepción y los marcos de pila (stack frames) propios de la aplicación. Se eliminan los mensajes de las excepciones, las rutas de archivo y cualquier código antes de generar el informe.
+- **Identificadores aleatorios:** un identificador de instalación (un UUID aleatorio generado en tu dispositivo, que **no** está vinculado a tu identidad ni a ninguna cuenta) y un identificador de sesión que sirve para agrupar los eventos de un mismo arranque de la app.
 
-- **Internet:** used to download project dependencies and Android SDK components when you ask for them, and to send optional telemetry if you have turned it on.
-- **Install unknown apps (REQUEST_INSTALL_PACKAGES):** used so you can install an app (APK) that you built with CodeStudio. This is initiated by you and goes through the standard Android install confirmation.
+### 2.2 Lo que la aplicación nunca recopila
 
-## Network connections
+- Tu código fuente, el contenido de tus archivos, los nombres de archivo ni los nombres de tus proyectos.
+- Rutas del sistema de archivos.
+- Qué funciones utilizas (no existe seguimiento del uso de funciones).
+- Identificadores publicitarios, número de serie del dispositivo, IMEI, información de cuentas, contactos ni ubicación precisa.
+- Cualquier dato que permita identificarte personalmente.
 
-Apart from optional telemetry, CodeStudio connects to the internet only to carry out actions you start, such as resolving and downloading project dependencies from package repositories (for example Maven repositories) or downloading Android SDK components, sources, and documentation. These requests contain the package names and versions being fetched. They do not contain your code. Downloaded files are cached on your device.
+Si no activas la telemetría, **ninguna** de las informaciones anteriores sale de tu dispositivo.
 
-## How the information is used
+## 3. Permisos que solicita la aplicación
 
-Telemetry is used only to understand and improve the app's performance and stability, for example to find slow operations and to diagnose crashes. It is not used for advertising, profiling, or sale.
+La aplicación solicita dos permisos, ambos con un propósito concreto y limitado:
 
-## How the information is shared
+- **Conexión a Internet (INTERNET):** se utiliza para descargar las dependencias de los proyectos y los componentes del paquete de desarrollo de Android (Android SDK) cuando tú lo pides, y para enviar la telemetría opcional si la has activado.
+- **Instalar aplicaciones desconocidas (REQUEST_INSTALL_PACKAGES):** se utiliza para que puedas instalar el APK que has compilado con CodeStudio. Esta instalación la inicias tú y pasa por el diálogo estándar de confirmación de instalación de Android.
 
-CodeStudio does not sell your data and does not share it with advertisers.
+## 4. Conexiones de red
 
-Optional telemetry is stored using Supabase, a hosted database service, acting as a data processor for the app. Telemetry is transmitted over an encrypted connection. No other third party receives telemetry.
+Además de la telemetría opcional, CodeStudio se conecta a internet únicamente para llevar a cabo las acciones que tú inicias:
 
-When you download dependencies or SDK components, those requests go directly to the relevant package repositories or to Google's Android SDK servers, which handle them under their own terms and policies.
+- Descargar dependencias de repositorios de paquetes (por ejemplo, repositorios Maven) cuando tu proyecto las requiere.
+- Descargar componentes del Android SDK, fuentes y documentación desde los servidores de Google.
 
-## Data retention and deletion
+Estas peticiones contienen los nombres y las versiones de los paquetes que se están descargando. **No contienen tu código.** Los archivos descargados se guardan en la caché de tu dispositivo.
 
-- Local project data, settings, and caches remain on your device until you remove them or uninstall the app. Uninstalling removes the app's local data.
-- Telemetry, if you turned it on, is retained on the telemetry backend for performance and stability analysis. Because telemetry carries only a random install identifier and contains no personal information, individual records cannot be tied back to a specific person.
-- To stop all future collection, turn off telemetry in the app. If you want telemetry already sent under your install identifier to be removed, contact us at the address below and include the install identifier shown in the app's analytics settings.
+## 5. Uso de la información
 
-## Security
+Si activas la telemetría, su único propósito es **comprender y mejorar el rendimiento y la estabilidad** de la aplicación, por ejemplo para detectar operaciones lentas o diagnosticar fallos. Los datos de telemetría **no** se utilizan para fines publicitarios, para elaborar perfiles de usuario ni para su venta.
 
-Telemetry is sent over HTTPS. Project data and credentials you use inside CodeStudio (for example signing keys) are stored on your device and are not transmitted by the app.
+## 6. Compartir información con terceros
 
-## Children
+- CodeStudio **no vende** tus datos y **no los comparte con anunciantes**.
+- La telemetría opcional se almacena mediante Supabase, un servicio de base de datos alojado que actúa como **encargado del tratamiento** de datos de la aplicación. La telemetría se transmite mediante una conexión cifrada. Ningún otro tercero recibe telemetría.
+- Cuando descargas dependencias o componentes del SDK, esas peticiones se dirigen directamente a los repositorios de paquetes correspondientes o a los servidores del SDK de Google, que las gestionan según sus propias condiciones y políticas.
+- Si utilizas un "gateway" personalizado (un endpoint compatible con OpenAI que tú configuras), la aplicación envía tus peticiones de modelo y tu base URL privada únicamente a ese endpoint que tú mismo designaste; no las reenvía a ningún otro servidor.
 
-CodeStudio is a developer tool and is not directed to children under 13. It does not knowingly collect personal information from children.
+## 7. Conservación y supresión de los datos
 
-## Changes to this policy
+- Los datos locales de tus proyectos, tus ajustes y las cachés permanecen **en tu dispositivo** hasta que tú los elimines o desinstales la aplicación. Al desinstalar, se eliminan los datos locales de la app.
+- La telemetría, si la has activado, se conserva en el backend de telemetría para el análisis de rendimiento y estabilidad. Como la telemetría lleva únicamente un identificador de instalación aleatorio y no contiene información personal, los registros individuales no se pueden vincular a una persona concreta.
+- Para detener toda futura recopilación, desactiva la telemetría en la app. Si además deseas que se elimine la telemetría ya enviada bajo tu identificador de instalación, contacta con nosotros en la dirección indicada al final de este documento e incluye el identificador de instalación que se muestra en los ajustes de analíticas de la app.
 
-This policy may be updated as the app changes. Material changes will be reflected here with a new effective date.
+## 8. Seguridad
 
-## Contact
+La telemetría se envía mediante HTTPS. Los datos de tus proyectos y las credenciales que utilizas dentro de CodeStudio (por ejemplo, las claves de firma) se almacenan en tu dispositivo y **no se transmiten** desde la aplicación.
 
-Questions about this policy or your data can be sent to:
+## 9. Menores
+
+CodeStudio es una herramienta para desarrolladores y no está dirigida a menores de 13 años. No recopila a sabiendas información personal de menores.
+
+## 10. Cambios en esta política
+
+Esta política puede actualizarse según la aplicación evolucione. Cualquier cambio material se reflejará aquí con una nueva fecha de entrada en vigor. Te animamos a revisar este documento periódicamente.
+
+## 11. Contacto
+
+Si tienes preguntas sobre esta política o sobre tus datos, puedes escribirnos a:
 
 **contact.AssassinGhost@gmail.com**
 
-The app's source code is available at https://github.com/AssassinGhostYT/CodeStudio
+El código fuente de la aplicación está disponible en: https://github.com/AssassinGhostYT/CodeStudio
