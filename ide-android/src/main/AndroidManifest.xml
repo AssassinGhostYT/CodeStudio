@@ -45,10 +45,8 @@
                     android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
                     tools:ignore="ScopedStorage" />
-    <!-- Android 13+ granular media access (TerminalStorageGate requests these; an undeclared runtime
-         permission is always auto-denied, so they must ship in the manifest). -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <!-- Android 13+ audio access for terminal workflows. Photos and videos are selected through the
+         system picker and therefore do not need broad READ_MEDIA_IMAGES/READ_MEDIA_VIDEO permissions. -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
     <!-- Android 14+ “selected photos access” grant-shaped visual media access (partial media grant). -->
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />

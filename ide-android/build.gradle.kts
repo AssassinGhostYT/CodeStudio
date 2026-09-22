@@ -372,8 +372,8 @@ android {
         targetSdk = 36
         // versionCode must exceed the last published release (the previous-codebase app reached ~29).
         // Play requires a higher code for the 16 KB native-library rebuild.
-        versionCode = 84
-        versionName = "4.0.3"
+        versionCode = 85
+        versionName = "4.0.4"
         // connectedAndroidTest harness (the on-device Kotlin-compiler discovery spike).
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

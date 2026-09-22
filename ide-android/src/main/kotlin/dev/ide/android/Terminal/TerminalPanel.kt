@@ -162,9 +162,10 @@ private fun StatusLine(text: String, error: Boolean = false) {
  * Asks for the storage permissions the terminal needs to read/write outside the app sandbox, mirroring
  * what Termux requests on first launch:
  *  - Android ≤12 (API ≤32): `READ_EXTERNAL_STORAGE` (declared `maxSdkVersion 32`, so it's real only ≤32).
- *  - Android 13+ (API 33+): the media perms plus — the one that actually lets proot see `/sdcard` —
- *    "All files access" (`MANAGE_EXTERNAL_STORAGE`), granted from Settings. Termux bounces the user there
- *    the same way, so we surface a one-tap action and re-check when the activity resumes.
+ *  - Android 13+: "All files access" (`MANAGE_EXTERNAL_STORAGE`), which is the permission that lets
+ *    proot see `/sdcard`; it is granted from Settings. Termux bounces the user there the same way,
+ *    so we surface a one-tap action and re-check when the activity resumes. The app does not request
+ *    broad photo/video permissions; users can use Android's system picker when selecting media files.
  */
 @Composable
 private fun TerminalStorageGate() {
@@ -192,8 +193,6 @@ private fun TerminalStorageGate() {
                 runtime += Manifest.permission.READ_EXTERNAL_STORAGE
             }
         } else {
-            if (context.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) runtime += Manifest.permission.READ_MEDIA_IMAGES
-            if (context.checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED) runtime += Manifest.permission.READ_MEDIA_VIDEO
             if (context.checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) runtime += Manifest.permission.READ_MEDIA_AUDIO
         }
         if (runtime.isNotEmpty()) runtimeLauncher.launch(runtime.toTypedArray())
