@@ -10,7 +10,11 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -O2 -g0")
 # Reproducibility flags
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=. -ffile-prefix-map=${CMAKE_CURRENT_BINARY_DIR}=. -fno-ident")
 set(CMAKE_ASM_FLAGS "${CMAKE_ASM_FLAGS} -ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=. -ffile-prefix-map=${CMAKE_CURRENT_BINARY_DIR}=. -g0")
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-z,noexecstack -Wl,--build-id=none")
+# Android 15 devices may use 16 KB pages. Keep the ELF PT_LOAD segments
+# compatible when building with NDK 27 (NDK r28 enables this by default).
+set(CMAKE_16K_PAGE_LINKER_FLAGS "-Wl,-z,max-page-size=16384 -Wl,-z,common-page-size=16384")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${CMAKE_16K_PAGE_LINKER_FLAGS}")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${CMAKE_16K_PAGE_LINKER_FLAGS} -Wl,-z,noexecstack -Wl,--build-id=none")
 
 # Tools from environment (NDK)
 find_program(OBJCOPY_TOOL NAMES ${CMAKE_OBJCOPY} $ENV{OBJCOPY} llvm-objcopy objcopy)
@@ -243,7 +247,7 @@ function(build_loader SUFFIX EXTRA_CFLAGS LOADER_ADDR)
     add_executable(${LOADER_TARGET} loader/loader.c loader/assembly.S)
     set_target_properties(${LOADER_TARGET} PROPERTIES 
         COMPILE_FLAGS "-fPIC -ffreestanding -g0 -ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=. -ffile-prefix-map=${CMAKE_CURRENT_BINARY_DIR}=. ${EXTRA_CFLAGS}"
-        LINK_FLAGS "-static -nostdlib ${EXTRA_CFLAGS} -Wl,-Ttext=${LOADER_ADDR},--rosegment,-z,noexecstack"
+        LINK_FLAGS "-static -nostdlib ${EXTRA_CFLAGS} ${CMAKE_16K_PAGE_LINKER_FLAGS} -Wl,-Ttext=${LOADER_ADDR},--rosegment,-z,noexecstack"
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/loader
         OUTPUT_NAME ${LOADER_NAME}
         PREFIX "lib"
