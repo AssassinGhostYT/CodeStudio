@@ -1,13 +1,13 @@
 # ============================================================================
-# EXPERIMENTAL R8 keep rules for the CodeStudio app's own (non-shipping)
-# `minified` build type. See the `minified` block in build.gradle.kts.
+# Conservative R8 keep rules for the CodeStudio app's `release` and `minified`
+# build types. See the buildTypes block in build.gradle.kts.
 #
 # The app HOSTS a full on-device toolchain: the Kotlin K2 compiler, the IntelliJ
 # platform, Eclipse JDT/ecj, D8/R8/apksig, and ASM. It reaches large parts of
 # that toolchain reflectively (ServiceLoader / META-INF/services, IntelliJ
 # extension-point + component registration, Class.forName on config-driven
 # names) and it dexes user code at runtime. R8 tree-shaking/renaming would strip
-# or rename classes only reached reflectively, and the failure surfaces as a
+# or rename toolchain classes only reached reflectively, and the failure surfaces as a
 # RUNTIME crash while compiling/running a user project, not a build error.
 #
 # This is a CONSERVATIVE first pass: keep the reflective toolchain wholesale and
@@ -32,8 +32,10 @@
 -keep class kotlin.jvm.internal.** { *; }
 -keep class kotlin.Metadata { *; }
 
-# --- The app's own engine + plugins (EP registry / plugin loader use FQNs) --
--keep class dev.ide.** { *; }
+# --- The app's own engine + plugins. Keep implementations reachable, while
+# allowing R8 to rename them; Android manifest components are retained by the
+# generated manifest rules and the reflective toolchain stays name-stable below.
+-keep,allowobfuscation class dev.ide.** { *; }
 
 # --- Hardening: reflection-sensitive libraries R8 stripped in the first pass.
 #     Each is reached by a name/reflection/service mechanism R8 can't trace, so
@@ -92,12 +94,11 @@
 -dontwarn java.lang.module.**
 -dontwarn org.apache.xerces.**
 
-# --- First measurement pass: isolate tree-shaking. Don't rename, since the big
-#     packages are kept anyway (obfuscation buys little) and un-renamed output
-#     makes the size accounting + any runtime stack traces readable. ----------
--dontobfuscate
-
 # On-device Termux userland engine (TermuxRuntime): the bootstrap extractor is reached
 # reflectively-free (direct Kotlin call), but R8 must keep the JNI-backed getZip()/loadZipBytes()
 # members or System.loadLibrary("termux-bootstrap") has nothing to bind to.
 -keep class com.termux.app.TermuxInstaller { *; }
+# These classes use the legacy name-based JNI lookup convention; their class
+# and native method names must remain unchanged after obfuscation.
+-keep class com.termux.shared.net.socket.local.LocalSocketManager { *; }
+-keep class com.termux.terminal.JNI { *; }

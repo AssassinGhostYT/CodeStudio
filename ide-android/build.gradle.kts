@@ -448,10 +448,15 @@ android {
 
     buildTypes {
         getByName("release") {
-            // R8 is OFF: the app loads JDT/ecj/D8/apksig classes reflectively and dexes user code at
-            // runtime, so aggressive shrinking would strip needed classes. Revisit with keep rules if
-            // download size becomes a concern.
-            isMinifyEnabled = false
+            // The Play release must carry R8 metadata and obfuscated bytecode. The conservative rules
+            // keep the on-device compiler/toolchain and its reflective entry points intact while R8
+            // optimizes the rest of the app and dependencies.
+            isMinifyEnabled = true
+            isShrinkResources = false // keep this change focused on code shrinking/obfuscation
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules-minified.pro",
+            )
             signingConfig = signingConfigs.findByName("release")
             // The shipped build serves real AdMob ads (falls back to test ids if none were configured).
             manifestPlaceholders["admobAppId"] = realAdmobAppId
@@ -465,20 +470,23 @@ android {
         // dexing reasons above); only the signing differs so `adb install` works without the release keystore.
         create("profile") {
             initWith(getByName("release"))
+            // Profile is the installable performance/debugging build; keep it representative and
+            // usable for local diagnosis rather than inheriting release shrinking.
+            isMinifyEnabled = false
             // Sign with the release/upload key when a keystore is configured (so testers get a build with
             // the published signature identity); fall back to the debug key so the variant still installs
             // locally when no release keystore is present.
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             matchingFallbacks += listOf("release")
         }
-        // EXPERIMENTAL, non-shipping: an R8-minified build used only to measure how far the app's own
+        // EXPERIMENTAL: an R8-minified build used to measure how far the app's own
         // dex (~61% of the APK, mostly the bundled Kotlin compiler + IntelliJ platform) can shrink. The
-        // shipping `release` build keeps R8 OFF (see above) because the toolchain is loaded reflectively;
-        // this variant explores that "revisit with keep rules" note behind conservative keep rules
+        // shipping `release` build now uses the same conservative keep rules because the toolchain is
+        // loaded reflectively; this variant remains available for comparison
         // (proguard-rules-minified.pro keeps the reflective toolchain wholesale and tree-shakes only the
         // safe libraries). Build with `:ide-android:assembleMinified` — R8 whole-program on this input is
         // memory-hungry, so bump org.gradle.jvmargs (~8g) for the run. NOT runtime-validated: a minified
-        // build can boot and still break when it compiles/dexes a user project, so never ship it without
+        // build can boot and still break when it compiles/dexes a user project, so keep the runtime
         // exercising the full toolchain (compile -> dex -> sign -> run -> completion) on-device.
         create("minified") {
             initWith(getByName("release"))
