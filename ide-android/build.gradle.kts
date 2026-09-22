@@ -372,8 +372,8 @@ android {
         targetSdk = 36
         // versionCode must exceed the last published release (the previous-codebase app reached ~29).
         // Play requires a higher code for the 16 KB native-library rebuild.
-        versionCode = 83
-        versionName = "4.0.2"
+        versionCode = 84
+        versionName = "4.0.3"
         // connectedAndroidTest harness (the on-device Kotlin-compiler discovery spike).
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -1121,18 +1121,13 @@ dependencies {
 }
 
 // ============================================================================
-// R8 input fix for the experimental `minified` variant. The global
+// R8 input fix for the R8-enabled `release` and `minified` variants. The global
 // packaging.resources.excludes above drops bundletool's dead archive-dex stubs
 // from every build's PACKAGED OUTPUT, but whole-program R8 reads the dependency
 // jar directly (not the packaged resources), so it still sees the `.class`+`.dex`
-// mix and refuses it. Feed R8 a dex-stripped copy of the jar for `minified`
-// only. Scoped here (not global) because (a) the shipping R8-off builds don't
-// need it, and (b) doing it globally without dropping bundletool's protobuf/
-// dagger transitives (which resolve only through the bundletool module) needs a
-// transitive-preserving jar swap AGP doesn't cleanly allow — worth solving only
-// if/when R8 is enabled on a shipping variant. CONSEQUENCE for `minified`: the
-// module-exclude drops that protobuf/dagger closure, so the minified APK is a
-// slight under-estimate of a correct minified build (a few MB would return).
+// mix and refuses it. Feed R8 a dex-stripped copy of the jar for both variants.
+// The bundletool runtime closure is listed explicitly below so replacing the
+// original module does not remove protobuf/dagger/jose4j at runtime.
 val bundletoolNoDexSource: Configuration by configurations.creating {
     isCanBeConsumed = false
     isCanBeResolved = true
@@ -1146,7 +1141,27 @@ val stripBundletoolDex = tasks.register<Jar>("stripBundletoolDex") {
     from(provider { zipTree(bundletoolNoDexSource.singleFile) }) { exclude("**/*.dex") }
 }
 
-configurations.matching { it.name.startsWith("minified") }.configureEach {
+configurations.matching { it.name.startsWith("release") || it.name.startsWith("minified") }.configureEach {
     exclude(group = "com.android.tools.build", module = "bundletool")
 }
-dependencies { "minifiedImplementation"(files(stripBundletoolDex)) }
+dependencies {
+    "releaseImplementation"(files(stripBundletoolDex))
+    "minifiedImplementation"(files(stripBundletoolDex))
+
+    // Runtime dependencies from bundletool-1.18.3's POM. Keep these as direct
+    // edges because the original bundletool module is replaced above.
+    listOf(
+        "com.android.tools.build:aapt2-proto:7.3.0-alpha07-8248216",
+        "com.google.auto.value:auto-value-annotations:1.6.2",
+        "com.google.errorprone:error_prone_annotations:2.3.1",
+        "com.google.protobuf:protobuf-java:3.22.3",
+        "com.google.protobuf:protobuf-java-util:3.22.3",
+        "com.google.dagger:dagger:2.28.3",
+        "javax.inject:javax.inject:1",
+        "org.bitbucket.b_c:jose4j:0.9.5",
+        "org.slf4j:slf4j-api:1.7.30",
+    ).forEach { coordinate ->
+        add("releaseImplementation", coordinate)
+        add("minifiedImplementation", coordinate)
+    }
+}
