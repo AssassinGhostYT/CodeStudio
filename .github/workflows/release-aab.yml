@@ -69,3 +69,4 @@ jobs:
           path: |
             **/build/outputs/bundle/release/*.aab
           if-no-files-found: error
+          compression-level: 0

@@ -48,6 +48,14 @@ jobs:
       - name: Find APK
         run: find . -type f -name "*.apk" -print
 
+      - name: Validate APK archive and 16 KB alignment
+        run: |
+          set -euo pipefail
+          apk="$(find . -type f -path '*/build/outputs/apk/profile/*.apk' -print -quit)"
+          test -n "$apk"
+          unzip -t "$apk"
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 4 "$apk"
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
@@ -55,3 +63,4 @@ jobs:
           path: |
             **/build/outputs/apk/profile/*.apk
           if-no-files-found: error
+          compression-level: 0
