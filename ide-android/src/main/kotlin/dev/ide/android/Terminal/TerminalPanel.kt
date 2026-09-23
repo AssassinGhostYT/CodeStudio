@@ -192,8 +192,6 @@ private fun TerminalStorageGate() {
             if (context.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                 runtime += Manifest.permission.READ_EXTERNAL_STORAGE
             }
-        } else {
-            if (context.checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO) != PackageManager.PERMISSION_GRANTED) runtime += Manifest.permission.READ_MEDIA_AUDIO
         }
         if (runtime.isNotEmpty()) runtimeLauncher.launch(runtime.toTypedArray())
     }
