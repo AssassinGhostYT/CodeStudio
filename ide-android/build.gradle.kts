@@ -452,7 +452,9 @@ android {
             // keep the on-device compiler/toolchain and its reflective entry points intact while R8
             // optimizes the rest of the app and dependencies.
             isMinifyEnabled = true
-            isShrinkResources = false // keep this change focused on code shrinking/obfuscation
+            // R8 must remove unused resources as well as code for the Play optimization report.
+            // AGP 9.2 enables optimized resource shrinking automatically when this is true.
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules-minified.pro",
@@ -473,6 +475,7 @@ android {
             // Profile is the installable performance/debugging build; keep it representative and
             // usable for local diagnosis rather than inheriting release shrinking.
             isMinifyEnabled = false
+            isShrinkResources = false
             // Sign with the release/upload key when a keystore is configured (so testers get a build with
             // the published signature identity); fall back to the debug key so the variant still installs
             // locally when no release keystore is present.
@@ -491,7 +494,7 @@ android {
         create("minified") {
             initWith(getByName("release"))
             isMinifyEnabled = true
-            isShrinkResources = false // isolate code shrinking; resources aren't the bulk
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules-minified.pro",
