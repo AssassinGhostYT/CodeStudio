@@ -15,6 +15,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.UUID;
 
 /**
@@ -47,6 +49,12 @@ public final class TerminalSession extends TerminalOutput {
      * writing to the {@link #mTerminalFileDescriptor}.
      */
     final ByteQueue mTerminalToProcessIOQueue = new ByteQueue(4096);
+    /**
+     * Input submitted by the UI is staged here so a large paste never blocks the main thread while
+     * the fixed-size PTY queue drains. A single dispatcher preserves the exact order of keystrokes
+     * and paste chunks before handing them to the existing writer thread.
+     */
+    private final BlockingQueue<byte[]> mPendingInputQueue = new LinkedBlockingQueue<>();
     /** Buffer to write translate code points into utf8 before writing to mTerminalToProcessIOQueue */
     private final byte[] mUtf8InputBuffer = new byte[5];
 
@@ -163,6 +171,20 @@ public final class TerminalSession extends TerminalOutput {
             }
         }.start();
 
+        new Thread("TermSessionInputDispatcher[pid=" + mShellPid + "]") {
+            @Override
+            public void run() {
+                try {
+                    while (true) {
+                        byte[] data = mPendingInputQueue.take();
+                        if (!mTerminalToProcessIOQueue.write(data, 0, data.length)) return;
+                    }
+                } catch (InterruptedException ignored) {
+                    // Session is shutting down.
+                }
+            }
+        }.start();
+
         new Thread("TermSessionWaiter[pid=" + mShellPid + "]") {
             @Override
             public void run() {
@@ -176,7 +198,21 @@ public final class TerminalSession extends TerminalOutput {
     /** Write data to the shell process. */
     @Override
     public void write(byte[] data, int offset, int count) {
-        if (mShellPid > 0) mTerminalToProcessIOQueue.write(data, offset, count);
+        if (mShellPid > 0 && count > 0) {
+            // Copy before enqueueing: callers such as writeCodePoint() reuse their small input buffer.
+            byte[] copy = new byte[count];
+            System.arraycopy(data, offset, copy, 0, count);
+            mPendingInputQueue.offer(copy);
+        }
+    }
+
+    /** Enqueue a large text input in small UTF-8 chunks without blocking the caller. */
+    void writeInChunks(String data, int chunkSize) {
+        if (data == null || data.isEmpty() || chunkSize <= 0) return;
+        for (int start = 0; start < data.length(); start += chunkSize) {
+            int end = Math.min(start + chunkSize, data.length());
+            write(data.substring(start, end));
+        }
     }
 
     /** Write the Unicode code point to the terminal encoded in UTF-8. */
@@ -250,6 +286,7 @@ public final class TerminalSession extends TerminalOutput {
         }
 
         // Stop the reader and writer threads, and close the I/O streams
+        mPendingInputQueue.clear();
         mTerminalToProcessIOQueue.close();
         mProcessToTerminalIOQueue.close();
         JNI.close(mTerminalFileDescriptor);
