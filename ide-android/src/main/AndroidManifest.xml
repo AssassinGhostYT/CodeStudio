@@ -172,6 +172,15 @@
                     android:value="Compiling and running the user's on-device software project — a long-running, user-initiated build that must continue if the user navigates away from the IDE." />
         </service>
 
+        <service
+                android:name=".Terminal.TerminalKeepAliveService"
+                android:exported="false"
+                android:foregroundServiceType="specialUse">
+            <property
+                    android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                    android:value="Keeping the user-initiated terminal shell and interactive command-line processes running while the user navigates away from CodeStudio." />
+        </service>
+
         <!-- Real-view layout-preview renderer in its own ":preview" OS process (layout-preview Step 3): it
              inflates + draws arbitrary library/user View code off the IDE's heap, so a render crash/OOM kills
              only this process (the client falls back to in-process rendering). A plain bound service. -->

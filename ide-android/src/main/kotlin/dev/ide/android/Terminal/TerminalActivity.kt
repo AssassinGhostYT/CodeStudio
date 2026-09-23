@@ -88,6 +88,8 @@ class TerminalActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        requestTerminalNotificationPermission()
+        startTerminalKeepAlive()
         TerminalEngine.init(applicationContext)
         TermuxRuntime.init(applicationContext)
         UbuntuRuntime.init(applicationContext)
@@ -402,6 +404,15 @@ class TerminalActivity : Activity() {
     private fun setRuntime(r: String) { runtimePrefs().edit().putString(RUNTIME_KEY, r).apply() }
 
     private fun startOrAttachShell() {
+        val persistedRuntime = savedRuntime()
+        if (activeEngine == ActiveEngine.NONE) {
+            activeEngine = when (persistedRuntime) {
+                "ubuntu" -> ActiveEngine.UBUNTU
+                "termux" -> ActiveEngine.TERMUX
+                "native" -> ActiveEngine.NATIVE
+                else -> ActiveEngine.NONE
+            }
+        }
         val existing = activeSession()
         // The interactive host is the one place where screen updates must actually reach the
         // TerminalView: the emulator only repaints on invalidate(), and the session announces new
@@ -415,11 +426,12 @@ class TerminalActivity : Activity() {
         if (existing != null && isActiveAlive()) {
             statusText?.visibility = View.GONE
             attachView(existing)
+            watchForShellDeath(existing)
             return
         }
         scope.launch {
             startAttempted = true
-            when (savedRuntime()) {
+            when (persistedRuntime) {
                 "ubuntu" -> startUbuntu()
                 "termux" -> startTermux()
                 "native" -> startNative(banner = null)
@@ -625,6 +637,22 @@ class TerminalActivity : Activity() {
         runOnUiThread { statusText?.let { it.text = text; it.visibility = View.VISIBLE } }
     }
 
+    private fun startTerminalKeepAlive() {
+        val intent = Intent(this, TerminalKeepAliveService::class.java)
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent)
+            else startService(intent)
+        }.onFailure { Log.e(TAG, "No se pudo iniciar el servicio de terminal", it) }
+    }
+
+    private fun requestTerminalNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQ_NOTIFICATIONS)
+        }
+    }
+
     /** Storage once, never again (sharedPrefs gate) — replaces the old every-entry panel banner. */
     private fun requestStorageOnce() {
         val prefs = getSharedPreferences("terminal", Context.MODE_PRIVATE)
@@ -649,6 +677,7 @@ class TerminalActivity : Activity() {
     companion object {
         private const val TAG = "TerminalActivity"
         private const val REQ_STORAGE = 42
+        private const val REQ_NOTIFICATIONS = 43
         private const val MOD_CTRL = "\u0000mod-ctrl"
         private const val MOD_ALT = "\u0000mod-alt"
         private const val MOD_COPY = "\u0000mod-copy"
