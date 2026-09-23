@@ -2488,9 +2488,13 @@ public final class TerminalEmulator {
         // Then: Implement bracketed paste mode if enabled:
         boolean bracketed = isDecsetInternalBitSet(DECSET_BIT_BRACKETED_PASTE_MODE);
         if (bracketed) mSession.write("\033[200~");
-        // TerminalSession stages these chunks for a background dispatcher. This keeps clipboard
-        // pastes responsive even when the PTY and the AI CLI are temporarily busy.
-        mSession.writeInChunks(text, PASTE_CHUNK_SIZE);
+        // TerminalSession stages these chunks for a background dispatcher. Keep the generic
+        // TerminalOutput fallback for emulator tests and alternate terminal clients.
+        if (mSession instanceof TerminalSession) {
+            ((TerminalSession) mSession).writeInChunks(text, PASTE_CHUNK_SIZE);
+        } else {
+            mSession.write(text);
+        }
         if (bracketed) mSession.write("\033[201~");
     }
 
