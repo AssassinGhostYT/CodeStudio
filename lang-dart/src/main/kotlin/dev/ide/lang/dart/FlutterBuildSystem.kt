@@ -244,7 +244,8 @@ class FlutterBuildSystem(
     /** Locate the `flutter` binary: the FLUTTER_BIN env var, then the PATH, then common Android/Termux paths. */
     private fun findFlutter(): File? {
         System.getenv("FLUTTER_BIN")?.let {
-            val f = File(it)
+            val configured = File(it)
+            val f = if (configured.isDirectory) File(configured, "flutter") else configured
             if (f.canExecute()) return f
         }
         System.getenv("PATH")?.split(File.pathSeparator)?.forEach {
