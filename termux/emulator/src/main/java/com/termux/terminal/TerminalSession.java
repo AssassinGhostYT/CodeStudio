@@ -15,9 +15,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * A terminal session, consisting of a process coupled to a terminal interface.
@@ -49,12 +49,12 @@ public final class TerminalSession extends TerminalOutput {
      * writing to the {@link #mTerminalFileDescriptor}.
      */
     final ByteQueue mTerminalToProcessIOQueue = new ByteQueue(4096);
-    /**
-     * Input submitted by the UI is staged here so a large paste never blocks the main thread while
-     * the fixed-size PTY queue drains. A single dispatcher preserves the exact order of keystrokes
-     * and paste chunks before handing them to the existing writer thread.
-     */
-    private final BlockingQueue<byte[]> mPendingInputQueue = new LinkedBlockingQueue<>();
+    /** Serializes keyboard input and paste work without ever blocking the UI thread. */
+    private final ExecutorService mInputExecutor = Executors.newSingleThreadExecutor(runnable -> {
+        Thread thread = new Thread(runnable, "TermSessionInputDispatcher");
+        thread.setDaemon(true);
+        return thread;
+    });
     /** Buffer to write translate code points into utf8 before writing to mTerminalToProcessIOQueue */
     private final byte[] mUtf8InputBuffer = new byte[5];
 
@@ -171,20 +171,6 @@ public final class TerminalSession extends TerminalOutput {
             }
         }.start();
 
-        new Thread("TermSessionInputDispatcher[pid=" + mShellPid + "]") {
-            @Override
-            public void run() {
-                try {
-                    while (true) {
-                        byte[] data = mPendingInputQueue.take();
-                        if (!mTerminalToProcessIOQueue.write(data, 0, data.length)) return;
-                    }
-                } catch (InterruptedException ignored) {
-                    // Session is shutting down.
-                }
-            }
-        }.start();
-
         new Thread("TermSessionWaiter[pid=" + mShellPid + "]") {
             @Override
             public void run() {
@@ -202,16 +188,48 @@ public final class TerminalSession extends TerminalOutput {
             // Copy before enqueueing: callers such as writeCodePoint() reuse their small input buffer.
             byte[] copy = new byte[count];
             System.arraycopy(data, offset, copy, 0, count);
-            mPendingInputQueue.offer(copy);
+            mInputExecutor.execute(() -> writeToProcess(copy));
         }
     }
 
-    /** Enqueue a large text input in small UTF-8 chunks without blocking the caller. */
-    void writeInChunks(String data, int chunkSize) {
-        if (data == null || data.isEmpty() || chunkSize <= 0) return;
-        for (int start = 0; start < data.length(); start += chunkSize) {
-            int end = Math.min(start + chunkSize, data.length());
-            write(data.substring(start, end));
+    /** Process a clipboard paste away from the UI, keeping only one small UTF-8 block at a time. */
+    void pasteAsync(String text, boolean bracketed) {
+        if (text == null || text.isEmpty()) return;
+        mInputExecutor.execute(() -> {
+            if (bracketed) writeToProcess("\033[200~");
+
+            StringBuilder block = new StringBuilder(8192);
+            for (int i = 0; i < text.length(); i++) {
+                char value = text.charAt(i);
+                // Match the terminal's existing paste rules without creating a second full-size String.
+                if (value == '\u001B' || (value >= '\u0080' && value <= '\u009F')) continue;
+                if (value == '\r') {
+                    if (i + 1 < text.length() && text.charAt(i + 1) == '\n') i++;
+                    value = '\r';
+                } else if (value == '\n') {
+                    value = '\r';
+                }
+                block.append(value);
+
+                // Do not split a UTF-16 surrogate pair between two UTF-8 conversions.
+                if (block.length() >= 8192 && !Character.isHighSurrogate(block.charAt(block.length() - 1))) {
+                    writeToProcess(block.toString());
+                    block.setLength(0);
+                }
+            }
+            if (block.length() > 0) writeToProcess(block.toString());
+            if (bracketed) writeToProcess("\033[201~");
+        });
+    }
+
+    private void writeToProcess(String data) {
+        if (data == null || data.isEmpty() || mShellPid <= 0) return;
+        writeToProcess(data.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private void writeToProcess(byte[] data) {
+        if (data.length > 0 && mShellPid > 0) {
+            mTerminalToProcessIOQueue.write(data, 0, data.length);
         }
     }
 
@@ -286,9 +304,9 @@ public final class TerminalSession extends TerminalOutput {
         }
 
         // Stop the reader and writer threads, and close the I/O streams
-        mPendingInputQueue.clear();
         mTerminalToProcessIOQueue.close();
         mProcessToTerminalIOQueue.close();
+        mInputExecutor.shutdownNow();
         JNI.close(mTerminalFileDescriptor);
     }
 
