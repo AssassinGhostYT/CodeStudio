@@ -58,6 +58,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -1573,19 +1575,40 @@ private fun RepoRow(
 @Composable
 private fun DeviceFlowDialog(flow: GitHubDeviceFlow?, onDismiss: () -> Unit, onOpen: (String) -> Unit) {
     if (flow == null) return
+    val clipboard = LocalClipboardManager.current
+    var copied by remember(flow.userCode) { mutableStateOf(false) }
     DialogShell("Conectar con GitHub", onDismiss) {
         Text(
             "Ingresa este código en github.com/login/device dentro de tu navegador:",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Text(
-            flow.userCode,
-            style = MaterialTheme.typography.headlineMedium,
-            fontFamily = FontFamily.Monospace,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(top = 10.dp),
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                flow.userCode,
+                style = MaterialTheme.typography.headlineMedium,
+                fontFamily = FontFamily.Monospace,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.weight(1f),
+            )
+            IconButton(
+                onClick = {
+                    clipboard.setText(AnnotatedString(flow.userCode))
+                    copied = true
+                },
+                modifier = Modifier.size(40.dp),
+            ) {
+                Icon(
+                    if (copied) CaIcons.check else CaIcons.copy,
+                    contentDescription = if (copied) "Código copiado" else "Copiar código",
+                    tint = if (copied) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
         Surface(
             shape = RoundedCornerShape(12.dp),
             color = MaterialTheme.colorScheme.primary,

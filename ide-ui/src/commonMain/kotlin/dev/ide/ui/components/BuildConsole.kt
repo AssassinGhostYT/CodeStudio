@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -684,21 +685,19 @@ private fun ProblemsTab(
             )
         } else {
             val groups = remember(shown) { groupByFile(shown) }
-            // Selectable so a problem message / captured snippet can be lifted out by hand; the header's
-            // Copy button grabs the whole set. Row taps still jump to file:line (tap = click, long-press /
-            // drag = select).
-            // Selection is scoped PER ROW (each item wraps its own SelectionContainer) rather than one
-            // container around the LazyColumn: a selected row that scrolls out of view is disposed and
-            // unregistered, after which the outer SelectionManager dereferences its stale selectable id and
-            // throws NoSuchElementException in getSelectionLayout (a top on-device crash). Per-item selection
-            // ties the selectable to the item's own composition lifecycle, so there is never a stale id.
-            LazyColumn(
-                Modifier.weight(1f).fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                for ((file, items) in groups) {
-                    if (file.isNotEmpty()) item { SelectionContainer { ProblemFileHeader(file, items.size) } }
-                    items(items) { d -> SelectionContainer { ProblemRow(d, indented = file.isNotEmpty(), onOpen) } }
+            // Keep one selection container for the complete problems surface. This lets users drag from
+            // one compiler error into the next one and copy several errors at once. Problems are normally
+            // a small diagnostic list, so a regular scroll column also keeps every selectable paragraph
+            // alive (a LazyColumn would unregister off-screen paragraphs during a cross-row selection).
+            SelectionContainer {
+                Column(
+                    Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    for ((file, items) in groups) {
+                        if (file.isNotEmpty()) ProblemFileHeader(file, items.size)
+                        items.forEach { d -> ProblemRow(d, indented = file.isNotEmpty(), onOpen) }
+                    }
                 }
             }
         }
