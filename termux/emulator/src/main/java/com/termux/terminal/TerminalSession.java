@@ -44,13 +44,8 @@ public final class TerminalSession extends TerminalOutput {
      * terminal emulator.
      */
     final ByteQueue mProcessToTerminalIOQueue = new ByteQueue(4096);
-    /**
-     * A queue written to from the main thread due to user interaction, and read by another thread which forwards by
-     * writing to the {@link #mTerminalFileDescriptor}.
-     */
-    // A larger input window lets normal error reports enter the PTY in one write while the
-    // background dispatcher still provides back-pressure for unbounded pastes.
-    final ByteQueue mTerminalToProcessIOQueue = new ByteQueue(256 * 1024);
+    /** Direct PTY input stream owned by the serialized background input executor. */
+    private FileOutputStream mTerminalInputStream;
     /** Serializes keyboard input and paste work without ever blocking the UI thread. */
     private final ExecutorService mInputExecutor = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "TermSessionInputDispatcher");
@@ -136,9 +131,13 @@ public final class TerminalSession extends TerminalOutput {
         int[] processId = new int[1];
         mTerminalFileDescriptor = JNI.createSubprocess(mShellPath, mCwd, mArgs, mEnv, processId, rows, columns);
         mShellPid = processId[0];
-        mClient.setTerminalShellPid(this, mShellPid);
-
         final FileDescriptor terminalFileDescriptorWrapped = wrapFileDescriptor(mTerminalFileDescriptor, mClient);
+        try {
+            mTerminalInputStream = new FileOutputStream(terminalFileDescriptorWrapped);
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to open terminal input", e);
+        }
+        mClient.setTerminalShellPid(this, mShellPid);
 
         new Thread("TermSessionInputReader[pid=" + mShellPid + "]") {
             @Override
@@ -153,22 +152,6 @@ public final class TerminalSession extends TerminalOutput {
                     }
                 } catch (Exception e) {
                     // Ignore, just shutting down.
-                }
-            }
-        }.start();
-
-        new Thread("TermSessionOutputWriter[pid=" + mShellPid + "]") {
-            @Override
-            public void run() {
-                final byte[] buffer = new byte[4096];
-                try (FileOutputStream termOut = new FileOutputStream(terminalFileDescriptorWrapped)) {
-                    while (true) {
-                        int bytesToWrite = mTerminalToProcessIOQueue.read(buffer, true);
-                        if (bytesToWrite == -1) return;
-                        termOut.write(buffer, 0, bytesToWrite);
-                    }
-                } catch (IOException e) {
-                    // Ignore.
                 }
             }
         }.start();
@@ -230,8 +213,16 @@ public final class TerminalSession extends TerminalOutput {
     }
 
     private void writeToProcess(byte[] data) {
-        if (data.length > 0 && mShellPid > 0) {
-            mTerminalToProcessIOQueue.write(data, 0, data.length);
+        FileOutputStream output = mTerminalInputStream;
+        if (data.length > 0 && mShellPid > 0 && output != null) {
+            try {
+                // One FileOutputStream.write() call lets the PTY receive each paste batch together;
+                // if the PTY back-pressures, only this worker waits, never the UI thread.
+                output.write(data);
+                output.flush();
+            } catch (IOException ignored) {
+                // The shell is shutting down.
+            }
         }
     }
 
@@ -306,7 +297,11 @@ public final class TerminalSession extends TerminalOutput {
         }
 
         // Stop the reader and writer threads, and close the I/O streams
-        mTerminalToProcessIOQueue.close();
+        FileOutputStream output = mTerminalInputStream;
+        mTerminalInputStream = null;
+        if (output != null) {
+            try { output.close(); } catch (IOException ignored) { }
+        }
         mProcessToTerminalIOQueue.close();
         mInputExecutor.shutdownNow();
         JNI.close(mTerminalFileDescriptor);
