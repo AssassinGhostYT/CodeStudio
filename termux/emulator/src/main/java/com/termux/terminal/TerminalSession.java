@@ -48,7 +48,9 @@ public final class TerminalSession extends TerminalOutput {
      * A queue written to from the main thread due to user interaction, and read by another thread which forwards by
      * writing to the {@link #mTerminalFileDescriptor}.
      */
-    final ByteQueue mTerminalToProcessIOQueue = new ByteQueue(4096);
+    // A larger input window lets normal error reports enter the PTY in one write while the
+    // background dispatcher still provides back-pressure for unbounded pastes.
+    final ByteQueue mTerminalToProcessIOQueue = new ByteQueue(256 * 1024);
     /** Serializes keyboard input and paste work without ever blocking the UI thread. */
     private final ExecutorService mInputExecutor = Executors.newSingleThreadExecutor(runnable -> {
         Thread thread = new Thread(runnable, "TermSessionInputDispatcher");
@@ -198,7 +200,7 @@ public final class TerminalSession extends TerminalOutput {
         mInputExecutor.execute(() -> {
             if (bracketed) writeToProcess("\033[200~");
 
-            StringBuilder block = new StringBuilder(8192);
+            StringBuilder block = new StringBuilder(256 * 1024);
             for (int i = 0; i < text.length(); i++) {
                 char value = text.charAt(i);
                 // Match the terminal's existing paste rules without creating a second full-size String.
@@ -212,7 +214,7 @@ public final class TerminalSession extends TerminalOutput {
                 block.append(value);
 
                 // Do not split a UTF-16 surrogate pair between two UTF-8 conversions.
-                if (block.length() >= 8192 && !Character.isHighSurrogate(block.charAt(block.length() - 1))) {
+                if (block.length() >= 256 * 1024 && !Character.isHighSurrogate(block.charAt(block.length() - 1))) {
                     writeToProcess(block.toString());
                     block.setLength(0);
                 }
