@@ -132,11 +132,9 @@ public final class TerminalSession extends TerminalOutput {
         mTerminalFileDescriptor = JNI.createSubprocess(mShellPath, mCwd, mArgs, mEnv, processId, rows, columns);
         mShellPid = processId[0];
         final FileDescriptor terminalFileDescriptorWrapped = wrapFileDescriptor(mTerminalFileDescriptor, mClient);
-        try {
-            mTerminalInputStream = new FileOutputStream(terminalFileDescriptorWrapped);
-        } catch (IOException e) {
-            throw new IllegalStateException("Unable to open terminal input", e);
-        }
+        // FileOutputStream(FileDescriptor) does not throw IOException; the descriptor was already
+        // created by JNI.createSubprocess above.
+        mTerminalInputStream = new FileOutputStream(terminalFileDescriptorWrapped);
         mClient.setTerminalShellPid(this, mShellPid);
 
         new Thread("TermSessionInputReader[pid=" + mShellPid + "]") {
