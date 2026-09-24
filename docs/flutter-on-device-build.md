@@ -170,8 +170,9 @@ Summary of the split:
 
 | Concern | Where | Status |
 |---|---|---|
-| Dart SDK auto-download (debug toolchain) | `:lang-dart` `FlutterSdkManager` | ✅ done (commit `6162f8c`) |
-| `dart-console` runs via managed `dart` | `:lang-dart` `FlutterBuildSystem` | ✅ done |
+| Dart SDK auto-download (debug toolchain) | `:lang-dart` `FlutterSdkManager` | ✅ done |
+| `dart-console` dependencies, run, test, analyze, compile | `:lang-dart` `FlutterBuildSystem` | ✅ done |
+| Flutter CLI dependency bootstrap + APK/AAB Runner tasks | `:lang-dart` `FlutterBuildSystem` | ✅ done when a Flutter SDK is available |
 | Engine `libflutter.so` bundled per ABI | `ide-android/build.gradle.kts` (fetch + jniLibs) | 🔲 maintainer task (this doc) |
 | Debug/JIT Flutter run host | `:lang-dart` + engine embedding | 🔲 next |
 | Release AOT `app.so` on-device | toolchain (Dart AOT) + `AndroidBuildSystem` | 🔲 hardest / last |
