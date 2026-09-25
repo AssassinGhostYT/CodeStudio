@@ -174,7 +174,10 @@ object FlutterAppTemplate : ProjectTemplate {
 
     override fun generate(scaffold: ProjectScaffold, args: TemplateArgs) {
         val projectName = args.name
-        val cleanName = projectName.lowercase().replace(Regex("[^a-z0-9_]"), "_")
+        val baseName = projectName.lowercase().replace(Regex("[^a-z0-9_]"), "_")
+        // Dart package names cannot collide with packages declared by the Flutter template.
+        val reservedNames = setOf("flutter", "flutter_test", "flutter_lints", "cupertino_icons")
+        val cleanName = if (baseName in reservedNames) "${baseName}_app" else baseName
         val pkg = args.packageName
 
         scaffold.workspace.beginModification().apply {

@@ -70,6 +70,12 @@ object FlutterAndroidHost {
                 sed -i 's/android:name="io\.flutter\.app\.FlutterApplication"/android:name="${'$'}{applicationName}"/g' "${'$'}manifest"
               fi
             done
+            # A project named "flutter" conflicts with Flutter's own SDK dependency in pubspec.yaml.
+            if [ -f pubspec.yaml ] && grep -q '^name: flutter[[:space:]]*$' pubspec.yaml; then
+              echo 'Renombrando el paquete Flutter reservado a flutter_app…'
+              sed -i 's/^name: flutter[[:space:]]*$/name: flutter_app/' pubspec.yaml
+              find test -type f -name '*.dart' -exec sed -i 's/package:flutter\/main\.dart/package:flutter_app\/main.dart/g' {} + 2>/dev/null || true
+            fi
             find . -path '*/android/app/src/main/*' -type f \( -name '*.kt' -o -name '*.java' \) -print0 2>/dev/null | while IFS= read -r -d '' source; do
               if grep -q 'io.flutter.app.' "${'$'}source"; then
                 echo "Actualizando API Flutter v1: ${'$'}source"
