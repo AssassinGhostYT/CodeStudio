@@ -484,6 +484,7 @@ class BuildDaemonService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        FlutterAndroidHost.install(applicationContext)
         log.info("daemon(pid=${Process.myPid()}): service created in :build process")
         // The engine's ApkInstaller runs in THIS process; after an install it asks the bridge to launch the
         // app in the UI process (where a foreground activity makes the launch legal). Forward over the live

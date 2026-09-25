@@ -46,6 +46,10 @@ object AndroidIde {
     fun bootstrap(context: Context): Session {
         val startNs = System.nanoTime()
 
+        // Flutter builds run through the Ubuntu/proot host; install the bridge before either in-process or
+        // isolated builds can realize a Flutter task graph.
+        FlutterAndroidHost.install(context)
+
         // Pin the process word-size BEFORE any engine is created. On a 32-bit ARM process the engine collapses
         // background index concurrency to stop provoking the 32-bit-ART torn-reference SIGSEGV (see RuntimeInfo).
         // `android.os.Process.is64Bit()` reports THIS process, not merely device capability (API 23+; minSdk 26).

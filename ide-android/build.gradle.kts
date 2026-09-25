@@ -372,8 +372,8 @@ android {
         targetSdk = 36
         // versionCode must exceed the last published release (the previous-codebase app reached ~29).
         // Play requires a higher code for the 16 KB native-library rebuild.
-        versionCode = 98
-        versionName = "4.1.7"
+        versionCode = 99
+        versionName = "4.1.8"
         // connectedAndroidTest harness (the on-device Kotlin-compiler discovery spike).
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -899,6 +899,8 @@ dependencies {
         exclude(group = "org.eclipse.platform", module = "org.eclipse.core.runtime")
         exclude(group = "org.eclipse.platform", module = "org.eclipse.equinox.common")
     }
+    // Direct access to the Dart/Flutter host bridge used by the Android Ubuntu/proot runner.
+    implementation(project(":lang-dart"))
     // Excluding core.runtime above also drops org.eclipse.core.contenttype (it reaches the graph only
     // through core.runtime). JDT's public DOM / JavaCore.getOptions() path references IContentTypeManager
     // at class-load time, so without it analysis throws NoClassDefFoundError on-device. It is a plain jar

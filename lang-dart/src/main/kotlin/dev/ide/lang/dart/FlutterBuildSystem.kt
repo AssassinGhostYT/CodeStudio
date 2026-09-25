@@ -199,6 +199,10 @@ class FlutterBuildSystem(
         }
         override suspend fun execute(ctx: TaskContext): TaskResult {
             val log = ctx.logger()
+            if (module.type.id == "flutter-app") FlutterHostRunner.runner?.let { host ->
+                val code = host(workspacePath, workingDir, module.type.id == "flutter-app", args, log)
+                return if (code == 0) TaskResult.Success else TaskResult.Failed("Exit code $code")
+            }
             val tool = resolveTool(module, workspacePath, log) ?: return TaskResult.Failed(
                 if (module.type.id == "dart-console") dartMissingMessage() else flutterMissingMessage()
             )
