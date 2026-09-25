@@ -61,10 +61,22 @@ object FlutterAndroidHost {
             fi
             cd $cwd
             # Migrate projects created by older CodeStudio templates from Flutter embedding v1.
-            if [ -f android/app/src/main/AndroidManifest.xml ] && grep -q 'io.flutter.app.android.SplashScreenUntilFirstFrame' android/app/src/main/AndroidManifest.xml; then
-              echo 'Actualizando el proyecto Flutter al embedding moderno…'
-              sed -i '/io.flutter.app.android.SplashScreenUntilFirstFrame/{N;d;}' android/app/src/main/AndroidManifest.xml
-            fi
+            # Search all Android manifests because imported projects can use a different module layout.
+            find . -path '*/android/app/src/main/AndroidManifest.xml' -type f -print0 2>/dev/null | while IFS= read -r -d '' manifest; do
+              if grep -qE 'io\.flutter\.app\.(android\.)?(SplashScreenUntilFirstFrame|FlutterActivity|FlutterApplication)' "$manifest"; then
+                echo "Actualizando embedding Flutter: $manifest"
+                sed -i '/io\.flutter\.app\.android\.SplashScreenUntilFirstFrame/{N;d;}' "$manifest"
+                sed -i 's/io\.flutter\.app\.FlutterActivity/io.flutter.embedding.android.FlutterActivity/g' "$manifest"
+                sed -i '/io\.flutter\.app\.FlutterApplication/d' "$manifest"
+              fi
+            done
+            find . -path '*/android/app/src/main/*' -type f \( -name '*.kt' -o -name '*.java' \) -print0 2>/dev/null | while IFS= read -r -d '' source; do
+              if grep -q 'io.flutter.app.' "$source"; then
+                echo "Actualizando API Flutter v1: $source"
+                sed -i 's/io\.flutter\.app\.FlutterActivity/io.flutter.embedding.android.FlutterActivity/g' "$source"
+                sed -i '/import io\.flutter\.app\.FlutterApplication/d' "$source"
+              fi
+            done
             $flutter $commandArgs
         """.trimIndent()
     }
