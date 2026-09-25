@@ -180,6 +180,7 @@ object FlutterAndroidHost {
                 rm -rf /tmp/cs-cmdline-tools /tmp/cs-cmdline-tools.zip
                 curl -fsSL --retry 3 -o /tmp/cs-cmdline-tools.zip '$CMDLINE_TOOLS_URL'
                 unzip -q -o /tmp/cs-cmdline-tools.zip -d /tmp/cs-cmdline-tools
+                mkdir -p "${'$'}ANDROID_SDK_PATH/cmdline-tools"
                 rm -rf "${'$'}ANDROID_SDK_PATH/cmdline-tools/latest"
                 mv /tmp/cs-cmdline-tools/cmdline-tools "${'$'}ANDROID_SDK_PATH/cmdline-tools/latest"
                 rm -f /tmp/cs-cmdline-tools.zip
