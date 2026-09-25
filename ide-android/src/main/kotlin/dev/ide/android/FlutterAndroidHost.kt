@@ -62,12 +62,12 @@ object FlutterAndroidHost {
             cd $cwd
             # Migrate projects created by older CodeStudio templates from Flutter embedding v1.
             # Search all Android manifests because imported projects can use a different module layout.
-            find . -path '*/android/app/src/main/AndroidManifest.xml' -type f -print0 2>/dev/null | while IFS= read -r -d '' manifest; do
+            find ./android -name 'AndroidManifest.xml' -type f -print0 2>/dev/null | while IFS= read -r -d '' manifest; do
               if grep -qE 'io\.flutter\.app\.(android\.)?(SplashScreenUntilFirstFrame|FlutterActivity|FlutterApplication)' "${'$'}manifest"; then
                 echo "Actualizando embedding Flutter: ${'$'}manifest"
                 sed -i '/io\.flutter\.app\.android\.SplashScreenUntilFirstFrame/{N;d;}' "${'$'}manifest"
                 sed -i 's/io\.flutter\.app\.FlutterActivity/io.flutter.embedding.android.FlutterActivity/g' "${'$'}manifest"
-                sed -i '/io\.flutter\.app\.FlutterApplication/d' "${'$'}manifest"
+                sed -i 's/android:name="io\.flutter\.app\.FlutterApplication"/android:name="${'$'}{applicationName}"/g' "${'$'}manifest"
               fi
             done
             find . -path '*/android/app/src/main/*' -type f \( -name '*.kt' -o -name '*.java' \) -print0 2>/dev/null | while IFS= read -r -d '' source; do
