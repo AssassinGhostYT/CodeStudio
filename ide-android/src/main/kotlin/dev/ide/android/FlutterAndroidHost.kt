@@ -110,6 +110,12 @@ object FlutterAndroidHost {
                 exit 1
               fi
             done
+            # Let Flutter repair any legacy Android project layout that the manifest pass could not classify.
+            main_manifest=./android/app/src/main/AndroidManifest.xml
+            if [ -f "${'$'}main_manifest" ] && ! grep -qE 'android:name="flutterEmbedding"[^>]*android:value="2"' "${'$'}main_manifest"; then
+              echo 'Migrando la estructura Android del proyecto Flutter…'
+              $flutter create --platforms=android --no-pub .
+            fi
             # A project named "flutter" conflicts with Flutter's own SDK dependency in pubspec.yaml.
             if [ -f pubspec.yaml ] && grep -q '^name: flutter[[:space:]]*$' pubspec.yaml; then
               echo 'Renombrando el paquete Flutter reservado a flutter_app…'
