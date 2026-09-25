@@ -56,7 +56,21 @@ object FlutterAndroidHost {
             $flutter config --android-sdk $sdk
             if [ ! -f /root/flutter/.codestudio-android-precache ]; then
               echo 'Descargando Flutter Engine para Android…'
-              $flutter precache --android
+              precache_ok=false
+              for attempt in 1 2 3; do
+                if $flutter precache --android; then
+                  precache_ok=true
+                  break
+                fi
+                if [ "${'$'}attempt" -lt 3 ]; then
+                  echo "Reintentando descarga del Engine (intento ${'$'}attempt/3)…"
+                  sleep 3
+                fi
+              done
+              if [ "${'$'}precache_ok" != true ]; then
+                echo 'No se pudo descargar el Flutter Engine después de 3 intentos.' >&2
+                exit 1
+              fi
               touch /root/flutter/.codestudio-android-precache
             fi
             cd $cwd

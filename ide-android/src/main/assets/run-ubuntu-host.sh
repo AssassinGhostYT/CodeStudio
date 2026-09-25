@@ -47,9 +47,17 @@ export HOME=/root
 # Android's /etc is read-only. Keep DNS in the app-private prefix and bind it into Ubuntu.
 RESOLV_CONF="$PREFIX/local/resolv.conf"
 mkdir -p "$PREFIX/local"
-if [ ! -s "$RESOLV_CONF" ]; then
-    printf '%s\n' "nameserver 8.8.8.8" "nameserver 1.1.1.1" > "$RESOLV_CONF"
-fi
+# Prefer the DNS servers supplied by the Android network before public fallbacks.
+{
+  for dns_key in net.dns1 net.dns2 net.dns3 net.dns4; do
+    dns_value=$(getprop "$dns_key" 2>/dev/null || true)
+    case "$dns_value" in
+      ''|0.0.0.0|::) ;;
+      *) printf 'nameserver %s\n' "$dns_value" ;;
+    esac
+  done
+  printf '%s\n' "nameserver 8.8.8.8" "nameserver 1.1.1.1"
+} > "$RESOLV_CONF"
 ARGS="$ARGS -b $RESOLV_CONF:/etc/resolv.conf"
 
 if [ ! -d "$PREFIX/local/ubuntu/tmp" ]; then
