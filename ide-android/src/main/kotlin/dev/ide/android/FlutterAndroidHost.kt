@@ -69,6 +69,11 @@ object FlutterAndroidHost {
                 sed -i 's/io\.flutter\.app\.FlutterActivity/io.flutter.embedding.android.FlutterActivity/g' "${'$'}manifest"
                 sed -i 's/android:name="io\.flutter\.app\.FlutterApplication"/android:name="${'$'}{applicationName}"/g' "${'$'}manifest"
               fi
+              # Flutter classifies the project as embedding v1 when this marker is absent or set to 1.
+              sed -i 's/android:name="flutterEmbedding" android:value="1"/android:name="flutterEmbedding" android:value="2"/g' "${'$'}manifest"
+              if ! grep -q 'android:name="flutterEmbedding"' "${'$'}manifest"; then
+                sed -i '/<\/application>/i\        <meta-data android:name="flutterEmbedding" android:value="2" />' "${'$'}manifest"
+              fi
             done
             # A project named "flutter" conflicts with Flutter's own SDK dependency in pubspec.yaml.
             if [ -f pubspec.yaml ] && grep -q '^name: flutter[[:space:]]*$' pubspec.yaml; then
