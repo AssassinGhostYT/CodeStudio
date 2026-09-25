@@ -99,9 +99,15 @@ object FlutterAndroidHost {
                 sed -i 's/android:name="io\.flutter\.app\.FlutterApplication"/android:name="${'$'}{applicationName}"/g' "${'$'}manifest"
               fi
               # Flutter classifies the project as embedding v1 when this marker is absent or set to 1.
-              sed -i 's/android:name="flutterEmbedding" android:value="1"/android:name="flutterEmbedding" android:value="2"/g' "${'$'}manifest"
+              # Accept the spacing and self-closing variations produced by older templates.
+              sed -E -i 's/(android:name="flutterEmbedding"[^>]*android:value=")1("|\x27)/\12\2/g' "${'$'}manifest"
+              sed -i "s/android:name='flutterEmbedding' android:value='1'/android:name='flutterEmbedding' android:value='2'/g" "${'$'}manifest"
               if ! grep -q 'android:name="flutterEmbedding"' "${'$'}manifest"; then
                 sed -i '/<\/application>/i\        <meta-data android:name="flutterEmbedding" android:value="2" />' "${'$'}manifest"
+              fi
+              if grep -qE 'android:name="flutterEmbedding"[^>]*android:value="1"|android:name=\x27flutterEmbedding\x27[^>]*android:value=\x271\x27' "${'$'}manifest"; then
+                echo "No se pudo actualizar el embedding Flutter: ${'$'}manifest" >&2
+                exit 1
               fi
             done
             # A project named "flutter" conflicts with Flutter's own SDK dependency in pubspec.yaml.
