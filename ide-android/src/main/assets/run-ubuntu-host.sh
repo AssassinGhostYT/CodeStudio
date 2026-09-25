@@ -44,9 +44,13 @@ fi
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export HOME=/root
 
-if [ ! -s /etc/resolv.conf ]; then
-    echo "nameserver 8.8.8.8" > /etc/resolv.conf
+# Android's /etc is read-only. Keep DNS in the app-private prefix and bind it into Ubuntu.
+RESOLV_CONF="$PREFIX/local/resolv.conf"
+mkdir -p "$PREFIX/local"
+if [ ! -s "$RESOLV_CONF" ]; then
+    printf '%s\n' "nameserver 8.8.8.8" "nameserver 1.1.1.1" > "$RESOLV_CONF"
 fi
+ARGS="$ARGS -b $RESOLV_CONF:/etc/resolv.conf"
 
 if [ ! -d "$PREFIX/local/ubuntu/tmp" ]; then
  mkdir -p "$PREFIX/local/ubuntu/tmp"

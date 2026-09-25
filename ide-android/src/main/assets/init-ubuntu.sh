@@ -14,7 +14,7 @@ export HOME=/root
 export PATH="$HOME/.opencode/bin:$PATH"
 
 if [ ! -s /etc/resolv.conf ]; then
-    echo "nameserver 8.8.8.8" > /etc/resolv.conf
+    printf '%s\n' "nameserver 8.8.8.8" "nameserver 1.1.1.1" > /etc/resolv.conf 2>/dev/null || true
 fi
 
 export DEBIAN_FRONTEND=noninteractive
