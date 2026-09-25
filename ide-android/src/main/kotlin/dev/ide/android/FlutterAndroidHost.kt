@@ -50,7 +50,22 @@ object FlutterAndroidHost {
               echo 'Descargando Flutter SDK dentro de Ubuntu…'
               apt-get update
               DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates git curl xz-utils unzip zip
-              git clone --depth 1 --branch stable https://github.com/flutter/flutter.git /root/flutter
+              clone_ok=false
+              for attempt in 1 2 3; do
+                rm -rf /root/flutter
+                if git -c http.version=HTTP/1.1 clone --depth 1 --single-branch --branch stable https://github.com/flutter/flutter.git /root/flutter; then
+                  clone_ok=true
+                  break
+                fi
+                if [ "${'$'}attempt" -lt 3 ]; then
+                  echo "Reintentando descarga del Flutter SDK (intento ${'$'}attempt/3)…"
+                  sleep 3
+                fi
+              done
+              if [ "${'$'}clone_ok" != true ]; then
+                echo 'No se pudo descargar el Flutter SDK después de 3 intentos.' >&2
+                exit 1
+              fi
               $flutter config --no-analytics
             fi
             $flutter config --android-sdk $sdk
