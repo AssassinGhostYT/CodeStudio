@@ -15,6 +15,7 @@ import android.os.Looper
 import android.os.Process
 import dev.ide.android.AndroidIde
 import dev.ide.android.AppLogSinkRegistry
+import dev.ide.android.FlutterAndroidHost
 import dev.ide.android.support.AndroidSupport
 import dev.ide.core.AppLogLevel
 import dev.ide.core.IdeServices
