@@ -60,6 +60,11 @@ object FlutterAndroidHost {
               touch /root/flutter/.codestudio-android-precache
             fi
             cd $cwd
+            # Migrate projects created by older CodeStudio templates from Flutter embedding v1.
+            if [ -f android/app/src/main/AndroidManifest.xml ] && grep -q 'io.flutter.app.android.SplashScreenUntilFirstFrame' android/app/src/main/AndroidManifest.xml; then
+              echo 'Actualizando el proyecto Flutter al embedding moderno…'
+              sed -i '/io.flutter.app.android.SplashScreenUntilFirstFrame/{N;d;}' android/app/src/main/AndroidManifest.xml
+            fi
             $flutter $commandArgs
         """.trimIndent()
     }

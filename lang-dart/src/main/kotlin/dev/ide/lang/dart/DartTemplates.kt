@@ -383,9 +383,6 @@ object FlutterAppTemplate : ProjectTemplate {
                         android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
                         android:hardwareAccelerated="true"
                         android:windowSoftInputMode="adjustResize">
-                        <meta-data
-                          android:name="io.flutter.app.android.SplashScreenUntilFirstFrame"
-                          android:value="true" />
                         <intent-filter>
                             <action android:name="android.intent.action.MAIN"/>
                             <category android:name="android.intent.category.LAUNCHER"/>
@@ -425,7 +422,6 @@ object FlutterAppTemplate : ProjectTemplate {
             "$cleanName/android/app/proguard-rules.pro",
             """
             # Flutter Wrapper Proguard Rules
-            -keep class io.flutter.app.** { *; }
             -keep class io.flutter.plugin.** { *; }
             -keep class io.flutter.util.** { *; }
             -keep class io.flutter.view.** { *; }
