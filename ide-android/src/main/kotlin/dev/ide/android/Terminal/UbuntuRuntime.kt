@@ -83,6 +83,15 @@ object UbuntuRuntime : TerminalSessionClient, TerminalRuntime {
     private fun ubuntuRootDir() = File(ubuntuDir(), "root").apply { mkdirs() }
     private fun tmpDir() = File(filesDir!!, "tmp").apply { mkdirs() }
 
+    /**
+     * A directory under `$PREFIX/local` for a toolchain the guest needs (the Android SDK Gradle builds against,
+     * a downloaded JDK, …). `run-ubuntu-host.sh` binds `$PREFIX` at the same path, so the string returned here is
+     * valid BOTH on the host and inside the prefix — callers can hand it straight to a guest command. Keeping it
+     * under `$PREFIX/local` (real app storage) rather than shared external storage is deliberate: Gradle needs
+     * executable bits, symlinks and reliable locking, none of which sdcardfs/FUSE provides.
+     */
+    fun localToolchainDir(name: String): File = File(localDir(), name).apply { mkdirs() }
+
     private fun prootExec() = File(nativeLibDir!!, "libproot.so")
     private fun prootLoader() = File(nativeLibDir!!, "libloader.so")
     private fun prootLoader32() = File(nativeLibDir!!, "libloader32.so").takeIf { it.exists() }

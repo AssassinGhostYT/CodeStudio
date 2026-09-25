@@ -63,20 +63,12 @@ ARGS="$ARGS -b $PREFIX/local/stat:/proc/stat"
 ARGS="$ARGS -b $PREFIX/local/vmstat:/proc/vmstat"
 
 if [ -e "/proc/self/fd" ]; then
-  ARGS="$ARGS -b /proc/self/fd:/dev/fd"
+ ARGS="$ARGS -b /proc/self/fd:/dev/fd"
 fi
 
-if [ -e "/proc/self/fd/0" ]; then
-  ARGS="$ARGS -b /proc/self/fd/0:/dev/stdin"
-fi
+# See run-ubuntu-host.sh: the per-fd /dev/std* binds are dropped on purpose (proot cannot sanitize a pipe/pty
+# source and warned about it on every run). /proc plus /dev/fd already expose fd 0..2 inside the guest.
 
-if [ -e "/proc/self/fd/1" ]; then
-  ARGS="$ARGS -b /proc/self/fd/1:/dev/stdout"
-fi
-
-if [ -e "/proc/self/fd/2" ]; then
-  ARGS="$ARGS -b /proc/self/fd/2:/dev/stderr"
-fi
 
 
 ARGS="$ARGS -b $PREFIX"

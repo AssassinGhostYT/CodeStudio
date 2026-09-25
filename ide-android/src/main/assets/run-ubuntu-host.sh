@@ -26,20 +26,15 @@ ARGS="$ARGS -b $PREFIX/local/stat:/proc/stat"
 ARGS="$ARGS -b $PREFIX/local/vmstat:/proc/vmstat"
 
 if [ -e "/proc/self/fd" ]; then
-  ARGS="$ARGS -b /proc/self/fd:/dev/fd"
+ ARGS="$ARGS -b /proc/self/fd:/dev/fd"
 fi
 
-if [ -e "/proc/self/fd/0" ]; then
-  ARGS="$ARGS -b /proc/self/fd/0:/dev/stdin"
-fi
+# No per-fd binds (/proc/self/fd/N -> /dev/std*): proot re-resolves every source while sanitizing, and a pipe or a
+# pty has no stable path there, so each one failed with
+#   proot warning: can't sanitize binding "/proc/self/fd/0": No such file or directory
+# Nothing is lost by dropping them: /proc is bound above, so the guest still reaches the real descriptors at
+# /proc/self/fd/0..2 (proot inherits them) and at /dev/fd/0..2. Processes read fd 0/1/2 directly, not /dev/stdin.
 
-if [ -e "/proc/self/fd/1" ]; then
-  ARGS="$ARGS -b /proc/self/fd/1:/dev/stdout"
-fi
-
-if [ -e "/proc/self/fd/2" ]; then
-  ARGS="$ARGS -b /proc/self/fd/2:/dev/stderr"
-fi
 
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export HOME=/root
