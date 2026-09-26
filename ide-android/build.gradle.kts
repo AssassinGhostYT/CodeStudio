@@ -63,8 +63,9 @@ val collectApk = tasks.register("collectApk") {
     inputs.file(src)
     outputs.file(dest)
     doLast {
-        val from = src.get().asFile
-        check(from.isFile) { "No se encontró el APK de profile en ${src.get().asFile.parent}" }
+        // src is a Provider<File?>, so get() is already the java.io.File — only `dest` is a RegularFile.
+        val from = src.get() ?: error("No se encontró el APK de profile en outputs/apk/profile")
+        check(from.isFile) { "El APK de profile no es un archivo: $from" }
         val out = dest.get().asFile
         out.parentFile.mkdirs()
         out.writeBytes(from.readBytes())
