@@ -583,12 +583,22 @@ object FlutterAndroidHost {
     private fun extraBinds(workingDir: File, log: (String) -> Unit): String {
         val wrapper = File(workingDir, "android/gradlew")
         if (!wrapper.isFile) return ""
+        dropLegacyGradlewStageDir()
         // Deliberately not gated on wrapper.canExecute(). That predicate has to agree with the `access(X_OK)`
         // proot reports inside the prefix, and when the two disagree the feature silently does nothing: the JVM
         // sees an executable file, so no bind is staged, and the tool's spawn still fails with EACCES/EPERM.
         // Staging costs one ~8 KB copy per build, which is cheaper than a build that cannot start.
         return runCatching {
-            val staged = UbuntuRuntime.localToolchainDir("flutter/gradlew")
+            // `localToolchainDir` answers a question about *directories* — it mkdirs whatever path it is
+            // handed — so the staged executable has to hang off it rather than be it. Treating its return
+            // value as the file is what this used to do, and it fails as EISDIR on every build, because by
+            // the time `outputStream` runs the path is already a directory. The failure is caught and
+            // downgraded to a warning, so the build continued with no executable bind and Gradle then
+            // blamed the project's storage permissions instead.
+            //
+            // Nothing else uses `local/flutter/`; the bundled wrapper assets live on the classpath
+            // (android-support `resources/gradle-wrapper/`), so this directory holds only the staged file.
+            val staged = File(UbuntuRuntime.localToolchainDir("flutter-gradlew"), "gradlew")
             wrapper.inputStream().use { input -> staged.outputStream().use { input.copyTo(it) } }
             staged.setExecutable(true, false)
             if (!staged.canExecute()) {
@@ -603,6 +613,23 @@ object FlutterAndroidHost {
             log("  no se pudo preparar la copia ejecutable: ${it.message}")
             Log.logger(TAG).warn("no se pudo preparar android/gradlew ejecutable", it)
             ""
+        }
+    }
+
+    /**
+     * Remove `local/flutter/gradlew`, the empty directory the old staging code left behind.
+     *
+     * That path was created by `localToolchainDir("flutter/gradlew")` and then written to as a file, so it
+     * could only ever end up as an empty directory: the `outputStream` that would have put anything inside
+     * failed with EISDIR every time. It is therefore ours, it is always empty, and nothing references it
+     * now — but leaving a stray directory in the prefix is the kind of thing that makes the next
+     * diagnosis harder, so it is cleaned up on the way past. Best-effort: if the delete fails the build
+     * must still proceed, since nothing reads the path.
+     */
+    private fun dropLegacyGradlewStageDir() {
+        runCatching {
+            val stale = UbuntuRuntime.localToolchainDir("flutter").resolve("gradlew")
+            if (stale.isDirectory) stale.deleteRecursively()
         }
     }
 }
