@@ -40,19 +40,19 @@ jobs:
           mkdir -p ~/.gradle
           echo "kotlin.incremental=false" >> ~/.gradle/gradle.properties
 
+      # `collectApk` runs assembleProfile and leaves the one installable build at
+      # ide-android/build/apk/CodeStudio.apk — a single flat file instead of the whole
+      # build/outputs/apk/<variant>/ tree, which is what made a download a folder hunt.
       - name: Build profile APK
         run: |
           set -o pipefail
-          ./gradlew :ide-android:assembleProfile --console=plain
-
-      - name: Find APK
-        run: find . -type f -name "*.apk" -print
+          ./gradlew :ide-android:collectApk --console=plain
 
       - name: Validate APK archive and 16 KB alignment
         run: |
           set -euo pipefail
-          apk="$(find . -type f -path '*/build/outputs/apk/profile/*.apk' -print -quit)"
-          test -n "$apk"
+          apk=ide-android/build/apk/CodeStudio.apk
+          test -f "$apk"
           unzip -t "$apk"
           "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 4 "$apk"
 
@@ -60,7 +60,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: codestudio-opencode-profile
-          path: |
-            **/build/outputs/apk/profile/*.apk
+          path: ide-android/build/apk/CodeStudio.apk
           if-no-files-found: error
           compression-level: 0

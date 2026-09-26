@@ -38,7 +38,39 @@ val ecjUnpatched: Configuration by configurations.creating {
     isCanBeConsumed = false
     isCanBeResolved = true
 }
-dependencies { ecjUnpatched(libs.jdt.ecj) { isTransitive = false } }
+
+// The installable build, in one place, under one name.
+//
+// `assembleProfile` writes to build/outputs/apk/profile/<module>-profile.apk, and every other build type
+// (debug, release, minified) adds its own folder beside it, so an APK is only ever found by walking a
+// directory tree whose shape depends on which variants have been built. Anyone downloading the artifact
+// got that whole tree and then had to guess which file was the app. This publishes the one build that is
+// actually installable to a single flat path — build/apk/CodeStudio.apk — which is what the release
+// workflow uploads. Nothing is deleted: the per-variant outputs stay exactly where AGP put them.
+val collectApk = tasks.register("collectApk") {
+    group = "distribution"
+    description = "Copy the installable profile APK to build/apk/CodeStudio.apk."
+    dependsOn("assembleProfile")
+    // With --split-per-abi AGP emits one APK per ABI alongside the universal one; the universal build is
+    // the one to ship, and a stale one must never win the "newest" tie-break below.
+    val abiTags = listOf("armeabi-v7a", "arm64-v8a", "x86_64", "armeabi", "x86")
+    val src = layout.buildDirectory.dir("outputs/apk/profile").map { dir ->
+        dir.asFile
+            .listFiles { f -> f.isFile && f.name.endsWith("-profile.apk") && abiTags.none { f.name.contains(it) } }
+            ?.maxByOrNull { it.lastModified() }
+    }
+    val dest = layout.buildDirectory.file("apk/CodeStudio.apk")
+    inputs.file(src)
+    outputs.file(dest)
+    doLast {
+        val from = src.get().asFile
+        check(from.isFile) { "No se encontró el APK de profile en ${src.get().asFile.parent}" }
+        val out = dest.get().asFile
+        out.parentFile.mkdirs()
+        out.writeBytes(from.readBytes())
+        logger.lifecycle("APK: ${out.absolutePath} (${out.length()} bytes)")
+    }
+}
 
 val relocateEcjForArt = tasks.register<RelocateTypesInJar>("relocateEcjForArt") {
     // Lazy: `elements` resolves the configuration at execution time, not during configuration.
