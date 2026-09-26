@@ -38,6 +38,7 @@ val ecjUnpatched: Configuration by configurations.creating {
     isCanBeConsumed = false
     isCanBeResolved = true
 }
+dependencies { ecjUnpatched(libs.jdt.ecj) { isTransitive = false } }
 
 // The installable build, in one place, under one name.
 //
