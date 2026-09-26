@@ -423,6 +423,35 @@ object FlutterAndroidHost {
               done
             fi
 
+            # ── The Gradle wrapper has to be executable ─────────────────────────────────────────────────
+            # The tool spawns <project>/android/gradlew directly, and a spawn that returns EACCES/EPERM is
+            # reported as the very unhelpful "Flutter failed to run .... Please ensure that the SDK and/or
+            # project is installed in a location that has read/write permissions for the current user" —
+            # which reads like a permissions problem and is not one. Two causes, very different:
+            #   * the mode bit was lost (a zip import, an extraction through the document picker, or a copy
+            #     that did not carry the permission), which is fixable here;
+            #   * the project sits on a mount with noexec, which is not fixable from here and needs the
+            #     project moved to app-internal storage.
+            # Restore the bit, then probe for the second cause so the log says which one it is.
+            if [ "${'$'}NEEDS_ANDROID" = true ] && [ -f android/gradlew ] && [ ! -x android/gradlew ]; then
+              echo 'Restaurando el permiso de ejecucion de android/gradlew'
+              chmod +x android/gradlew
+            fi
+            if [ "${'$'}NEEDS_ANDROID" = true ]; then
+              probe=android/.exec-probe.sh
+              printf '#!/bin/sh\nexit 0\n' > "${'$'}probe"
+              chmod +x "${'$'}probe" 2>/dev/null || true
+              if [ -x "${'$'}probe" ] && ! ./android/.exec-probe.sh 2>/dev/null; then
+                echo "AVISO: el proyecto esta en un sistema de archivos no ejecutable (noexec)." >&2
+                echo "       Android no permite ejecutar android/gradlew desde ahi, y el tool no lo reporta bien." >&2
+                echo "       Mueve el proyecto al almacenamiento interno de la app y vuelve a compilar." >&2
+              elif [ ! -x "${'$'}probe" ]; then
+                echo "AVISO: no se puede marcar un archivo como ejecutable en este proyecto (EPERM)." >&2
+                echo "       Sin el bit de ejecucion, android/gradlew no arranca: revisa los permisos de la carpeta del proyecto." >&2
+              fi
+              rm -f "${'$'}probe"
+            fi
+
             ${'$'}FLUTTER_BIN $commandArgs
             exit ${'$'}?
         """.trimIndent()
