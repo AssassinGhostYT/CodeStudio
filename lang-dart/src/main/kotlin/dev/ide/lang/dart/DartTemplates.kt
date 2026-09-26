@@ -6,6 +6,7 @@ import dev.ide.model.DependencyScope
 import dev.ide.model.FacetTemplate
 import dev.ide.model.ModuleType
 import dev.ide.model.SourceSetTemplate
+import dev.ide.android.support.templates.FlutterGradleScaffold
 import dev.ide.model.template.ProjectScaffold
 import dev.ide.model.template.ProjectTemplate
 import dev.ide.model.template.TemplateArgs
@@ -355,6 +356,15 @@ object FlutterAppTemplate : ProjectTemplate {
 
         // Android files
         val pkgPath = pkg.replace('.', '/')
+        val androidDir = "$cleanName/android"
+        // The Gradle skeleton first: the tool decides which manifest to read by layout, and the layout is
+        // "Gradle" only when android/build.gradle[.kts] exists. Writing the modern manifest without this
+        // classified every project created here as the legacy layout, which then looked for
+        // android/AndroidManifest.xml — a file this template does not write — and a new project was born
+        // looking like v1 embedding. See FlutterGradleScaffold.
+        FlutterGradleScaffold.writeRootFiles(scaffold, androidDir, cleanName)
+        FlutterGradleScaffold.writeAppModule(scaffold, androidDir, pkg)
+
         scaffold.writeText(
             "$cleanName/android/app/src/main/kotlin/$pkgPath/MainActivity.kt",
             """
@@ -398,6 +408,20 @@ object FlutterAppTemplate : ProjectTemplate {
             </manifest>
             """.trimIndent()
         )
+
+        // The debug/profile manifests are what let a debug build reach the Dart VM over the network, and
+        // `flutter run` needs them; the tool's own template writes both.
+        for (variant in listOf("debug", "profile")) {
+            scaffold.writeText(
+                "$cleanName/android/app/src/$variant/AndroidManifest.xml",
+                """
+                <?xml version="1.0" encoding="utf-8"?>
+                <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+                    <uses-permission android:name="android.permission.INTERNET"/>
+                </manifest>
+                """.trimIndent()
+            )
+        }
 
         scaffold.writeText(
             "$cleanName/android/app/src/main/res/values/strings.xml",
