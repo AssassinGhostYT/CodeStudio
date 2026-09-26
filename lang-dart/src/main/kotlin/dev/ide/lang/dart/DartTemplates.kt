@@ -111,11 +111,12 @@ object DartConsoleAppTemplate : ProjectTemplate {
         scaffold.writeText(
             "$cleanName/.gitignore",
             """
-            .dart_tool/
-            .packages
-            build/
-            pubspec.lock
-            """.trimIndent()
+              .dart_tool/
+              .packages
+              build/
+              pubspec.lock
+              .platform/
+              """.trimIndent()
         )
 
         scaffold.writeText(
@@ -247,14 +248,20 @@ object FlutterAppTemplate : ProjectTemplate {
         scaffold.writeText(
             "$cleanName/.gitignore",
             """
-            .dart_tool/
-            .idea/
-            .packages
-            build/
-            ios/Flutter/App.framework
-            ios/Flutter/Flutter.framework
-            android/app/build/
-            """.trimIndent()
+              .dart_tool/
+              .idea/
+              .packages
+              build/
+              ios/Flutter/App.framework
+              ios/Flutter/Flutter.framework
+              android/app/build/
+              .platform/
+              android/.gradle/
+              android/local.properties
+              android/key.properties
+              *.jks
+              *.keystore
+              """.trimIndent()
         )
 
         // Flutter main.dart

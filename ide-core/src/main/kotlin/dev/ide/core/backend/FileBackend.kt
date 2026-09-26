@@ -201,13 +201,18 @@ internal class FileBackend(private val ctx: BackendContext) : FileService {
         }
     }
 
-    /** Bulky/derived directories not worth showing even in the All-Files view. (`build/` IS shown — dimmed.) */
-    private fun isDerivedDir(dir: Path): Boolean {
-        val name = dir.fileName?.toString() ?: return false
-        if (name == ".gradle" || name == ".idea") return true
-        // The platform caches can be large + transient; keep `.platform/workspace.json` etc. visible though.
-        return dir.parent?.fileName?.toString() == ".platform" && name == "caches"
-    }
+  /** Bulky/derived directories not worth showing even in the All-Files view. (`build/` IS shown — dimmed.) */
+  private fun isDerivedDir(dir: Path): Boolean {
+      val name = dir.fileName?.toString() ?: return false
+      // `.dart_tool` holds the pub cache and a mirror of the Flutter framework's own sources (fetched
+      // file-by-file so the analyzer can resolve `package:flutter/...`); it is thousands of generated
+      // files that are never authored here, so it is derived by the same argument as `.gradle`.
+      if (name == ".gradle" || name == ".idea" || name == ".dart_tool") return true
+      // The platform caches can be large + transient; keep `.platform/workspace.json` etc. visible though.
+      // `.platform/dart-sdk` is the exception: a whole SDK, and not workspace state.
+      val parentName = dir.parent?.fileName?.toString()
+      return parentName == ".platform" && (name == "caches" || name == "dart-sdk")
+  }
 
     /** A surfaced content root. `SOURCE`/`GENERATED` roots are package contexts (compactable, new-class
      *  targets); everything else (`res/`, `assets/`, resources) is a plain folder tree. */

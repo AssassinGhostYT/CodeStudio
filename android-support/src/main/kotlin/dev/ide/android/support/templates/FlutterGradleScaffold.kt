@@ -100,6 +100,13 @@ object FlutterGradleScaffold {
             zipStorePath=wrapper/dists
             """,
         )
+
+        // The scripts above are useless without a way to run them: `gradlew` and `gradle-wrapper.jar` are
+        // binaries, so they are bundled and written here rather than left for a repair pass to find. See
+        // GradleWrapperAssets for why the executable bit is not set here.
+        if (GradleWrapperAssets.available()) {
+            GradleWrapperAssets.write(scaffold, androidDir)
+        }
     }
 
     /**
