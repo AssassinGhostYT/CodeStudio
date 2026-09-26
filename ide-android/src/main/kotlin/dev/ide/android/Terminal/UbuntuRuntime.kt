@@ -461,7 +461,12 @@ object UbuntuRuntime : TerminalSessionClient, TerminalRuntime {
     }
 
     // ── Non-interactive command execution inside the Ubuntu rootfs ───────
-    fun runInPrefix(command: String, onOutput: ((String) -> Unit)? = null, cwd: File? = null): Int {
+    fun runInPrefix(
+        command: String,
+        onOutput: ((String) -> Unit)? = null,
+        cwd: File? = null,
+        extraBinds: String = "",
+    ): Int {
         val runHost = File(localBinDir(), "run-ubuntu-host.sh")
         if (!runHost.exists()) { Log.e(TAG, "run-ubuntu-host.sh missing — ensureReady not run"); return -1 }
         val proot = prootExec()
@@ -479,6 +484,9 @@ object UbuntuRuntime : TerminalSessionClient, TerminalRuntime {
             add("HOME=${ubuntuDir().absolutePath}/root")
             add("TERM=xterm-256color")
             add("LANG=C.UTF-8")
+            // proot's argv is fixed by the time the command string runs, so caller-supplied binds have to
+            // reach the host script through the environment. Format: space-separated proot <src>[:<dst>].
+            add("EXTRA_BINDS=$extraBinds")
             add("PATH=${System.getenv("PATH")}:/usr/sbin:/usr/bin:/sbin:/bin:${localBinDir().absolutePath}")
         }
         val pb = ProcessBuilder("/system/bin/sh", runHost.absolutePath, command)

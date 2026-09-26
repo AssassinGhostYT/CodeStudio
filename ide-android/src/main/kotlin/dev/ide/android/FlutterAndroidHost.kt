@@ -4,6 +4,7 @@ import android.content.Context
 import dev.ide.android.Terminal.TerminalSetupState
 import dev.ide.android.Terminal.UbuntuRuntime
 import dev.ide.lang.dart.FlutterHostRunner
+import dev.ide.platform.log.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -48,8 +49,9 @@ object FlutterAndroidHost {
                     log("No se pudo iniciar el entorno Ubuntu de Flutter.")
                     return@withContext -1
                 }
-                val command = buildCommand(resolveAndroidSdk(workspaceRoot), workingDir, args)
-                UbuntuRuntime.runInPrefix(command, onOutput = log)
+                val extraBinds = extraBinds(workingDir)
+                val command = buildCommand(resolveAndroidSdk(workspaceRoot), workingDir, args, extraBinds)
+                UbuntuRuntime.runInPrefix(command, onOutput = log, extraBinds = extraBinds)
             }
         }
     }
@@ -104,7 +106,7 @@ object FlutterAndroidHost {
         return artifact == "apk" || artifact == "appbundle"
     }
 
-    private fun buildCommand(androidSdk: Path, workingDir: File, args: List<String>): String {
+    private fun buildCommand(androidSdk: Path, workingDir: File, args: List<String>, extraBinds: String): String {
         val sdk = shellQuote(androidSdk.toString())
         val cwd = shellQuote(workingDir.absolutePath)
         val flutter = shellQuote(FLUTTER_BIN)
@@ -424,32 +426,30 @@ object FlutterAndroidHost {
             fi
 
             # ── The Gradle wrapper has to be executable ─────────────────────────────────────────────────
-            # The tool spawns <project>/android/gradlew directly, and a spawn that returns EACCES/EPERM is
+            # The tool spawns <project>/android/gradlew directly, and a spawn returning EACCES/EPERM is
             # reported as the very unhelpful "Flutter failed to run .... Please ensure that the SDK and/or
             # project is installed in a location that has read/write permissions for the current user" —
             # which reads like a permissions problem and is not one. Two causes, very different:
             #   * the mode bit was lost (a zip import, an extraction through the document picker, or a copy
-            #     that did not carry the permission), which is fixable here;
-            #   * the project sits on a mount with noexec, which is not fixable from here and needs the
-            #     project moved to app-internal storage.
-            # Restore the bit, then probe for the second cause so the log says which one it is.
+            #     that did not carry the permission), which chmod fixes;
+            #   * the project sits on app-specific EXTERNAL storage, which stores regular files without POSIX
+            #     permission bits — chmod is accepted and silently ignored. The host detects that and maps an
+            #     executable copy from internal storage over the wrapper (EXTRA_BINDS), so under proot the
+            #     wrapper already reads as executable here and needs no help.
             if [ "${'$'}NEEDS_ANDROID" = true ] && [ -f android/gradlew ] && [ ! -x android/gradlew ]; then
               echo 'Restaurando el permiso de ejecucion de android/gradlew'
-              chmod +x android/gradlew
+              chmod +x android/gradlew || true
             fi
-            if [ "${'$'}NEEDS_ANDROID" = true ]; then
-              probe=android/.exec-probe.sh
-              printf '#!/bin/sh\nexit 0\n' > "${'$'}probe"
-              chmod +x "${'$'}probe" 2>/dev/null || true
-              if [ -x "${'$'}probe" ] && ! ./android/.exec-probe.sh 2>/dev/null; then
-                echo "AVISO: el proyecto esta en un sistema de archivos no ejecutable (noexec)." >&2
-                echo "       Android no permite ejecutar android/gradlew desde ahi, y el tool no lo reporta bien." >&2
-                echo "       Mueve el proyecto al almacenamiento interno de la app y vuelve a compilar." >&2
-              elif [ ! -x "${'$'}probe" ]; then
-                echo "AVISO: no se puede marcar un archivo como ejecutable en este proyecto (EPERM)." >&2
-                echo "       Sin el bit de ejecucion, android/gradlew no arranca: revisa los permisos de la carpeta del proyecto." >&2
+            if [ "${'$'}NEEDS_ANDROID" = true ] && [ -f android/gradlew ]; then
+              if [ -x android/gradlew ]; then
+                if [ -n "${'$'}EXTRA_BINDS" ]; then
+                  echo '  almacenamiento externo: usando la copia ejecutable de gradlew del host'
+                fi
+              else
+                echo 'AVISO: android/gradlew no se puede ejecutar y el host no tiene copia alternativa.' >&2
+                echo '       El tool va a fallar al lanzarlo; revisa el espacio libre de la app' >&2
+                echo '       o vuelve a importar el proyecto desde un zip.' >&2
               fi
-              rm -f "${'$'}probe"
             fi
 
             ${'$'}FLUTTER_BIN $commandArgs
@@ -458,4 +458,32 @@ object FlutterAndroidHost {
     }
 
     private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
+
+    /**
+     * A proot bind that makes the project's `android/gradlew` executable when the project filesystem will not
+     * keep the mode bit.
+     *
+     * Projects live in app-specific *external* storage so the Files app can browse them without All-Files-Access
+     * (see [AndroidIde]). That filesystem stores regular files without POSIX permission bits: `chmod +x` is
+     * accepted and silently ignored, and the tool — which spawns the wrapper directly rather than through a
+     * shell — then fails with EACCES/EPERM, reported as the misleading "Flutter failed to run …. Please ensure
+     * that the SDK and/or project is installed in a location that has read/write permissions".
+     *
+     * So stage the wrapper in the prefix (internal storage, where the bit sticks) and map it over the project's
+     * copy. proot resolves the path to the staged file; argv[0] still carries the project path, so the wrapper
+     * keeps finding `gradle/wrapper/gradle-wrapper.jar` beside itself. Nothing on the project changes.
+     */
+    private fun extraBinds(workingDir: File): String {
+        val wrapper = File(workingDir, "android/gradlew")
+        if (!wrapper.isFile || wrapper.canExecute()) return ""
+        return runCatching {
+            val staged = UbuntuRuntime.localToolchainDir("flutter/gradlew")
+            wrapper.inputStream().use { input -> staged.outputStream().use { input.copyTo(it) } }
+            staged.setExecutable(true, false)
+            if (staged.canExecute()) "${staged.absolutePath}:${wrapper.absolutePath}" else ""
+        }.getOrElse {
+            Log.e("FlutterAndroidHost", "no se pudo preparar android/gradlew ejecutable", it)
+            ""
+        }
+    }
 }

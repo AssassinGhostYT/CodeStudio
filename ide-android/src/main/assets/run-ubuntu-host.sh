@@ -61,6 +61,20 @@ if [ ! -d "$PREFIX/local/ubuntu/tmp" ]; then
 fi
 ARGS="$ARGS -b $PREFIX/local/ubuntu/tmp:/dev/shm"
 
+# Optional caller-supplied bind mounts, as a space-separated list of proot <src>[:<dst>] pairs.
+# The Flutter build host uses this to map an executable copy of the project's android/gradlew over the
+# original: projects live in app-specific EXTERNAL storage, whose filesystem does not keep the
+# executable bit, so the tool's direct spawn of the wrapper fails with EACCES/EPERM. The copy lives in
+# the prefix (internal storage, where the mode bit sticks) and proot resolves the path to it, while
+# argv[0] keeps the project path so the wrapper still finds its gradle-wrapper.jar next to it.
+if [ -n "$EXTRA_BINDS" ]; then
+ for extra_bind in $EXTRA_BINDS; do
+  [ -e "${extra_bind%%:*}" ] || continue
+  ARGS="$ARGS -b $extra_bind"
+ done
+fi
+unset extra_bind
+
 ARGS="$ARGS -r $PREFIX/local/ubuntu"
 ARGS="$ARGS -0"
 ARGS="$ARGS --link2symlink"
