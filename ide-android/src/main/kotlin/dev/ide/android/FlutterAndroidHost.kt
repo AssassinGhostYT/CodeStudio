@@ -38,6 +38,7 @@ object FlutterAndroidHost {
 
     /** Platform pre-fetched when the project pins no literal `compileSdk` (the `flutter.compileSdkVersion` case). */
     private const val DEFAULT_PLATFORM = "android-36"
+    private const val TAG = "FlutterAndroidHost"
 
     fun install(context: Context) {
         val appContext = context.applicationContext
@@ -482,7 +483,9 @@ object FlutterAndroidHost {
             staged.setExecutable(true, false)
             if (staged.canExecute()) "${staged.absolutePath}:${wrapper.absolutePath}" else ""
         }.getOrElse {
-            Log.e("FlutterAndroidHost", "no se pudo preparar android/gradlew ejecutable", it)
+            // warn, not error: an ERROR carrying a throwable surfaces the host's critical-error dialog, and
+            // failing to stage the wrapper is not critical — the build reports it itself, on the build log.
+            Log.logger(TAG).warn("no se pudo preparar android/gradlew ejecutable", it)
             ""
         }
     }
