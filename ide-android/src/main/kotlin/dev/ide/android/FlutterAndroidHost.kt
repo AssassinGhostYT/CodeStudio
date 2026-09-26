@@ -289,7 +289,7 @@ object FlutterAndroidHost {
                 embedding_name_first='android:name="flutterEmbedding"android:value="2"'
                 embedding_value_first='android:value="2"android:name="flutterEmbedding"'
                 case ${'$'}flat in
-                  *"\${'$'}embedding_name_first"*|*"\${'$'}embedding_value_first"*) return 0 ;;
+                  *"${'$'}embedding_name_first"*|*"${'$'}embedding_value_first"*) return 0 ;;
                 esac
                 return 1
               }
@@ -304,6 +304,21 @@ object FlutterAndroidHost {
                 printf '%s' "${'$'}flat" | grep -o '<application[^>]*>' | head -n1 | sed 's/^/  application: /' || true
                 printf '%s' "${'$'}flat" | grep -o '<meta-data[^>]*flutterEmbedding[^>]*>' | sed 's/^/  meta-data: /' || true
                 printf '%s' "${'$'}flat" | grep -c 'flutterEmbedding' | sed 's/^/ flutterEmbedding: /' || true
+              }
+              # The passes below rewrite the manifests in place, and they can leave XML that no longer parses
+              # (removing the two-line v1 SplashScreen meta-data also swallows the line after it, which in the
+              # v1 template is `</application>`). A project we end up abandoning must be handed back exactly as
+              # it came in, not in a worse state than we found it.
+              find ./android -name 'AndroidManifest.xml' -type f -exec cp -p {} {}.flutterbak \; 2>/dev/null || true
+              restore_manifests() {
+                restored=0
+                while IFS= read -r -d '' backup; do
+                  mv -f "${'$'}backup" "${'$'}{backup%.flutterbak}"
+                  restored=$((restored + 1))
+                done < <(find ./android -name 'AndroidManifest.xml.flutterbak' -type f -print0 2>/dev/null)
+                if [ "${'$'}restored" -gt 0 ]; then
+                  echo "  restaurados ${'$'}restored AndroidManifest.xml originales" >&2
+                fi
               }
               while IFS= read -r -d '' manifest; do
                 if grep -qE 'io\.flutter\.app\.(android\.)?(SplashScreenUntilFirstFrame|FlutterActivity|FlutterApplication)' "${'$'}manifest"; then
@@ -331,6 +346,7 @@ object FlutterAndroidHost {
                 if ! manifest_is_v2 "${'$'}main_manifest"; then
                   echo 'flutter create no dejó el proyecto en embedding v2:' >&2
                   manifest_diagnose "${'$'}main_manifest" >&2
+                  restore_manifests
                   exit 1
                 fi
                 # `create` regenerated the module from its template: re-apply the pointers it just dropped.
@@ -340,6 +356,8 @@ object FlutterAndroidHost {
                   echo 'android.builder.sdkDownload=true' >> android/gradle.properties
                 fi
               fi
+              # Reached only when the manifest pass converged; a failure above already restored the originals.
+              find ./android -name 'AndroidManifest.xml.flutterbak' -type f -delete 2>/dev/null || true
 
               find . -path '*/android/app/src/main/*' -type f \( -name '*.kt' -o -name '*.java' \) -print0 2>/dev/null | while IFS= read -r -d '' source; do
                 if grep -q 'io.flutter.app.' "${'$'}source"; then
