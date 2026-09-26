@@ -269,19 +269,48 @@ object FlutterAndroidHost {
             fi
 
             # ── Legacy Android project repair ──────────────────────────────────────────────────────────────
-            if [ "${'$'}NEEDS_ANDROID" = true ] && [ -d android ]; then
-              # `flutter create` emits the meta-data across three lines, so a single-line grep never matches and
-              # the migration below used to re-run `flutter create` on EVERY build, rewriting the project each
-              # time. Compare on a whitespace-free copy instead.
-              embedding_is_v2() {
-                tr -d '\r\n\t ' < "${'$'}1" | grep -q 'android:name="flutterEmbedding"android:value="2"'
+            if [ "${'$'}NEEDS_ANDROID" = true ]; then
+              # `flutter_tools/lib/src/project.dart::computeEmbeddingVersion` refuses the build ("Build failed due
+              # to use of deleted Android v1 embedding.") unless the main manifest carries
+              # <meta-data android:name="flutterEmbedding" android:value="2"/> and does NOT declare
+              # <application android:name="io.flutter.app.FlutterApplication"> — and it tests the application
+              # element FIRST, then takes the FIRST flutterEmbedding meta-data it finds. Mirror that order
+              # here, tolerating attribute order, quote style and line breaks (the tool parses XML; a flat grep
+              # on a template that splits the attributes over three lines never matched, so `flutter create` used
+              # to re-run on every build). A missing manifest is v1 too, which is why a project that has no
+              # android/ directory at all is regenerated here instead of being skipped.
+              manifest_is_v2() {
+                manifest=${'$'}1
+                [ -f "${'$'}manifest" ] || return 1
+                flat=$(tr -d '\r\n\t ' < "${'$'}manifest" | tr "'" '"')
+                case ${'$'}flat in
+                  *io.flutter.app.FlutterApplication*) return 1 ;;
+                esac
+                embedding_name_first='android:name="flutterEmbedding"android:value="2"'
+                embedding_value_first='android:value="2"android:name="flutterEmbedding"'
+                case ${'$'}flat in
+                  *"\${'$'}embedding_name_first"*|*"\${'$'}embedding_value_first"*) return 0 ;;
+                esac
+                return 1
               }
-              # Process substitution (not a pipe) so `exit 1` inside the loop really fails the build.
+              # Why the manifest was rejected — a bare tool exit is not diagnosable from the build log.
+              manifest_diagnose() {
+                manifest=${'$'}1
+                if [ ! -f "${'$'}manifest" ]; then
+                  echo "  ${'$'}manifest no existe"
+                  return 0
+                fi
+                flat=$(tr -d '\r\n\t ' < "${'$'}manifest" | tr "'" '"')
+                printf '%s' "${'$'}flat" | grep -o '<application[^>]*>' | head -n1 | sed 's/^/  application: /' || true
+                printf '%s' "${'$'}flat" | grep -o '<meta-data[^>]*flutterEmbedding[^>]*>' | sed 's/^/  meta-data: /' || true
+                printf '%s' "${'$'}flat" | grep -c 'flutterEmbedding' | sed 's/^/ flutterEmbedding: /' || true
+              }
               while IFS= read -r -d '' manifest; do
                 if grep -qE 'io\.flutter\.app\.(android\.)?(SplashScreenUntilFirstFrame|FlutterActivity|FlutterApplication)' "${'$'}manifest"; then
                   echo "Actualizando embedding Flutter: ${'$'}manifest"
                   sed -i '/io\.flutter\.app\.android\.SplashScreenUntilFirstFrame/{N;d;}' "${'$'}manifest"
                   sed -i 's/io\.flutter\.app\.FlutterActivity/io.flutter.embedding.android.FlutterActivity/g' "${'$'}manifest"
+                  sed -i "s/android:name='io\.flutter\.app\.FlutterApplication'/android:name=\"\${'$'}{applicationName}\"/g" "${'$'}manifest"
                   sed -i 's/android:name="io\.flutter\.app\.FlutterApplication"/android:name="${'$'}{applicationName}"/g' "${'$'}manifest"
                 fi
                 # Flutter classifies the project as embedding v1 when this marker is absent or set to 1.
@@ -295,14 +324,17 @@ object FlutterAndroidHost {
 
               # Let Flutter repair any legacy Android project layout the manifest pass could not classify.
               main_manifest=./android/app/src/main/AndroidManifest.xml
-              if [ ! -f "${'$'}main_manifest" ] || ! embedding_is_v2 "${'$'}main_manifest"; then
+              if ! manifest_is_v2 "${'$'}main_manifest"; then
                 echo 'Migrando la estructura Android del proyecto Flutter…'
+                manifest_diagnose "${'$'}main_manifest"
                 ${'$'}FLUTTER_BIN create --platforms=android --no-pub .
-                if [ ! -f "${'$'}main_manifest" ] || ! embedding_is_v2 "${'$'}main_manifest"; then
-                  echo 'flutter create no pudo actualizar la estructura Android del proyecto.' >&2
+                if ! manifest_is_v2 "${'$'}main_manifest"; then
+                  echo 'flutter create no dejó el proyecto en embedding v2:' >&2
+                  manifest_diagnose "${'$'}main_manifest" >&2
                   exit 1
                 fi
                 # `create` regenerated the module from its template: re-apply the pointers it just dropped.
+                mkdir -p android
                 printf 'sdk.dir=%s\nflutter.sdk=%s\n' "${'$'}ANDROID_SDK_PATH" "${'$'}FLUTTER_BIN" > android/local.properties
                 if [ -f android/gradle.properties ] && ! grep -q '^android.builder.sdkDownload=' android/gradle.properties; then
                   echo 'android.builder.sdkDownload=true' >> android/gradle.properties
