@@ -279,31 +279,86 @@ object FlutterAndroidHost {
               # on a template that splits the attributes over three lines never matched, so `flutter create` used
               # to re-run on every build). A missing manifest is v1 too, which is why a project that has no
               # android/ directory at all is regenerated here instead of being skipped.
-              manifest_is_v2() {
+              # A faithful port of flutter_tools/lib/src/project.dart::computeEmbeddingVersion. Everything it
+              # decides has to be reproduced exactly, because a disagreement here is invisible: the tool throws
+              # the bare "Build failed due to use of deleted Android v1 embedding." without its reason.
+              #
+              #   * the file it reads is NOT fixed. `appManifestFile` is app/src/main/AndroidManifest.xml only when
+              #     android/build.gradle(.kts) exists (hostAppGradleFile -> isUsingGradle); without it the tool is
+              #     in the legacy layout and reads android/AndroidManifest.xml. Reading only the former is how a
+              #     perfectly valid project gets reported v1 by the tool and v2 by this script.
+              #   * document.findAllElements + getAttribute, not a grep: an <application> anywhere in the file with
+              #     android:name="io.flutter.app.FlutterApplication" loses to any flutterEmbedding meta-data, and
+              #     only the FIRST flutterEmbedding meta-data counts (1 loses, 2 wins, any other value keeps
+              #     scanning). Attribute order, quote style and line breaks are irrelevant to the tool.
+              #   * a missing manifest is v1.
+              tool_manifest() {
+                if [ -f android/build.gradle ] || [ -f android/build.gradle.kts ]; then
+                  printf '%s' 'android/app/src/main/AndroidManifest.xml'
+                else
+                  printf '%s' 'android/AndroidManifest.xml'
+                fi
+              }
+              # One line per element, in document order. The line breaks have to go BEFORE splitting on `<`:
+              # the templates write <application> across several lines, and splitting on `<` alone leaves the tag
+              # cut in half (which silently hides every attribute).
+              manifest_elements() {
+                tr -d '\r\n' < "${'$'}1" | tr '<' '\n' | grep -E "^${'$'}2([ />])" || true
+              }
+              attr_value() {
+                printf '%s' "${'$'}1" | grep -o "${'$'}2[[:space:]]*=[[:space:]]*[\"'][^\"']*[\"']" | head -n1 | sed -E "s|^[^=]*=[[:space:]]*[\"']||; s|[\"']\$||"
+              }
+              # Prints the reason the tool would give; 0 = v2, 1 = v1.
+              embedding_version() {
                 manifest=${'$'}1
-                [ -f "${'$'}manifest" ] || return 1
-                flat=$(tr -d '\r\n\t ' < "${'$'}manifest" | tr "'" '"')
-                case ${'$'}flat in
-                  *io.flutter.app.FlutterApplication*) return 1 ;;
-                esac
-                embedding_name_first='android:name="flutterEmbedding"android:value="2"'
-                embedding_value_first='android:value="2"android:name="flutterEmbedding"'
-                case ${'$'}flat in
-                  *"${'$'}embedding_name_first"*|*"${'$'}embedding_value_first"*) return 0 ;;
-                esac
+                if [ ! -f "${'$'}manifest" ]; then
+                  echo "No \`${'$'}manifest\` file"
+                  return 1
+                fi
+                while IFS= read -r element; do
+                  if [ "$(attr_value "${'$'}element" 'android:name')" = 'io.flutter.app.FlutterApplication' ]; then
+                    echo "${'$'}manifest uses \`android:name=\"io.flutter.app.FlutterApplication\"\`"
+                    return 1
+                  fi
+                done < <(manifest_elements "${'$'}manifest" application)
+                while IFS= read -r element; do
+                  if [ "$(attr_value "${'$'}element" 'android:name')" = 'flutterEmbedding' ]; then
+                    value=$(attr_value "${'$'}element" 'android:value')
+                    if [ "${'$'}value" = '1' ]; then
+                      echo "${'$'}manifest \`<meta-data android:name=\"flutterEmbedding\"\` has value 1"
+                      return 1
+                    fi
+                    if [ "${'$'}value" = '2' ]; then
+                      echo "${'$'}manifest \`<meta-data android:name=\"flutterEmbedding\"\` has value 2"
+                      return 0
+                    fi
+                  fi
+                done < <(manifest_elements "${'$'}manifest" meta-data)
+                echo "No \`<meta-data android:name=\"flutterEmbedding\" android:value=\"2\"/>\` in ${'$'}manifest"
                 return 1
               }
+              manifest_is_v2() { embedding_version "${'$'}1" >/dev/null; }
               # Why the manifest was rejected — a bare tool exit is not diagnosable from the build log.
               manifest_diagnose() {
                 manifest=${'$'}1
+                if [ -f android/build.gradle ] || [ -f android/build.gradle.kts ]; then
+                  echo "  layout: Gradle (el tool lee ${'$'}manifest)"
+                else
+                  echo "  layout: LEGACY, sin android/build.gradle[.kts] (el tool lee ${'$'}manifest)"
+                fi
                 if [ ! -f "${'$'}manifest" ]; then
                   echo "  ${'$'}manifest no existe"
                   return 0
                 fi
-                flat=$(tr -d '\r\n\t ' < "${'$'}manifest" | tr "'" '"')
-                printf '%s' "${'$'}flat" | grep -o '<application[^>]*>' | head -n1 | sed 's/^/  application: /' || true
-                printf '%s' "${'$'}flat" | grep -o '<meta-data[^>]*flutterEmbedding[^>]*>' | sed 's/^/  meta-data: /' || true
-                printf '%s' "${'$'}flat" | grep -c 'flutterEmbedding' | sed 's/^/ flutterEmbedding: /' || true
+                while IFS= read -r element; do
+                  echo "  application: ${'$'}element"
+                done < <(manifest_elements "${'$'}manifest" application)
+                while IFS= read -r element; do
+                  if [ "$(attr_value "${'$'}element" 'android:name')" = 'flutterEmbedding' ]; then
+                    echo "  meta-data: ${'$'}element"
+                  fi
+                done < <(manifest_elements "${'$'}manifest" meta-data)
+                echo "  veredicto: $(embedding_version "${'$'}manifest")"
               }
               # The passes below rewrite the manifests in place, and they can leave XML that no longer parses
               # (removing the two-line v1 SplashScreen meta-data also swallows the line after it, which in the
@@ -338,7 +393,7 @@ object FlutterAndroidHost {
               done < <(find ./android -name 'AndroidManifest.xml' -type f -print0 2>/dev/null)
 
               # Let Flutter repair any legacy Android project layout the manifest pass could not classify.
-              main_manifest=./android/app/src/main/AndroidManifest.xml
+              main_manifest=$(tool_manifest)
               if ! manifest_is_v2 "${'$'}main_manifest"; then
                 echo 'Migrando la estructura Android del proyecto Flutter…'
                 manifest_diagnose "${'$'}main_manifest"
@@ -369,6 +424,7 @@ object FlutterAndroidHost {
             fi
 
             ${'$'}FLUTTER_BIN $commandArgs
+            exit ${'$'}?
         """.trimIndent()
     }
 
