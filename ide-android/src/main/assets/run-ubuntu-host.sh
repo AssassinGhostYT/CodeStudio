@@ -68,10 +68,17 @@ ARGS="$ARGS -b $PREFIX/local/ubuntu/tmp:/dev/shm"
 # the prefix (internal storage, where the mode bit sticks) and proot resolves the path to it, while
 # argv[0] keeps the project path so the wrapper still finds its gradle-wrapper.jar next to it.
 if [ -n "$EXTRA_BINDS" ]; then
+ extra_bind_count=0
  for extra_bind in $EXTRA_BINDS; do
-  [ -e "${extra_bind%%:*}" ] || continue
+  if [ ! -e "${extra_bind%%:*}" ]; then
+   echo "host: bind omitido, no existe el origen ${extra_bind%%:*}" >&2
+   continue
+  fi
   ARGS="$ARGS -b $extra_bind"
+  extra_bind_count=$((extra_bind_count + 1))
  done
+ [ "$extra_bind_count" -gt 0 ] && echo "host: $extra_bind_count bind(s) extra aplicado(s)"
+ unset extra_bind_count
 fi
 unset extra_bind
 

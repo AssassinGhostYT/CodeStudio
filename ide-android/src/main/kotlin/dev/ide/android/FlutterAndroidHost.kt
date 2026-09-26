@@ -50,8 +50,8 @@ object FlutterAndroidHost {
                     log("No se pudo iniciar el entorno Ubuntu de Flutter.")
                     return@withContext -1
                 }
-                val extraBinds = extraBinds(workingDir)
-                val command = buildCommand(resolveAndroidSdk(workspaceRoot), workingDir, args, extraBinds)
+                val extraBinds = extraBinds(workingDir) { log(it) }
+                val command = buildCommand(resolveAndroidSdk(workspaceRoot), workingDir, args)
                 UbuntuRuntime.runInPrefix(command, onOutput = log, extraBinds = extraBinds)
             }
         }
@@ -107,7 +107,7 @@ object FlutterAndroidHost {
         return artifact == "apk" || artifact == "appbundle"
     }
 
-    private fun buildCommand(androidSdk: Path, workingDir: File, args: List<String>, extraBinds: String): String {
+    private fun buildCommand(androidSdk: Path, workingDir: File, args: List<String>): String {
         val sdk = shellQuote(androidSdk.toString())
         val cwd = shellQuote(workingDir.absolutePath)
         val flutter = shellQuote(FLUTTER_BIN)
@@ -395,19 +395,122 @@ object FlutterAndroidHost {
                 fi
               done < <(find ./android -name 'AndroidManifest.xml' -type f -print0 2>/dev/null)
 
-              # Let Flutter repair any legacy Android project layout the manifest pass could not classify.
+              # ── Bringing a legacy Android module up to the v2 layout ──────────────────────────────────
+              # `flutter create` is not a migration tool. It renders the whole module from its template and
+              # overwrites whatever is already on disk, so running it on the project would throw away a user's
+              # MainActivity, resources and manifest — and it does so silently, on a build they merely asked to
+              # compile. It is therefore only ever run into a scratch directory, and from that pristine tree we
+              # copy across just the paths the project does not already have. Every existing file is the user's
+              # and is never opened for writing; each one we leave alone is reported, so the log says exactly what
+              # was added and what was preserved.
+              #
+              # The manifest path is recomputed after the copy, never reused from before it: this is the whole
+              # bug. `tool_manifest` picks the file by layout, and adding android/build.gradle[.kts] is precisely
+              # what flips a legacy project to the Gradle one. Re-reading the value captured while the project
+              # was still legacy keeps asking for android/AndroidManifest.xml — which `flutter create` never
+              # writes, because it puts the manifest in app/src/main/ — so a project that had just been migrated
+              # correctly was reported as still broken, and its original legacy manifest put back in place.
               main_manifest=$(tool_manifest)
-              if ! manifest_is_v2 "${'$'}main_manifest"; then
+              # A v2 manifest is necessary but not sufficient. A legacy project can carry a perfectly valid v2
+              # manifest at android/AndroidManifest.xml while having no android/app/ module at all: the tool
+              # accepts it, and then Gradle fails on the missing module with a far worse error. So the module
+              # itself is part of the condition.
+              android_module_present() {
+                [ -f android/app/build.gradle ] || [ -f android/app/build.gradle.kts ]
+              }
+              if ! manifest_is_v2 "${'$'}main_manifest" || ! android_module_present; then
                 echo 'Migrando la estructura Android del proyecto Flutter…'
                 manifest_diagnose "${'$'}main_manifest"
-                ${'$'}FLUTTER_BIN create --platforms=android --no-pub .
-                if ! manifest_is_v2 "${'$'}main_manifest"; then
-                  echo 'flutter create no dejó el proyecto en embedding v2:' >&2
-                  manifest_diagnose "${'$'}main_manifest" >&2
-                  restore_manifests
+
+                # The namespace the project already declares. A scaffolded MainActivity in a different package
+                # would not match applicationId, and the app would install under the wrong id or fail to launch.
+                declared_package=''
+                for gradle_file in android/app/build.gradle.kts android/app/build.gradle; do
+                  [ -f "${'$'}gradle_file" ] || continue
+                  found=$(grep -oE '(namespace|applicationId)[[:space:]]*[=(][[:space:]]*["'"'"'][A-Za-z0-9_.]+["'"'"']' "${'$'}gradle_file" \
+                    | head -n1 | grep -oE '[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+' || true)
+                  if [ -n "${'$'}found" ]; then declared_package=${'$'}found; break; fi
+                done
+                # A legacy manifest carries the same identity in its package attribute.
+                if [ -z "${'$'}declared_package" ] && [ -f android/AndroidManifest.xml ]; then
+                  declared_package=$(grep -oE 'package=["'"'"'][A-Za-z0-9_.]+["'"'"']' android/AndroidManifest.xml \
+                    | head -n1 | sed -E 's/.*["'"'"']([A-Za-z0-9_.]+)["'"'"']/\1/' || true)
+                fi
+                project_name=$(sed -nE 's/^name:[[:space:]]*["'"'"']?([A-Za-z0-9_]+)["'"'"']?.*/\1/p' pubspec.yaml 2>/dev/null | head -n1)
+                [ -n "${'$'}project_name" ] || project_name=$(basename "${'$'}PWD" | tr -cd 'A-Za-z0-9_')
+                if [ -z "${'$'}project_name" ]; then
+                  echo '  no se pudo deducir el nombre del proyecto; se deja el árbol Android como está' >&2
                   exit 1
                 fi
-                # `create` regenerated the module from its template: re-apply the pointers it just dropped.
+                # Nothing on disk declares an identity — no module, no legacy manifest. That is the case for a
+                # project that has no Android tree at all, and it is what `flutter create` would pick anyway.
+                # Announced rather than assumed, because it becomes the applicationId of the installed app.
+                if [ -z "${'$'}declared_package" ]; then
+                  declared_package="com.example.${'$'}project_name"
+                  echo "  el proyecto no declara paquete; se usa ${'$'}declared_package (el de flutter create)"
+                fi
+                echo "  proyecto ${'$'}project_name, paquete ${'$'}declared_package"
+
+                scratch=$(mktemp -d)
+                if ( cd "${'$'}scratch" && "${'$'}FLUTTER_BIN" create --platforms=android --no-pub \
+                    --org com.example --project-name "${'$'}project_name" . ) >/dev/null 2>&1 \
+                    && [ -d "${'$'}scratch/android" ]; then
+                  template_package="com.example.${'$'}project_name"
+                  # The scratch tree is rendered under a throwaway package, so its sources sit in the directory
+                  # for that package. Remap the directory too, not just the `package` line: a MainActivity whose
+                  # path says com/example/x while it declares com.mio.app compiles, but every later read of the
+                  # tree — and the user's own search for their activity — lands in the wrong place.
+                  if [ "${'$'}declared_package" != "${'$'}template_package" ]; then
+                    template_path=$(printf '%s' "${'$'}template_package" | tr '.' '/')
+                    declared_path=$(printf '%s' "${'$'}declared_package" | tr '.' '/')
+                  fi
+                  # The copied files are rewritten to the project's real package below, and only those — a file
+                  # that already existed is never edited.
+                  created=''
+                  while IFS= read -r -d '' source; do
+                    relative=${'$'}{source#"${'$'}scratch/android/"}
+                    if [ -n "${'$'}template_path" ]; then
+                      for language in kotlin java; do
+                        case "${'$'}relative" in
+                          "app/src/main/${'$'}language/${'$'}template_path/"*)
+                            relative="app/src/main/${'$'}language/${'$'}declared_path/${'$'}{relative#"app/src/main/${'$'}language/${'$'}template_path/"}"
+                            ;;
+                        esac
+                      done
+                    fi
+                    target="android/${'$'}relative"
+                    if [ -e "${'$'}target" ]; then
+                      echo "  se conserva ${'$'}target"
+                      continue
+                    fi
+                    mkdir -p "android/$(dirname "${'$'}relative")"
+                    cp "${'$'}source" "${'$'}target"
+                    created="${'$'}created ${'$'}target"
+                    echo "  se crea    ${'$'}target"
+                  done < <(find "${'$'}scratch/android" -type f -print0 2>/dev/null)
+                  for created_file in ${'$'}created; do
+                    if grep -qF "${'$'}template_package" "${'$'}created_file" 2>/dev/null; then
+                      sed -i "s/${'$'}template_package/${'$'}declared_package/g" "${'$'}created_file"
+                    fi
+                  done
+                else
+                  echo '  no se pudo generar el módulo de referencia con flutter create' >&2
+                fi
+                rm -rf "${'$'}scratch"
+
+                # Layout has probably flipped; ask again instead of trusting the value from before the copy.
+                main_manifest=$(tool_manifest)
+                if ! manifest_is_v2 "${'$'}main_manifest"; then
+                  echo "flutter create no dejó ${'$'}main_manifest en embedding v2:" >&2
+                  manifest_diagnose "${'$'}main_manifest" >&2
+                  # Hand the project back exactly as it came in: the originals, and no leftovers from the copy.
+                  restore_manifests
+                  for created_file in ${'$'}created; do rm -f "${'$'}created_file"; done
+                  find android -type d -empty -delete 2>/dev/null || true
+                  echo '  migración revertida; el proyecto queda como estaba' >&2
+                  exit 1
+                fi
+                # The module came from the tool's own template: re-apply the pointers it does not write.
                 mkdir -p android
                 printf 'sdk.dir=%s\nflutter.sdk=%s\n' "${'$'}ANDROID_SDK_PATH" "${'$'}FLUTTER_BIN" > android/local.properties
                 if [ -f android/gradle.properties ] && ! grep -q '^android.builder.sdkDownload=' android/gradle.properties; then
@@ -442,10 +545,13 @@ object FlutterAndroidHost {
               chmod +x android/gradlew || true
             fi
             if [ "${'$'}NEEDS_ANDROID" = true ] && [ -f android/gradlew ]; then
-              if [ -x android/gradlew ]; then
-                if [ -n "${'$'}EXTRA_BINDS" ]; then
-                  echo '  almacenamiento externo: usando la copia ejecutable de gradlew del host'
-                fi
+              if [ -n "${'$'}EXTRA_BINDS" ]; then
+                # The host mapped an executable copy over the wrapper, and proot resolves the path to it. Do not
+                # second-guess that with a mode-bit test on the project copy: the bind is the authority here, and
+                # the spawn below is the real judge. Testing anyway produced a false alarm on a working setup.
+                echo '  gradlew: se usa la copia ejecutable del host'
+              elif [ -x android/gradlew ]; then
+                :
               else
                 echo 'AVISO: android/gradlew no se puede ejecutar y el host no tiene copia alternativa.' >&2
                 echo '       El tool va a fallar al lanzarlo; revisa el espacio libre de la app' >&2
@@ -474,17 +580,27 @@ object FlutterAndroidHost {
      * copy. proot resolves the path to the staged file; argv[0] still carries the project path, so the wrapper
      * keeps finding `gradle/wrapper/gradle-wrapper.jar` beside itself. Nothing on the project changes.
      */
-    private fun extraBinds(workingDir: File): String {
+    private fun extraBinds(workingDir: File, log: (String) -> Unit): String {
         val wrapper = File(workingDir, "android/gradlew")
-        if (!wrapper.isFile || wrapper.canExecute()) return ""
+        if (!wrapper.isFile) return ""
+        // Deliberately not gated on wrapper.canExecute(). That predicate has to agree with the `access(X_OK)`
+        // proot reports inside the prefix, and when the two disagree the feature silently does nothing: the JVM
+        // sees an executable file, so no bind is staged, and the tool's spawn still fails with EACCES/EPERM.
+        // Staging costs one ~8 KB copy per build, which is cheaper than a build that cannot start.
         return runCatching {
             val staged = UbuntuRuntime.localToolchainDir("flutter/gradlew")
             wrapper.inputStream().use { input -> staged.outputStream().use { input.copyTo(it) } }
             staged.setExecutable(true, false)
-            if (staged.canExecute()) "${staged.absolutePath}:${wrapper.absolutePath}" else ""
+            if (!staged.canExecute()) {
+                log("  el prefix no guarda el bit de ejecucion (${staged.absolutePath})")
+                return@runCatching ""
+            }
+            log("  copia ejecutable de gradlew prepared: ${staged.absolutePath}")
+            "${staged.absolutePath}:${wrapper.absolutePath}"
         }.getOrElse {
             // warn, not error: an ERROR carrying a throwable surfaces the host's critical-error dialog, and
             // failing to stage the wrapper is not critical — the build reports it itself, on the build log.
+            log("  no se pudo preparar la copia ejecutable: ${it.message}")
             Log.logger(TAG).warn("no se pudo preparar android/gradlew ejecutable", it)
             ""
         }
