@@ -128,6 +128,10 @@ object FlutterAndroidHost {
             ANDROID_SDK_PATH=$sdk
             NEEDS_ANDROID=$needsAndroid
             CS_MIRROR=$mirror
+            # `cd $cwd` interpolates the path, so there is no shell variable called cwd: referencing one
+            # expands to nothing, which made the artifact copy-out write to /build at the prefix root instead
+            # of into the project. The mirror logic needs the project's path as a value, so it gets a real one.
+            PROJECT_DIR=$cwd
             cd $cwd
 
             # ── Flutter SDK ───────────────────────────────────────────────────────────────────────────────
@@ -556,7 +560,7 @@ object FlutterAndroidHost {
             # So build from a copy on internal storage, where the mode bit sticks. The project does not move:
             # the mirror is only where the build runs, the user's sources stay in /sdcard and stay browsable.
             # PUB_CACHE and the Gradle user home are already shared in the prefix, so nothing re-downloads.
-            BUILD_DIR=${'$'}cwd
+            BUILD_DIR=${'$'}PROJECT_DIR
             if [ "${'$'}NEEDS_ANDROID" = true ] && [ -f android/gradlew ] && [ ! -x android/gradlew ]; then
               BUILD_DIR=${'$'}CS_MIRROR
               echo 'El proyecto esta en almacenamiento externo, que no conserva el bit de ejecucion.'
@@ -636,6 +640,20 @@ object FlutterAndroidHost {
             fi
 
 
+            # `set -e` would abort here and swallow the exit status, and the artifact copy-out below is exactly
+            # the code that must still run when the build fails partway.
+            set +e
+            ${'$'}FLUTTER_BIN $commandArgs
+            status=${'$'}?
+            set -e
+
+            # Bring the artifacts back to the project so the run panel and the APK install path find them where
+            # the user expects. Only the outputs, not the whole generated tree.
+            if [ "${'$'}BUILD_DIR" != "${'$'}PROJECT_DIR" ] && [ -d "${'$'}BUILD_DIR/build/app/outputs" ]; then
+              mkdir -p "${'$'}PROJECT_DIR/build/app/outputs"
+              cp -a "${'$'}BUILD_DIR/build/app/outputs/." "${'$'}PROJECT_DIR/build/app/outputs/" 2>/dev/null || true
+              echo "Artefactos copiados a ${'$'}PROJECT_DIR/build/app/outputs"
+            fi
             # AGP runs aapt2 as a daemon, and when the daemon cannot start Gradle only says "Daemon #0: Daemon
             # startup failed. This should not happen under normal circumstances" — which names neither the
             # binary nor the reason. The one thing worth knowing before guessing is what AGP actually
@@ -661,20 +679,6 @@ object FlutterAndroidHost {
               fi
             fi
 
-            # `set -e` would abort here and swallow the exit status, and the artifact copy-out below is exactly
-            # the code that must still run when the build fails partway.
-            set +e
-            ${'$'}FLUTTER_BIN $commandArgs
-            status=${'$'}?
-            set -e
-
-            # Bring the artifacts back to the project so the run panel and the APK install path find them where
-            # the user expects. Only the outputs, not the whole generated tree.
-            if [ "${'$'}BUILD_DIR" != "${'$'}cwd" ] && [ -d "${'$'}BUILD_DIR/build/app/outputs" ]; then
-              mkdir -p "${'$'}cwd/build/app/outputs"
-              cp -a "${'$'}BUILD_DIR/build/app/outputs/." "${'$'}cwd/build/app/outputs/" 2>/dev/null || true
-              echo "Artefactos copiados a ${'$'}cwd/build/app/outputs"
-            fi
             exit ${'$'}status
         """.trimIndent()
     }
