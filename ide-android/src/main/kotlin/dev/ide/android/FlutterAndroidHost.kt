@@ -8,8 +8,10 @@ import dev.ide.platform.log.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
+import java.security.MessageDigest
 
 /**
  * Connects Flutter's Linux toolchain to the Ubuntu/proot terminal instead of Android's bionic linker.
@@ -113,6 +115,7 @@ object FlutterAndroidHost {
         val flutter = shellQuote(FLUTTER_BIN)
         val commandArgs = args.joinToString(" ") { shellQuote(it) }
         val needsAndroid = if (needsAndroidToolchain(args)) "true" else "false"
+        val mirror = shellQuote(buildMirror(workingDir))
         return """
             set -e
             export CI=true
@@ -122,6 +125,7 @@ object FlutterAndroidHost {
             FLUTTER_BIN=$flutter
             ANDROID_SDK_PATH=$sdk
             NEEDS_ANDROID=$needsAndroid
+            CS_MIRROR=$mirror
             cd $cwd
 
             # ── Flutter SDK ───────────────────────────────────────────────────────────────────────────────
@@ -529,102 +533,86 @@ object FlutterAndroidHost {
               done
             fi
 
-            # ── The Gradle wrapper has to be executable ─────────────────────────────────────────────────
-            # The tool spawns <project>/android/gradlew directly, and a spawn returning EACCES/EPERM is
-            # reported as the very unhelpful "Flutter failed to run .... Please ensure that the SDK and/or
-            # project is installed in a location that has read/write permissions for the current user" —
-            # which reads like a permissions problem and is not one. Two causes, very different:
-            #   * the mode bit was lost (a zip import, an extraction through the document picker, or a copy
-            #     that did not carry the permission), which chmod fixes;
-            #   * the project sits on app-specific EXTERNAL storage, which stores regular files without POSIX
-            #     permission bits — chmod is accepted and silently ignored. The host detects that and maps an
-            #     executable copy from internal storage over the wrapper (EXTRA_BINDS), so under proot the
-            #     wrapper already reads as executable here and needs no help.
+            # ── Android builds run in a mirror on internal storage ─────────────────────────────────────
+            # Everything about the project is verified good: the wrapper script, the jar, the layout, the
+            # wrapper properties (it fetched the whole Gradle distribution), and Flutter's own migration of
+            # build.gradle.kts / gradle.properties all succeed. One thing is impossible, though. The tool
+            # spawns <project>/android/gradlew directly, and projects live in app-specific *external* storage so
+            # the Files app can browse them without All-Files-Access (see [AndroidIde]). That filesystem stores
+            # regular files without POSIX permission bits: `chmod +x` is accepted and silently ignored, every
+            # path reads as 0644, and execve returns EACCES — which Flutter reports as the misleading "Flutter
+            # failed to run .... Please ensure that the SDK and/or project is installed in a location that has
+            # read/write permissions for the current user".
+            #
+            # The ways out were tried and measured on device. proot bind of an executable copy over the wrapper:
+            # the bind is accepted, and proot does not carry a file bind into execve in any ordering, including
+            # with the specific bind listed ahead of the broad /sdcard mount. The real volume behind /sdcard
+            # (/data/media/0): unreachable from the prefix, denied by SELinux, which proot cannot bypass since it
+            # only falsifies DAC. Running the wrapper through `sh`: works, and is the proof that the wrapper
+            # itself is fine, but the tool will not spawn it that way.
+            #
+            # So build from a copy on internal storage, where the mode bit sticks. The project does not move:
+            # the mirror is only where the build runs, the user's sources stay in /sdcard and stay browsable.
+            # PUB_CACHE and the Gradle user home are already shared in the prefix, so nothing re-downloads.
+            BUILD_DIR=${'$'}cwd
             if [ "${'$'}NEEDS_ANDROID" = true ] && [ -f android/gradlew ] && [ ! -x android/gradlew ]; then
-              echo 'Restaurando el permiso de ejecucion de android/gradlew'
-              chmod +x android/gradlew || true
-            fi
-            if [ "${'$'}NEEDS_ANDROID" = true ] && [ -f android/gradlew ]; then
-              if [ -n "${'$'}EXTRA_BINDS" ]; then
-                # The host mapped an executable copy over the wrapper, and proot resolves the path to it. Do not
-                # second-guess that with a mode-bit test on the project copy: the bind is the authority here, and
-                # the spawn below is the real judge. Testing anyway produced a false alarm on a working setup.
-                echo '  gradlew: se usa la copia ejecutable del host'
-                # Flutter turns a failed wrapper spawn into "Flutter failed to run ... Please ensure that the
-                # SDK and/or project is installed in a location that has read/write permissions" and keeps the
-                # ProcessException's own errno out of the log, so a build that dies in 20 ms gives nothing to
-                # read. Launching the wrapper here puts the real error on the build log. It costs one extra JVM
-                # start per boot, not per build: /dev/shm is a tmpfs, so a successful probe is forgotten on
-                # reboot and retried then, and a failing one keeps failing visibly.
-                if [ ! -f /dev/shm/.cs-gradlew-probe-ok ]; then
-                  echo '  sonda: Flutter oculta el errno real del wrapper; se lanza una vez para verlo'
-                  if probe_out=$(android/gradlew --version 2>&1); then
-                    printf '%s\n' "${'$'}probe_out" | head -n 3 | sed 's/^/    /'
-                    : > /dev/shm/.cs-gradlew-probe-ok 2>/dev/null || true
-                  else
-                    printf '%s\n' "${'$'}probe_out" | head -n 8 | sed 's/^/    /'
-                    echo '  sonda: FALLO — el error de arriba es el real, no un problema de permisos' >&2
-                    # Second question, and it decides the shape of any fix: `sh <file>` needs no exec bit, so
-                    # if the wrapper works this way then the script, the jar and the layout are all fine and
-                    # the only broken thing is a mode the project's filesystem refuses to store. That means
-                    # another proot binding, or a different build layout — not a broken wrapper. If it fails
-                    # too, the problem is somewhere else entirely and no permission story explains it.
-                    echo '  sonda: probando via interprete (sh), que no necesita bit de ejecucion'
-                    if probe_sh=$(sh android/gradlew --version 2>&1); then
-                      printf '%s\n' "${'$'}probe_sh" | head -n 3 | sed 's/^/    /'
-                      echo '  sonda: el wrapper es correcto; solo falta el bit, que el proyecto no puede guardar' >&2
-                    else
-                      printf '%s\n' "${'$'}probe_sh" | head -n 5 | sed 's/^/    /'
-                      echo '  sonda: FALLO tambien via interprete — no es un problema de permisos' >&2
-                    fi
-                    # Third question, and the only one that could make this cheap to fix. /sdcard is a FUSE
-                    # view that synthesises modes (regular files always read as 0644) and ignores chmod, but it
-                    # is a view *onto* the real volume, which is mounted at /data/media/0 and does keep POSIX
-                    # bits. If that path is reachable, the wrapper can be chmod'ed and exec'd through it and the
-                    # whole extra-binds dance becomes unnecessary. If it is not reachable, this filesystem
-                    # simply cannot host a Gradle build and the project has to be built from a copy on internal
-                    # storage — a much bigger change that should not be started before this is known.
-                    real_pwd=""
-                    case "${'$'}PWD" in
-                      /sdcard/*)
-                        real_pwd="/data/media/0/${'$'}{PWD#/sdcard/}" ;;
-                      /storage/emulated/0/*)
-                        real_pwd="/data/media/0/${'$'}{PWD#/storage/emulated/0/}" ;;
-                      /storage/self/primary/*)
-                        real_pwd="/data/media/0/${'$'}{PWD#/storage/self/primary/}" ;;
-                    esac
-                    echo "  sonda: PWD dentro del prefix = ${'$'}PWD" >&2
-                    if [ -z "${'$'}real_pwd" ]; then
-                      echo '  sonda: no se pudo mapear el proyecto a un volumen real' >&2
-                    elif [ ! -d "${'$'}real_pwd" ]; then
-                      echo "  sonda: ${'$'}real_pwd inaccesible desde el prefix" >&2
-                    elif [ ! -f "${'$'}real_pwd/android/gradlew" ]; then
-                      echo "  sonda: ${'$'}real_pwd existe pero no ve android/gradlew" >&2
-                    else
-                      chmod +x "${'$'}real_pwd/android/gradlew" 2>/dev/null || true
-                      if [ -x "${'$'}real_pwd/android/gradlew" ]; then
-                        echo "  sonda: el volumen real SI guarda el bit de ejecucion (${'$'}real_pwd/android/gradlew)" >&2
-                      else
-                        echo "  sonda: accesible pero chmod no surte efecto (mode $(stat -c %a "${'$'}real_pwd/android/gradlew" 2>/dev/null))" >&2
-                      fi
-                    fi
-                  fi
-                fi
-              elif [ -x android/gradlew ]; then
-                :
-              else
-                echo 'AVISO: android/gradlew no se puede ejecutar y el host no tiene copia alternativa.' >&2
-                echo '       El tool va a fallar al lanzarlo; revisa el espacio libre de la app' >&2
-                echo '       o vuelve a importar el proyecto desde un zip.' >&2
-              fi
+              BUILD_DIR=${'$'}CS_MIRROR
+              echo 'El proyecto esta en almacenamiento externo, que no conserva el bit de ejecucion.'
+              echo "Construyendo en una copia temporal: ${'$'}BUILD_DIR"
+              rm -rf "${'$'}BUILD_DIR"
+              mkdir -p "${'$'}BUILD_DIR"
+              # Skip the generated trees by name: they are large, re-copying them on every build is pure
+              # waste, and .dart_tool is regenerated by `pub get` off the shared PUB_CACHE. Comparing the
+              # basename keeps this right regardless of the leading "./" that the glob puts there.
+              for entry in ./* ./.[!.]* ./..?*; do
+                [ -e "${'$'}entry" ] || continue
+                case "${'$'}{entry##*/}" in
+                  build|.dart_tool|.platform|.git) continue ;;
+                esac
+                cp -a "${'$'}entry" "${'$'}BUILD_DIR/" || exit 1
+              done
+              rm -rf "${'$'}BUILD_DIR/android/.gradle" "${'$'}BUILD_DIR/android/build" \
+                     "${'$'}BUILD_DIR/android/app/build"
+              # cp -a carries the mode across, and the mode it carries is the 0644 the source never had, so the
+              # bit has to be set again on this side of the copy. Here it sticks. Spelled 0755 rather than +x
+              # so the result does not depend on the caller's umask.
+              chmod 0755 "${'$'}BUILD_DIR/android/gradlew"
+              cd "${'$'}BUILD_DIR"
             fi
 
+
+            # `set -e` would abort here and swallow the exit status, and the artifact copy-out below is exactly
+            # the code that must still run when the build fails partway.
+            set +e
             ${'$'}FLUTTER_BIN $commandArgs
-            exit ${'$'}?
+            status=${'$'}?
+            set -e
+
+            # Bring the artifacts back to the project so the run panel and the APK install path find them where
+            # the user expects. Only the outputs, not the whole generated tree.
+            if [ "${'$'}BUILD_DIR" != "${'$'}cwd" ] && [ -d "${'$'}BUILD_DIR/build/app/outputs" ]; then
+              mkdir -p "${'$'}cwd/build/app/outputs"
+              cp -a "${'$'}BUILD_DIR/build/app/outputs/." "${'$'}cwd/build/app/outputs/" 2>/dev/null || true
+              echo "Artefactos copiados a ${'$'}cwd/build/app/outputs"
+            fi
+            exit ${'$'}status
         """.trimIndent()
     }
 
     private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
+
+    /**
+     * Where an Android build actually runs when the project cannot host one itself.
+     *
+     * Keyed by the project's absolute path so each module gets its own stable directory, and kept under the
+     * prefix's `local/` next to the SDK so it shares the app's backup and cleanup rules. The path is only ever
+     * used to build; the user's project stays where it is.
+     */
+    private fun buildMirror(project: File): String {
+        val digest = MessageDigest.getInstance("SHA-1").digest(project.absolutePath.toByteArray(StandardCharsets.UTF_8))
+        val id = digest.joinToString("") { "%02x".format(it) }.take(16)
+        return "/data/user/0/com.codestudio.ide/local/flutter-build/$id"
+    }
 
     /**
      * A proot bind that makes the project's `android/gradlew` executable when the project filesystem will not
