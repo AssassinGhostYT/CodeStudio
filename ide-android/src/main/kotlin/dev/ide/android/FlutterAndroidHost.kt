@@ -550,6 +550,22 @@ object FlutterAndroidHost {
                 # second-guess that with a mode-bit test on the project copy: the bind is the authority here, and
                 # the spawn below is the real judge. Testing anyway produced a false alarm on a working setup.
                 echo '  gradlew: se usa la copia ejecutable del host'
+                # Flutter turns a failed wrapper spawn into "Flutter failed to run ... Please ensure that the
+                # SDK and/or project is installed in a location that has read/write permissions" and keeps the
+                # ProcessException's own errno out of the log, so a build that dies in 20 ms gives nothing to
+                # read. Launching the wrapper here puts the real error on the build log. It costs one extra JVM
+                # start per boot, not per build: /dev/shm is a tmpfs, so a successful probe is forgotten on
+                # reboot and retried then, and a failing one keeps failing visibly.
+                if [ ! -f /dev/shm/.cs-gradlew-probe-ok ]; then
+                  echo '  sonda: Flutter oculta el errno real del wrapper; se lanza una vez para verlo'
+                  if probe_out=$(android/gradlew --version 2>&1); then
+                    printf '%s\n' "${'$'}probe_out" | head -n 3 | sed 's/^/    /'
+                    : > /dev/shm/.cs-gradlew-probe-ok 2>/dev/null || true
+                  else
+                    printf '%s\n' "${'$'}probe_out" | head -n 8 | sed 's/^/    /'
+                    echo '  sonda: FALLO — el error de arriba es el real, no un problema de permisos' >&2
+                  fi
+                fi
               elif [ -x android/gradlew ]; then
                 :
               else
