@@ -564,6 +564,19 @@ object FlutterAndroidHost {
                   else
                     printf '%s\n' "${'$'}probe_out" | head -n 8 | sed 's/^/    /'
                     echo '  sonda: FALLO — el error de arriba es el real, no un problema de permisos' >&2
+                    # Second question, and it decides the shape of any fix: `sh <file>` needs no exec bit, so
+                    # if the wrapper works this way then the script, the jar and the layout are all fine and
+                    # the only broken thing is a mode the project's filesystem refuses to store. That means
+                    # another proot binding, or a different build layout — not a broken wrapper. If it fails
+                    # too, the problem is somewhere else entirely and no permission story explains it.
+                    echo '  sonda: probando via interprete (sh), que no necesita bit de ejecucion'
+                    if probe_sh=$(sh android/gradlew --version 2>&1); then
+                      printf '%s\n' "${'$'}probe_sh" | head -n 3 | sed 's/^/    /'
+                      echo '  sonda: el wrapper es correcto; solo falta el bit, que el proyecto no puede guardar' >&2
+                    else
+                      printf '%s\n' "${'$'}probe_sh" | head -n 5 | sed 's/^/    /'
+                      echo '  sonda: FALLO tambien via interprete — no es un problema de permisos' >&2
+                    fi
                   fi
                 fi
               elif [ -x android/gradlew ]; then
