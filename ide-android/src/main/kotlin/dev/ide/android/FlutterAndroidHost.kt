@@ -586,21 +586,26 @@ object FlutterAndroidHost {
                     # storage — a much bigger change that should not be started before this is known.
                     real_pwd=""
                     case "${'$'}PWD" in
-                      /sdcard/*) real_pwd="/data/media/0/${'$'}PWD" ;;
+                      /sdcard/*)
+                        real_pwd="/data/media/0/${'$'}{PWD#/sdcard/}" ;;
+                      /storage/emulated/0/*)
+                        real_pwd="/data/media/0/${'$'}{PWD#/storage/emulated/0/}" ;;
+                      /storage/self/primary/*)
+                        real_pwd="/data/media/0/${'$'}{PWD#/storage/self/primary/}" ;;
                     esac
+                    echo "  sonda: PWD dentro del prefix = ${'$'}PWD" >&2
                     if [ -z "${'$'}real_pwd" ]; then
-                      echo '  sonda: el proyecto no esta bajo /sdcard; no hay volumen real que probar' >&2
+                      echo '  sonda: no se pudo mapear el proyecto a un volumen real' >&2
                     elif [ ! -d "${'$'}real_pwd" ]; then
-                      echo "  sonda: /data/media/0 inaccesible desde el prefix (${'$'}real_pwd)" >&2
+                      echo "  sonda: ${'$'}real_pwd inaccesible desde el prefix" >&2
                     elif [ ! -f "${'$'}real_pwd/android/gradlew" ]; then
-                      echo "  sonda: /data/media/0 accesible pero no ve android/gradlew (${'$'}real_pwd)" >&2
+                      echo "  sonda: ${'$'}real_pwd existe pero no ve android/gradlew" >&2
                     else
                       chmod +x "${'$'}real_pwd/android/gradlew" 2>/dev/null || true
                       if [ -x "${'$'}real_pwd/android/gradlew" ]; then
                         echo "  sonda: el volumen real SI guarda el bit de ejecucion (${'$'}real_pwd/android/gradlew)" >&2
-                        echo '  sonda: construir por ahi deja de necesitar el bind' >&2
                       else
-                        echo "  sonda: /data/media/0 accesible pero chmod no surte efecto (mode $(stat -c %a "${'$'}real_pwd/android/gradlew" 2>/dev/null))" >&2
+                        echo "  sonda: accesible pero chmod no surte efecto (mode $(stat -c %a "${'$'}real_pwd/android/gradlew" 2>/dev/null))" >&2
                       fi
                     fi
                   fi
