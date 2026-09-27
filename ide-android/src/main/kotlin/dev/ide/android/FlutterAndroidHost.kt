@@ -640,6 +640,22 @@ object FlutterAndroidHost {
             fi
 
 
+            # The Gradle wrapper takes an exclusive lock on the distribution zip while it unpacks it. If a
+            # previous run is killed instead of exiting — likely under proot, where the app can tear the
+            # prefix down whenever it likes — the .lck survives and every later build blocks on it for two
+            # minutes and then fails with a timeout that names neither the cause nor the dead process. Nothing
+            # else runs Gradle while this script does, since the daemon is disabled, so any lock still on disk
+            # at this point belongs to a run that is already gone.
+            if [ "${'$'}NEEDS_ANDROID" = true ]; then
+              stale_locks=${'$'}(find /root/.gradle/wrapper/dists -name '*.lck' 2>/dev/null | wc -l)
+              if [ "${'$'}stale_locks" -gt 0 ]; then
+                echo "  limpieza: ${'$'}stale_locks candado(s) de Gradle de una build anterior interrumpida"
+                find /root/.gradle/wrapper/dists -name '*.lck' -delete 2>/dev/null || true
+              fi
+              # Same reason: a download cut off mid-flight leaves a .part that the wrapper counts as progress.
+              find /root/.gradle/wrapper/dists -name '*.part' -delete 2>/dev/null || true
+            fi
+
             # `set -e` would abort here and swallow the exit status, and the artifact copy-out below is exactly
             # the code that must still run when the build fails partway.
             set +e
