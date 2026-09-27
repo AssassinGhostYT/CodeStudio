@@ -121,7 +121,9 @@ object FlutterAndroidHost {
             export CI=true
             export PUB_CACHE=/root/.pub-cache
             # A stray Gradle daemon would pin the prefix (and RAM) between builds; the panel expects one-shot runs.
-            export GRADLE_OPTS='-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx2g'
+            # The heap is deliberately not set here: the project's own gradle.properties owns org.gradle.jvmargs,
+            # and setting it in both places only makes which one wins depend on argument order.
+            export GRADLE_OPTS='-Dorg.gradle.daemon=false'
             FLUTTER_BIN=$flutter
             ANDROID_SDK_PATH=$sdk
             NEEDS_ANDROID=$needsAndroid
@@ -573,6 +575,59 @@ object FlutterAndroidHost {
               done
               rm -rf "${'$'}BUILD_DIR/android/.gradle" "${'$'}BUILD_DIR/android/build" \
                      "${'$'}BUILD_DIR/android/app/build"
+
+              # ── Match the Gradle toolchain to the SDK that is actually installed ─────────────────────
+              # The mirror is disposable build scratch that this script owns, so the Gradle files in it are
+              # rewritten to agree with the installed SDK. Doing it here rather than in the template is what
+              # makes an already-created project work: the template only runs at creation, and every build
+              # rebuilds the mirror from the project's own (older) copies.
+              #
+              # The versions are read from the SDK instead of hardcoded here, because guessing them is what
+              # broke the build: AGP 9.0 removed support for applying the Kotlin Gradle Plugin, so an app
+              # module still asking for id("kotlin-android") fails outright, and AGP 9 reads only the new DSL
+              # unless the project opts out. The SDK declares both flags and all three versions itself.
+              flutter_root=${'$'}(dirname "${'$'}(dirname "${'$'}FLUTTER_BIN")")
+              sdk_versions="${'$'}flutter_root/packages/flutter_tools/lib/src/android/gradle_utils.dart"
+              sdk_version() {
+                sed -n "s/^const $2 = '\\(.*\\)';/\\1/p" "${'$'}sdk_versions" 2>/dev/null | head -n 1
+              }
+              sdk_agp=${'$'}(sdk_version x templateAndroidGradlePluginVersion)
+              sdk_kgp=${'$'}(sdk_version x templateKotlinGradlePluginVersion)
+              sdk_gradle=${'$'}(sdk_version x templateDefaultGradleVersion)
+
+              if [ -n "${'$'}sdk_agp" ] && [ -f "${'$'}BUILD_DIR/android/settings.gradle.kts" ]; then
+                echo "  toolchain segun el SDK: AGP ${'$'}sdk_agp, Kotlin ${'$'}sdk_kgp, Gradle ${'$'}sdk_gradle"
+                sed -i -E "s|(id\\(\"com.android.application\"\\) version \")[^\"]*(\")|\\1${'$'}sdk_agp\\2|" \
+                  "${'$'}BUILD_DIR/android/settings.gradle.kts"
+                sed -i -E "s|(id\\(\"org.jetbrains.kotlin.android\"\\) version \")[^\"]*(\")|\\1${'$'}sdk_kgp\\2|" \
+                  "${'$'}BUILD_DIR/android/settings.gradle.kts"
+                sed -i -E "s|gradle-[0-9.]+-bin\\.zip|gradle-${'$'}sdk_gradle-bin.zip|" \
+                  "${'$'}BUILD_DIR/android/gradle/wrapper/gradle-wrapper.properties"
+              else
+                echo "  AVISO: no se pudo leer la version del SDK; se usan las que tiene el proyecto." >&2
+              fi
+
+              # The two opt-outs the SDK's own template sets. Without them an AGP 9 toolchain reads only the
+              # new DSL and drops Kotlin Gradle Plugin support, which is exactly the failure being fixed here.
+              props="${'$'}BUILD_DIR/android/gradle.properties"
+              touch "${'$'}props"
+              grep -q '^android.newDsl=' "${'$'}props" || echo 'android.newDsl=false' >> "${'$'}props"
+              grep -q '^android.builtInKotlin=' "${'$'}props" || echo 'android.builtInKotlin=false' >> "${'$'}props"
+
+              app_module="${'$'}BUILD_DIR/android/app/build.gradle.kts"
+              if [ -f "${'$'}app_module" ]; then
+                # The app module must not apply the Kotlin plugin: the Flutter plugin does, which is why
+                # settings.gradle.kts declares it `apply false`.
+                sed -i '/id("kotlin-android")/d' "${'$'}app_module"
+                # kotlinOptions is the pre-2.0 Kotlin block. jvmTarget now goes through compilerOptions, and
+                # leaving it unset makes the Kotlin compile fail against the Java 17 toolchain.
+                if grep -q 'kotlinOptions' "${'$'}app_module"; then
+                  sed -i '/kotlinOptions {/,/^[[:space:]]*}/d' "${'$'}app_module"
+                  printf '\nkotlin {\n    compilerOptions {\n        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17\n    }\n}\n' \
+                    >> "${'$'}app_module"
+                fi
+              fi
+
               # cp -a carries the mode across, and the mode it carries is the 0644 the source never had, so the
               # bit has to be set again on this side of the copy. Here it sticks. Spelled 0755 rather than +x
               # so the result does not depend on the caller's umask.

@@ -15,15 +15,22 @@ import dev.ide.model.template.ProjectScaffold
  * time, which is a terrible place to discover a project is incomplete.
  *
  * So a new project is complete the moment it is created, like the Kotlin/Android/Compose templates already
- * are. These versions are the ones `flutter create` pins for current stable, and the compile-time repair
- * still fills in anything missing, so a project whose SDK disagrees about a version is repaired rather
- * than blocked.
+ * are, and the compile-time repair still fills in anything missing, so a project whose SDK disagrees about a
+ * version is repaired rather than blocked.
+ *
+ * The versions and the DSL below are the ones `flutter create` writes for Flutter 3.47.5, taken from the SDK's
+ * own `packages/flutter_tools/lib/src/android/gradle_utils.dart` (`templateAndroidGradlePluginVersion`,
+ * `templateKotlinGradlePluginVersion`, `templateDefaultGradleVersion`) and its
+ * `templates/app/android-kotlin.tmpl/app/build.gradle.kts.tmpl`. Guessing them is not safe: AGP 9.0 removed
+ * support for applying the Kotlin Gradle Plugin, so an app module still asking for `id("kotlin-android")`
+ * fails to build outright, and AGP 9 reads only the new DSL unless the project opts out with
+ * `android.newDsl=false`. Both flags below are what the SDK's own template sets.
  */
 object FlutterGradleScaffold {
 
-    private const val AGP_VERSION = "8.7.3"
-    private const val KGP_VERSION = "2.1.0"
-    private const val GRADLE_DISTRIBUTION = "8.12"
+    private const val AGP_VERSION = "9.1.0"
+    private const val KGP_VERSION = "2.4.0"
+    private const val GRADLE_DISTRIBUTION = "9.3.1"
 
     /** Write `settings.gradle.kts`, `build.gradle.kts`, `gradle.properties` and the wrapper descriptor. */
     fun writeRootFiles(scaffold: ProjectScaffold, androidDir: String, projectName: String) {
@@ -84,9 +91,16 @@ object FlutterGradleScaffold {
         scaffold.writeText(
             "$androidDir/gradle.properties",
             """
-            org.gradle.jvmargs=-Xmx4G -XX:MaxMetaspaceSize=2G
+            # The SDK's own template sets these two, and they are what keeps an AGP 9 toolchain working with
+            # the Plugin DSL. newDsl=false keeps AGP from reading only the new interface, and builtInKotlin=false
+            # keeps the Kotlin Gradle Plugin, which plugins still apply.
+            android.newDsl=false
+            android.builtInKotlin=false
             android.useAndroidX=true
             android.enableJetifier=false
+            # Not the SDK's -Xmx8G: this runs on a phone. GRADLE_OPTS sets the daemon's heap at build time and
+            # deliberately does not repeat it here, so this file has one owner per setting.
+            org.gradle.jvmargs=-Xmx2G -XX:MaxMetaspaceSize=1G
             """,
         )
 
@@ -114,13 +128,16 @@ object FlutterGradleScaffold {
      * module is not interchangeable with [GradleScaffold.writeAppModule]: it builds the APK by invoking
      * `flutter assemble`, and the Dart entry point is a project property.
      */
-    fun writeAppModule(scaffold: ProjectScaffold, androidDir: String, namespace: String, minSdk: Int = 21) {
+    fun writeAppModule(scaffold: ProjectScaffold, androidDir: String, namespace: String) {
         scaffold.writeText(
             "$androidDir/app/build.gradle.kts",
             """
             plugins {
                 id("com.android.application")
-                id("kotlin-android")
+                // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins. Note
+                // that the app module does not apply `kotlin-android` itself: the Flutter plugin does, which is
+                // why settings.gradle.kts declares it `apply false`. Asking for it here is a build failure
+                // under AGP 9, which no longer supports applying the Kotlin Gradle Plugin at all.
                 id("dev.flutter.flutter-gradle-plugin")
             }
 
@@ -134,13 +151,9 @@ object FlutterGradleScaffold {
                     targetCompatibility = JavaVersion.VERSION_17
                 }
 
-                kotlinOptions {
-                    jvmTarget = JavaVersion.VERSION_17.toString()
-                }
-
                 defaultConfig {
                     applicationId = "$namespace"
-                    minSdk = $minSdk
+                    minSdk = flutter.minSdkVersion
                     targetSdk = flutter.targetSdkVersion
                     versionCode = flutter.versionCode
                     versionName = flutter.versionName
@@ -152,6 +165,12 @@ object FlutterGradleScaffold {
                         // before the user has set up their own signing config.
                         signingConfig = signingConfigs.getByName("debug")
                     }
+                }
+            }
+
+            kotlin {
+                compilerOptions {
+                    jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
                 }
             }
 
