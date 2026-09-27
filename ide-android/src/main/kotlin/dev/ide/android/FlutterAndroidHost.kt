@@ -577,6 +577,32 @@ object FlutterAndroidHost {
                       printf '%s\n' "${'$'}probe_sh" | head -n 5 | sed 's/^/    /'
                       echo '  sonda: FALLO tambien via interprete — no es un problema de permisos' >&2
                     fi
+                    # Third question, and the only one that could make this cheap to fix. /sdcard is a FUSE
+                    # view that synthesises modes (regular files always read as 0644) and ignores chmod, but it
+                    # is a view *onto* the real volume, which is mounted at /data/media/0 and does keep POSIX
+                    # bits. If that path is reachable, the wrapper can be chmod'ed and exec'd through it and the
+                    # whole extra-binds dance becomes unnecessary. If it is not reachable, this filesystem
+                    # simply cannot host a Gradle build and the project has to be built from a copy on internal
+                    # storage — a much bigger change that should not be started before this is known.
+                    real_pwd=""
+                    case "${'$'}PWD" in
+                      /sdcard/*) real_pwd="/data/media/0/${'$'}PWD" ;;
+                    esac
+                    if [ -z "${'$'}real_pwd" ]; then
+                      echo '  sonda: el proyecto no esta bajo /sdcard; no hay volumen real que probar' >&2
+                    elif [ ! -d "${'$'}real_pwd" ]; then
+                      echo "  sonda: /data/media/0 inaccesible desde el prefix (${'$'}real_pwd)" >&2
+                    elif [ ! -f "${'$'}real_pwd/android/gradlew" ]; then
+                      echo "  sonda: /data/media/0 accesible pero no ve android/gradlew (${'$'}real_pwd)" >&2
+                    else
+                      chmod +x "${'$'}real_pwd/android/gradlew" 2>/dev/null || true
+                      if [ -x "${'$'}real_pwd/android/gradlew" ]; then
+                        echo "  sonda: el volumen real SI guarda el bit de ejecucion (${'$'}real_pwd/android/gradlew)" >&2
+                        echo '  sonda: construir por ahi deja de necesitar el bind' >&2
+                      else
+                        echo "  sonda: /data/media/0 accesible pero chmod no surte efecto (mode $(stat -c %a "${'$'}real_pwd/android/gradlew" 2>/dev/null))" >&2
+                      fi
+                    fi
                   fi
                 fi
               elif [ -x android/gradlew ]; then
