@@ -636,6 +636,31 @@ object FlutterAndroidHost {
             fi
 
 
+            # AGP runs aapt2 as a daemon, and when the daemon cannot start Gradle only says "Daemon #0: Daemon
+            # startup failed. This should not happen under normal circumstances" — which names neither the
+            # binary nor the reason. The one thing worth knowing before guessing is what AGP actually
+            # downloaded: it picks aapt2 from Maven by host OS and arch, and the rootfs here is arm64 while
+            # the artifact it chose is named aapt2-<ver>-linux with no arch in it, which is the x86_64 build.
+            # A binary of the wrong architecture fails exactly this way, so report the arch, the artifact, its
+            # mode, and what running it does.
+            if [ "${'$'}NEEDS_ANDROID" = true ]; then
+              echo "  sonda aapt2: uname -m = ${'$'}(uname -m)"
+              aapt2_jar=${'$'}(find /root/.gradle/caches -name 'aapt2-*.jar' 2>/dev/null | head -n 1)
+              echo "  sonda aapt2: artefacto = ${'$'}aapt2_jar"
+              # The jar and the binary it unpacks to differ only by the extension, so the jar has to be
+              # excluded or this reports the archive and "running" it says nothing about the real binary.
+              aapt2_bin=${'$'}(find /root/.gradle/caches -type f -name 'aapt2-*-linux' -not -name '*.jar' 2>/dev/null | head -n 1)
+              if [ -n "${'$'}aapt2_bin" ]; then
+                echo "  sonda aapt2: modo = ${'$'}(ls -l "${'$'}aapt2_bin" | cut -c1-10)"
+                if command -v file >/dev/null 2>&1; then
+                  echo "  sonda aapt2: tipo = ${'$'}(file -b "${'$'}aapt2_bin" 2>/dev/null | cut -c1-100)"
+                fi
+                echo "  sonda aapt2: salida = ${'$'}("${'$'}aapt2_bin" version 2>&1 | head -n 2 | tr '\n' ' ')"
+              else
+                echo '  sonda aapt2: no se encontro ningun binario extraido todavia' >&2
+              fi
+            fi
+
             # `set -e` would abort here and swallow the exit status, and the artifact copy-out below is exactly
             # the code that must still run when the build fails partway.
             set +e
