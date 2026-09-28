@@ -297,7 +297,8 @@ object FlutterAndroidHost {
               mkdir -p "${'$'}CS_X86_DIR/aapt2" || return 0
               if [ ! -f "${'$'}aapt2_bin" ]; then
                 local jar="${'$'}CS_X86_DIR/aapt2/aapt2-${'$'}aapt2_ver-linux.jar"
-                # Double quotes on purpose: $aapt2_ver is expanded by the shell, not baked in at build time.
+                # Double quotes on purpose: the version is filled in by the shell at run time, not by
+                # Kotlin when the script is built.
                 cs_fetch "$AAPT2_MAVEN_BASE/${'$'}aapt2_ver/aapt2-${'$'}aapt2_ver-linux.jar" "${'$'}jar" || return 0
                 if ! command -v unzip >/dev/null 2>&1; then
                   echo 'AVISO: falta unzip en el entorno; el build fallara en processDebugResources.' >&2
