@@ -42,6 +42,26 @@ object FlutterAndroidHost {
     private const val DEFAULT_PLATFORM = "android-36"
     private const val TAG = "FlutterAndroidHost"
 
+    /**
+     * The aapt2 that AGP runs is x86-64 on every host, and Google publishes no arm64 build for any
+     * platform: `aapt2-<v>-linux-arm64.jar` and `aapt2-<v>-osx-arm64.jar` are both 404, and the Android SDK's
+     * own build-tools are x86-64 for Linux too. On an arm64 device the daemon therefore cannot start at all,
+     * so the official x86-64 binary is executed under qemu-user instead.
+     *
+     * QEMU is GPL-2.0. It is not linked into anything: it runs aapt2 as a separate process, and the sources
+     * for these exact packages are at qemu.org and the Debian pool path below.
+     *
+     * Only one of the forty binaries in the qemu package is kept — the aarch64 `qemu-x86_64-static`, which is
+     * statically linked and needs nothing from the host — plus a sysroot holding just the seven shared objects
+     * aapt2 links against. Thirteen megabytes on disk, once, cached in the prefix.
+     */
+    private const val QEMU_USER_STATIC_DEB =
+        "http://deb.debian.org/debian/pool/main/q/qemu/qemu-user-static_7.2+dfsg-7+deb12u18+b3_arm64.deb"
+    private const val LIBC6_AMD64_DEB =
+        "http://deb.debian.org/debian/pool/main/g/glibc/libc6_2.36-9+deb12u14_amd64.deb"
+    private const val LIBGCC_S1_AMD64_DEB =
+        "http://deb.debian.org/debian/pool/main/g/gcc-12/libgcc-s1_12.2.0-14+deb12u1_amd64.deb"
+
     fun install(context: Context) {
         val appContext = context.applicationContext
         UbuntuRuntime.init(appContext)
@@ -133,6 +153,134 @@ object FlutterAndroidHost {
             # of into the project. The mirror logic needs the project's path as a value, so it gets a real one.
             PROJECT_DIR=$cwd
             cd $cwd
+
+            # ── aapt2 x86_64 under qemu ──────────────────────────────────────────────────────────────────────
+            # AGP downloads an x86-64 aapt2 and runs it as a daemon. Google publishes no arm64 build, for any
+            # host, so on an arm64 device that daemon cannot start. The official x86-64 binary is run under
+            # qemu-user instead, which is the only way to get a real APK out of the device. Everything is
+            # cached in the prefix and prepared once, so later builds pay nothing for it.
+            CS_X86_DIR=/data/user/0/com.codestudio.ide/local/flutter-x86_64
+            CS_QEMU=${'$'}CS_X86_DIR/bin/qemu-x86_64-static
+            CS_SYSROOT=${'$'}CS_X86_DIR/sysroot
+            CS_AAPT2_SHIM=${'$'}CS_X86_DIR/bin/aapt2
+            CS_AAPT2_OVERRIDE=
+
+            # Resumable, because the qemu package is 54 MB and a phone connection drops mid-transfer more
+            # often than a desktop's does. curl -C - continues from whatever bytes already landed.
+            cs_fetch() {
+              local url="${'$'}1" dest="${'$'}2" part="${'$'}2.part"
+              local attempt=0
+              while [ ${'$'}attempt -lt 4 ]; do
+                if curl -fL -C - --retry 3 --retry-delay 2 --connect-timeout 30 -o "${'$'}part" "${'$'}url"; then
+                  mv -f "${'$'}part" "${'$'}dest" && return 0
+                fi
+                attempt=${'$'}((${'$'}attempt + 1))
+                echo "  reintentando descarga (${'$'}attempt/4)…"
+                sleep 2
+              done
+              return 1
+            }
+
+            # dpkg-deb is in every Ubuntu rootfs and unwraps the ar and xz layers itself. The manual path is
+            # there for prefixes trimmed down far enough to have lost it, which is why tar is preferred when
+            # present: dpkg-deb shells out to it.
+            # Extrae del .deb solo los ficheros pedidos, no el paquete entero: el de qemu lleva cuarenta
+            # binarios y glibc trae sus modulos de conversiones, y desempaquetarlo todo no cabe ni conviene.
+            # dpkg-deb --fsys-tarfile escribe un tar plano, asi que no hace falta ni ar ni xz.
+            cs_unpack() {
+              local deb="${'$'}1" into="${'$'}2"
+              shift 2
+              mkdir -p "${'$'}into" || return 1
+              if command -v dpkg-deb >/dev/null 2>&1; then
+                dpkg-deb --fsys-tarfile "${'$'}deb" > "${'$'}into/.data.tar" 2>/dev/null || return 1
+                tar -x -f "${'$'}into/.data.tar" -C "${'$'}into" --wildcards "${'$'}@" 2>/dev/null
+              else
+                ar p "${'$'}deb" data.tar.xz 2>/dev/null | xz -dc 2>/dev/null \
+                  | tar -x -C "${'$'}into" --wildcards "${'$'}@" 2>/dev/null
+              fi
+              local rc=${'$'}?
+              rm -f "${'$'}into/.data.tar"
+              return ${'$'}rc
+            }
+
+            cs_prepare_x86_aapt2() {
+              # Anything but arm64 runs the native aapt2 and needs none of this.
+              [ "${'$'}(uname -m)" = aarch64 ] || return 0
+              local libs="${'$'}CS_SYSROOT/lib/x86_64-linux-gnu"
+              if [ -x "${'$'}CS_QEMU" ] && [ -x "${'$'}CS_AAPT2_SHIM" ]; then
+                local probe
+                for probe in "${'$'}libs/ld-linux-x86-64.so.2" "${'$'}libs/libc.so.6" "${'$'}libs/libdl.so.2" \
+                             "${'$'}libs/libpthread.so.0" "${'$'}libs/libm.so.6" "${'$'}libs/librt.so.1" \
+                             "${'$'}libs/libgcc_s.so.1"; do
+                  [ -f "${'$'}probe" ] || return 0
+                done
+                CS_AAPT2_OVERRIDE=${'$'}CS_AAPT2_SHIM
+                return 0
+              fi
+              echo 'Preparando aapt2 x86_64 emulado (primera vez, ~57 MB)…'
+              local work="${'$'}CS_X86_DIR/.work"
+              rm -rf "${'$'}work"
+              mkdir -p "${'$'}work" "${'$'}CS_X86_DIR/bin" "${'$'}libs" "${'$'}CS_SYSROOT/lib64" || return 0
+
+              local ok=true
+              cs_fetch '$QEMU_USER_STATIC_DEB' "${'$'}work/qemu.deb" || ok=false
+              [ "${'$'}ok" = true ] && cs_fetch '$LIBC6_AMD64_DEB' "${'$'}work/libc6.deb" || ok=false
+              [ "${'$'}ok" = true ] && cs_fetch '$LIBGCC_S1_AMD64_DEB' "${'$'}work/libgcc.deb" || ok=false
+              if [ "${'$'}ok" != true ]; then
+                echo 'AVISO: no se pudo descargar el emulador; el build fallara en processDebugResources.' >&2
+                return 0
+              fi
+
+              cs_unpack "${'$'}work/qemu.deb" "${'$'}work/qemu" '*qemu-x86_64-static' || true
+              cs_unpack "${'$'}work/libc6.deb" "${'$'}work/libc6" \
+                '*ld-linux-x86-64.so.2' '*libc.so.6' '*libdl.so.2' '*libpthread.so.0' '*libm.so.6' '*librt.so.1' || true
+              cs_unpack "${'$'}work/libgcc.deb" "${'$'}work/libgcc" '*libgcc_s.so.1' || true
+
+              # Checked one by one, because the extraction is the part that can quietly do nothing: a tar
+              # that cannot write leaves an empty directory and no error worth reading, and the build then
+              # fails much later with a missing .so that names neither tar nor the download.
+              local lib src
+              for lib in ld-linux-x86-64.so.2 libc.so.6 libdl.so.2 libpthread.so.0 libm.so.6 librt.so.1 libgcc_s.so.1; do
+                src=${'$'}(find "${'$'}work" -name "${'$'}lib" -type f 2>/dev/null | head -n 1)
+                if [ -z "${'$'}src" ]; then
+                  echo "AVISO: no se extrajo ${'$'}lib; el build fallara en processDebugResources." >&2
+                  return 0
+                fi
+                cp -f "${'$'}src" "${'$'}libs/${'$'}lib" || return 0
+              done
+              src=${'$'}(find "${'$'}work/qemu" -name 'qemu-x86_64-static' -type f 2>/dev/null | head -n 1)
+              if [ -z "${'$'}src" ]; then
+                echo 'AVISO: no se extrajo qemu-x86_64-static; el build fallara en processDebugResources.' >&2
+                return 0
+              fi
+              cp -f "${'$'}src" "${'$'}CS_QEMU" || return 0
+              # Statically linked and built for aarch64, so the host provides nothing else.
+              chmod 0755 "${'$'}CS_QEMU" || return 0
+              # The interpreter is the one thing here that can be refused by the kernel, and it costs
+              # nothing to find that out now instead of at processDebugResources.
+              if ! "${'$'}CS_QEMU" --version >/dev/null 2>&1; then
+                echo 'AVISO: qemu-x86_64 no se ejecuta en este dispositivo; el build fallara en processDebugResources.' >&2
+                return 0
+              fi
+              # The guest binary names /lib64/ld-linux-x86-64.so.2, so that is the path qemu must find it at.
+              ln -sf "../lib/x86_64-linux-gnu/ld-linux-x86-64.so.2" "${'$'}CS_SYSROOT/lib64/ld-linux-x86-64.so.2"
+
+              # AGP is pointed at this rather than at aapt2, because the override has to cover the exec.
+              # The binary comes out of the jar 0600 and qemu cannot exec a file without the execute bit;
+              # internal storage keeps the bit, unlike the emulated volume, so this chmod sticks.
+              printf '%s\n' \
+                '#!/bin/sh' \
+                '# Runs the x86-64 aapt2 under qemu-user: Google publishes no arm64 build.' \
+                'target="$1"' \
+                'shift' \
+                '[ -x "${'$'}target" ] || chmod 0755 "${'$'}target" 2>/dev/null' \
+                "exec ${'$'}CS_QEMU -L ${'$'}CS_SYSROOT \"\${'$'}target\" \"\${'$'}@\"" \
+                > "${'$'}CS_AAPT2_SHIM"
+              chmod 0755 "${'$'}CS_AAPT2_SHIM" || return 0
+              rm -rf "${'$'}work"
+              CS_AAPT2_OVERRIDE=${'$'}CS_AAPT2_SHIM
+              echo '  aapt2 emulado listo.'
+            }
 
             # ── Flutter SDK ───────────────────────────────────────────────────────────────────────────────
             if [ ! -x "${'$'}FLUTTER_BIN" ]; then
@@ -560,6 +708,11 @@ object FlutterAndroidHost {
             # So build from a copy on internal storage, where the mode bit sticks. The project does not move:
             # the mirror is only where the build runs, the user's sources stay in /sdcard and stay browsable.
             # PUB_CACHE and the Gradle user home are already shared in the prefix, so nothing re-downloads.
+            # Prepared before the mirror so the property pointing AGP at the emulated aapt2 lands in the
+            # gradle.properties that the block below rewrites.
+            if [ "${'$'}NEEDS_ANDROID" = true ]; then
+              cs_prepare_x86_aapt2
+            fi
             BUILD_DIR=${'$'}PROJECT_DIR
             if [ "${'$'}NEEDS_ANDROID" = true ] && [ -f android/gradlew ] && [ ! -x android/gradlew ]; then
               BUILD_DIR=${'$'}CS_MIRROR
@@ -617,6 +770,12 @@ object FlutterAndroidHost {
               touch "${'$'}props"
               grep -q '^android.newDsl=' "${'$'}props" || echo 'android.newDsl=false' >> "${'$'}props"
               grep -q '^android.builtInKotlin=' "${'$'}props" || echo 'android.builtInKotlin=false' >> "${'$'}props"
+              # Only the native binary is redirected. The aapt2-proto jar AGP uses for its own side is Java
+              # and resolves normally on arm64, so overriding the executable is enough and nothing else moves.
+              if [ -n "${'$'}CS_AAPT2_OVERRIDE" ]; then
+                sed -i '/^android.aapt2FromMavenOverride=/d' "${'$'}props"
+                echo "android.aapt2FromMavenOverride=${'$'}CS_AAPT2_OVERRIDE" >> "${'$'}props"
+              fi
 
               app_module="${'$'}BUILD_DIR/android/app/build.gradle.kts"
               if [ -f "${'$'}app_module" ]; then
@@ -691,8 +850,12 @@ object FlutterAndroidHost {
                 fi
                 echo "  sonda aapt2: salida = ${'$'}("${'$'}aapt2_bin" version 2>&1 | head -n 2 | tr '\n' ' ')"
               else
-                echo '  sonda aapt2: no se encontro ningun binario extraido todavia' >&2
+                echo '  sonda aapt2: no se encontro el binario en la cache de Gradle' >&2
               fi
+              if [ -n "${'$'}CS_AAPT2_OVERRIDE" ]; then
+                echo "  sonda aapt2: emulado = ${'$'}("${'$'}CS_AAPT2_SHIM" "${'$'}aapt2_bin" version 2>&1 | head -n 1)"
+              fi
+
             fi
 
             exit ${'$'}status
