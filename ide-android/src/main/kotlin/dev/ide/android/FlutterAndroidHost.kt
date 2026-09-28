@@ -62,6 +62,16 @@ object FlutterAndroidHost {
     private const val LIBGCC_S1_AMD64_DEB =
         "http://deb.debian.org/debian/pool/main/g/gcc-12/libgcc-s1_12.2.0-14+deb12u1_amd64.deb"
 
+    /**
+     * Base of the aapt2 artifact on Google Maven, and the build the pinned AGP 9.1.0 resolves. The
+     * override means AGP downloads no aapt2 of its own, so the shim fetches this one instead. Aapt2's
+     * build number cannot be derived from the AGP version, which is why it is written out: 9.1.0 resolves
+     * 9.1.0-14792394, the file AGP itself named when it was allowed to download one.
+     */
+    private const val AAPT2_MAVEN_BASE =
+        "https://dl.google.com/dl/android/maven2/com/android/tools/build/aapt2"
+    private const val AAPT2_VERSION = "9.1.0-14792394"
+
     fun install(context: Context) {
         val appContext = context.applicationContext
         UbuntuRuntime.init(appContext)
@@ -207,17 +217,21 @@ object FlutterAndroidHost {
               # Anything but arm64 runs the native aapt2 and needs none of this.
               [ "${'$'}(uname -m)" = aarch64 ] || return 0
               local libs="${'$'}CS_SYSROOT/lib/x86_64-linux-gnu"
-              if [ -x "${'$'}CS_QEMU" ] && [ -x "${'$'}CS_AAPT2_SHIM" ]; then
-                local probe
-                for probe in "${'$'}libs/ld-linux-x86-64.so.2" "${'$'}libs/libc.so.6" "${'$'}libs/libdl.so.2" \
-                             "${'$'}libs/libpthread.so.0" "${'$'}libs/libm.so.6" "${'$'}libs/librt.so.1" \
-                             "${'$'}libs/libgcc_s.so.1"; do
-                  [ -f "${'$'}probe" ] || return 0
-                done
+              # The install is only skipped when the copy already in place demonstrably works. A missing
+              # or truncated file used to be answered with a bare return 0, which left the override unset
+              # and sent AGP back to the x86-64 binary it cannot run here, so the build died later on a
+              # daemon error that named neither this script nor the state that caused it. Asking the shim
+              # to identify itself covers the interpreter, the sysroot and every library in one go.
+              if [ -x "${'$'}CS_QEMU" ] && [ -x "${'$'}CS_AAPT2_SHIM" ] \
+                 && "${'$'}CS_AAPT2_SHIM" version >/dev/null 2>&1; then
                 CS_AAPT2_OVERRIDE=${'$'}CS_AAPT2_SHIM
                 return 0
               fi
-              echo 'Preparando aapt2 x86_64 emulado (primera vez, ~57 MB)…'
+              if [ -x "${'$'}CS_QEMU" ]; then
+                echo 'Reparando aapt2 x86_64 emulado…'
+              else
+                echo 'Preparando aapt2 x86_64 emulado (primera vez, ~57 MB)…'
+              fi
               local work="${'$'}CS_X86_DIR/.work"
               rm -rf "${'$'}work"
               mkdir -p "${'$'}work" "${'$'}CS_X86_DIR/bin" "${'$'}libs" "${'$'}CS_SYSROOT/lib64" || return 0
@@ -256,27 +270,60 @@ object FlutterAndroidHost {
               cp -f "${'$'}src" "${'$'}CS_QEMU" || return 0
               # Statically linked and built for aarch64, so the host provides nothing else.
               chmod 0755 "${'$'}CS_QEMU" || return 0
-              # The interpreter is the one thing here that can be refused by the kernel, and it costs
-              # nothing to find that out now instead of at processDebugResources.
               if ! "${'$'}CS_QEMU" --version >/dev/null 2>&1; then
                 echo 'AVISO: qemu-x86_64 no se ejecuta en este dispositivo; el build fallara en processDebugResources.' >&2
                 return 0
               fi
-              # The guest binary names /lib64/ld-linux-x86-64.so.2, so that is the path qemu must find it at.
-              ln -sf "../lib/x86_64-linux-gnu/ld-linux-x86-64.so.2" "${'$'}CS_SYSROOT/lib64/ld-linux-x86-64.so.2"
+              # The guest binary names /lib64/ld-linux-x86-64.so.2, so that is the path qemu must find it
+              # at. Copied rather than symlinked to the entry under lib/: a relative symlink here was
+              # accepted by the filesystem but would not resolve, and qemu reports that as a missing
+              # /lib64/ld-linux-x86-64.so.2 naming neither the symlink nor this script. 215 KB buys
+              # certainty, and it leaves the sysroot free of symlinks, which is one less thing to depend
+              # on from inside an app's private storage.
+              cp -f "${'$'}libs/ld-linux-x86-64.so.2" "${'$'}CS_SYSROOT/lib64/ld-linux-x86-64.so.2" || return 0
 
-              # AGP is pointed at this rather than at aapt2, because the override has to cover the exec.
-              # The binary comes out of the jar 0600 and qemu cannot exec a file without the execute bit;
-              # internal storage keeps the bit, unlike the emulated volume, so this chmod sticks.
+              # Pointing AGP at the override is what stops it downloading aapt2 in the first place, so the
+              # shim has to supply the binary. unzip -p lifts that one member out of the jar, and the jar is
+              # the only download added here: 2 MB against qemu's 54.
+              #
+              # The version is pinned rather than sniffed out of the Gradle cache, because the scaffold
+              # already pins AGP and that makes the pairing deterministic. Aapt2's build number cannot be
+              # derived from the AGP version, so it is spelled out: 9.1.0 resolves 9.1.0-14792394, which is
+              # the file AGP itself named when it downloaded one. Reading the cache instead picked up
+              # whatever unrelated project had resolved last (9.2.1 here), which would not match the AGP
+              # this build is about to run.
+              local aapt2_ver='$AAPT2_VERSION'
+              local aapt2_bin="${'$'}CS_X86_DIR/aapt2/aapt2"
+              mkdir -p "${'$'}CS_X86_DIR/aapt2" || return 0
+              if [ ! -f "${'$'}aapt2_bin" ]; then
+                local jar="${'$'}CS_X86_DIR/aapt2/aapt2-${'$'}aapt2_ver-linux.jar"
+                # Double quotes on purpose: $aapt2_ver is expanded by the shell, not baked in at build time.
+                cs_fetch "$AAPT2_MAVEN_BASE/${'$'}aapt2_ver/aapt2-${'$'}aapt2_ver-linux.jar" "${'$'}jar" || return 0
+                if ! command -v unzip >/dev/null 2>&1; then
+                  echo 'AVISO: falta unzip en el entorno; el build fallara en processDebugResources.' >&2
+                  return 0
+                fi
+                unzip -p "${'$'}jar" aapt2 > "${'$'}aapt2_bin" 2>/dev/null || return 0
+                chmod 0755 "${'$'}aapt2_bin" || return 0
+              fi
+
+              # The override replaces aapt2 rather than wrapping it, so AGP calls this script *as* aapt2 and
+              # the subcommand arrives as an argument. An earlier version read the aapt2 path out of "$1"
+              # and so tried to execute a file named after the subcommand, which is why the daemon failed
+              # with nothing anywhere naming the shim.
               printf '%s\n' \
                 '#!/bin/sh' \
-                '# Runs the x86-64 aapt2 under qemu-user: Google publishes no arm64 build.' \
-                'target="$1"' \
-                'shift' \
-                '[ -x "${'$'}target" ] || chmod 0755 "${'$'}target" 2>/dev/null' \
-                "exec ${'$'}CS_QEMU -L ${'$'}CS_SYSROOT \"\${'$'}target\" \"\${'$'}@\"" \
+                '# Stands in for aapt2: Google publishes no arm64 build, so this runs the x86-64 one under' \
+                '# qemu-user. Arguments are the aapt2 subcommand and its operands, passed through as-is.' \
+                "exec ${'$'}CS_QEMU -L ${'$'}CS_SYSROOT ${'$'}aapt2_bin \"\${'$'}@\"" \
                 > "${'$'}CS_AAPT2_SHIM"
               chmod 0755 "${'$'}CS_AAPT2_SHIM" || return 0
+
+              # Exercised through the shim, not just the interpreter, because the shim is what AGP runs.
+              if ! "${'$'}CS_AAPT2_SHIM" version >/dev/null 2>&1; then
+                echo 'AVISO: el shim de aapt2 no responde; el build fallara en processDebugResources.' >&2
+                return 0
+              fi
               rm -rf "${'$'}work"
               CS_AAPT2_OVERRIDE=${'$'}CS_AAPT2_SHIM
               echo '  aapt2 emulado listo.'
@@ -838,24 +885,28 @@ object FlutterAndroidHost {
             # mode, and what running it does.
             if [ "${'$'}NEEDS_ANDROID" = true ]; then
               echo "  sonda aapt2: uname -m = ${'$'}(uname -m)"
-              aapt2_jar=${'$'}(find /root/.gradle/caches -name 'aapt2-*.jar' 2>/dev/null | head -n 1)
-              echo "  sonda aapt2: artefacto = ${'$'}aapt2_jar"
-              # The jar and the binary it unpacks to differ only by the extension, so the jar has to be
-              # excluded or this reports the archive and "running" it says nothing about the real binary.
-              aapt2_bin=${'$'}(find /root/.gradle/caches -type f -name 'aapt2-*-linux' -not -name '*.jar' 2>/dev/null | head -n 1)
-              if [ -n "${'$'}aapt2_bin" ]; then
-                echo "  sonda aapt2: modo = ${'$'}(ls -l "${'$'}aapt2_bin" | cut -c1-10)"
-                if command -v file >/dev/null 2>&1; then
-                  echo "  sonda aapt2: tipo = ${'$'}(file -b "${'$'}aapt2_bin" 2>/dev/null | cut -c1-100)"
-                fi
-                echo "  sonda aapt2: salida = ${'$'}("${'$'}aapt2_bin" version 2>&1 | head -n 2 | tr '\n' ' ')"
-              else
-                echo '  sonda aapt2: no se encontro el binario en la cache de Gradle' >&2
-              fi
               if [ -n "${'$'}CS_AAPT2_OVERRIDE" ]; then
-                echo "  sonda aapt2: emulado = ${'$'}("${'$'}CS_AAPT2_SHIM" "${'$'}aapt2_bin" version 2>&1 | head -n 1)"
+                # With the override in place AGP never downloads a native aapt2 into the cache, so
+                # looking for one there only produces a false alarm on an otherwise healthy build. What
+                # matters is that the shim answers, and that is also the only path that proves the whole
+                # chain: shim, interpreter, sysroot and libraries.
+                echo "  sonda aapt2: emulado = ${'$'}("${'$'}CS_AAPT2_SHIM" version 2>&1 | head -n 1)"
+              else
+                aapt2_jar=${'$'}(find /root/.gradle/caches -name 'aapt2-*.jar' 2>/dev/null | head -n 1)
+                echo "  sonda aapt2: artefacto = ${'$'}aapt2_jar"
+                # The jar and the binary it unpacks to differ only by the extension, so the jar has to be
+                # excluded or this reports the archive and "running" it says nothing about the real binary.
+                aapt2_bin=${'$'}(find /root/.gradle/caches -type f -name 'aapt2-*-linux' -not -name '*.jar' 2>/dev/null | head -n 1)
+                if [ -n "${'$'}aapt2_bin" ]; then
+                  echo "  sonda aapt2: modo = ${'$'}(ls -l "${'$'}aapt2_bin" | cut -c1-10)"
+                  if command -v file >/dev/null 2>&1; then
+                    echo "  sonda aapt2: tipo = ${'$'}(file -b "${'$'}aapt2_bin" 2>/dev/null | cut -c1-100)"
+                  fi
+                  echo "  sonda aapt2: salida = ${'$'}("${'$'}aapt2_bin" version 2>&1 | head -n 2 | tr '\n' ' ')"
+                else
+                  echo '  sonda aapt2: no se encontro el binario en la cache de Gradle' >&2
+                fi
               fi
-
             fi
 
             exit ${'$'}status
