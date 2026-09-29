@@ -427,13 +427,48 @@ object FlutterAndroidHost {
                 target='$DEFAULT_PLATFORM'
               fi
               api=$(printf '%s' "${'$'}target" | sed 's/^android-//')
-              if [ ! -f "${'$'}ANDROID_SDK_PATH/platforms/${'$'}target/android.jar" ]; then
-                echo "Descargando la plataforma Android ${'$'}api y sus build-tools…"
-                if ! "${'$'}SDKMANAGER" --sdk_root="${'$'}ANDROID_SDK_PATH" "platform-tools" "platforms;${'$'}target" "build-tools;${'$'}api.0.0"; then
-                  echo "sdkmanager no pudo instalar platforms;${'$'}target en ${'$'}ANDROID_SDK_PATH." >&2
-                  exit 1
+              # One package per invocation, and skipped when it is already on disk. Handing sdkmanager the
+              # whole list at once makes every package fail together: a transfer that drops part way
+              # through platform-tools, which an APK build never runs, also takes down the platform the
+              # build cannot do without, and the message then blames the platform. Each package is retried
+              # because a dropped connection is transient, and sdkmanager does not retry on its own.
+              cs_sdk_install() {
+                local pkg="${'$'}1" rel marker='' attempt log rc
+                case "${'$'}pkg" in
+                  platforms\;*)  rel="platforms/${'$'}{pkg#platforms;}";  marker=android.jar ;;
+                  build-tools\;*) rel="build-tools/${'$'}{pkg#build-tools;}" ;;
+                  *)              rel="${'$'}pkg" ;;
+                esac
+                if [ -n "${'$'}marker" ]; then
+                  [ -f "${'$'}ANDROID_SDK_PATH/${'$'}rel/${'$'}marker" ] && return 0
+                elif [ -d "${'$'}ANDROID_SDK_PATH/${'$'}rel" ]; then
+                  return 0
                 fi
-              fi
+                for attempt in 1 2 3; do
+                  [ "${'$'}attempt" -gt 1 ] && echo "  ${'$'}pkg: reintento ${'$'}attempt/3…"
+                  log=$(mktemp)
+                  "${'$'}SDKMANAGER" --sdk_root="${'$'}ANDROID_SDK_PATH" --install "${'$'}pkg" >"${'$'}log" 2>&1
+                  rc=${'$'}?
+                  # The progress bar is written with carriage returns and is most of what sdkmanager
+                  # prints; only the complaint at the end is worth a line of the log.
+                  tr '\r' '\n' <"${'$'}log" | grep -vE 'Downloading|^\[=*\]?[[:space:]]*$|^[[:space:]]*$' | tail -6 | sed 's/^/    /' >&2
+                  rm -f "${'$'}log"
+                  if [ "${'$'}rc" -eq 0 ]; then
+                    echo "  ${'$'}pkg: instalado"
+                    return 0
+                  fi
+                done
+                return 1
+              }
+
+              # The platform and its build-tools are what a build needs. platform-tools is only adb, so
+              # its absence is reported and not fatal: the APK is assembled either way.
+              cs_sdk_install "platforms;${'$'}target" || {
+                echo "sdkmanager no pudo instalar platforms;${'$'}target en ${'$'}ANDROID_SDK_PATH." >&2
+                exit 1
+              }
+              cs_sdk_install "build-tools;${'$'}api.0.0" || echo "  aviso: build-tools;${'$'}api.0.0 incompleto; lo pedira AGP" >&2
+              cs_sdk_install "platform-tools" || echo "  aviso: sin platform-tools; el build de APK no lo necesita" >&2
 
               # 4. Gradle resolves the SDK from local.properties (flutter create never writes it) and only
               #    auto-downloads the components it still misses when sdkDownload is on.
@@ -842,6 +877,57 @@ object FlutterAndroidHost {
               # cp -a carries the mode across, and the mode it carries is the 0644 the source never had, so the
               # bit has to be set again on this side of the copy. Here it sticks. Spelled 0755 rather than +x
               # so the result does not depend on the caller's umask.
+
+              # Stripping debug symbols runs the NDK's llvm-strip, and Google ships the Linux build of the
+              # NDK for linux-x86_64 only, so on an arm64 rootfs it cannot be executed at all: every native
+              # library failed :app:stripDebugDebugSymbols with "A problem occurred starting process",
+              # naming neither the NDK, nor llvm-strip, nor the architecture. A debug build has no use for
+              # stripped symbols, so the libraries are declared as keep-as-is and the step does nothing.
+              # (The NDK is still fetched either way: the module pins ndkVersion, which is a different
+              # reason and one worth not disturbing.)
+              #
+              # This has to land inside the android { } block, because packaging is a property of that
+              # extension and a bare packaging { } at the top level does not compile. The closing brace is
+              # found by counting, not by pattern: the block holds compileOptions, defaultConfig, buildTypes
+              # and signingConfigs, and any of them may nest. Guarded so repeated builds on the same file
+              # do not stack copies.
+              if [ "${'$'}(uname -m)" = aarch64 ]; then
+                for app_module in "${'$'}BUILD_DIR/android/app/build.gradle.kts" "${'$'}BUILD_DIR/android/app/build.gradle"; do
+                  [ -f "${'$'}app_module" ] || continue
+                  grep -q keepDebugSymbols "${'$'}app_module" && continue
+                  # Same expression in both dialects: `+=` works on a MutableSet in Kotlin and on any
+                  # property in Groovy, where a call to a varargs setter would be the alternative and
+                  # nothing here would notice if that method did not exist.
+                  symbol='keepDebugSymbols += "**/*.so"'
+                  # Insert before the brace that closes android { }, keeping the block's own indentation.
+                  awk -v sym="${'$'}symbol" '
+                    BEGIN { depth = 0; inside = 0 }
+                    !inside && $0 ~ /^[[:space:]]*android[[:space:]]*\{/ { inside = 1; depth = gsub(/\{/, "{"); print; next }
+                    inside {
+                      n = gsub(/\{/, "{"); m = gsub(/\}/, "}");
+                      depth += n - m;
+                      if (depth <= 0) {
+                        match($0, /^[[:space:]]*/);
+                        ind = substr($0, 1, RLENGTH);
+                        print ind "    packaging {";
+                        print ind "        jniLibs {";
+                        print ind "            " sym;
+                        print ind "        }";
+                        print ind "    }";
+                        print "";
+                        # Clearing inside matters: depth alone returns to 0 for every later top-level
+                        # block too, so a file with a flutter { } after android { } came out with one
+                        # copy of packaging per block.
+                        inside = 0;
+                      }
+                    }
+                    { print }
+                  ' "${'$'}app_module" > "${'$'}app_module.tmp" && mv "${'$'}app_module.tmp" "${'$'}app_module"
+                  if grep -q keepDebugSymbols "${'$'}app_module"; then
+                    echo "  simbolos sin strip: ${'$'}app_module"
+                  fi
+                done
+              fi
               chmod 0755 "${'$'}BUILD_DIR/android/gradlew"
               cd "${'$'}BUILD_DIR"
             fi
