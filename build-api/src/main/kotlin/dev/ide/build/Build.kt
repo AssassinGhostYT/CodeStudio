@@ -10,6 +10,7 @@ import dev.ide.platform.ExtensionPoint
 import dev.ide.platform.ExtensionRegistry
 import dev.ide.platform.ProgressReporter
 import dev.ide.vfs.VirtualFile
+import java.nio.file.Path
 
 /**
  * build-api — the contract the rest of the IDE talks to, plus the generic incremental task engine.
