@@ -48,11 +48,18 @@ class FlutterBuildSystem(
         for (module in project.modules) {
             if (!supports(module.type)) continue
             if (module.type.id == "flutter-app") {
-                specs.add(RunTaskSpec("flutterRun:${module.name}", "Run ${module.name}", "flutter"))
-                specs.add(RunTaskSpec("flutterBuildApk:${module.name}:debug", "Build APK (debug) · ${module.name}", "flutter"))
-                specs.add(RunTaskSpec("flutterBuildApk:${module.name}:release", "Build APK (release) · ${module.name}", "flutter"))
-                specs.add(RunTaskSpec("flutterBuildAppbundle:${module.name}:debug", "Build AAB (debug) · ${module.name}", "flutter"))
-                specs.add(RunTaskSpec("flutterBuildAppbundle:${module.name}:release", "Build AAB (release) · ${module.name}", "flutter"))
+                // No "Run <module>" row: the Android module's per-variant Run is the one that builds,
+                // installs and launches, and it sits right above these. The generic row said the same
+                // thing less precisely — same verb, no variant — while going through the Flutter CLI.
+                // Its id is untouched, so the action stays reachable for anything that asks by id.
+                //
+                // The module name is dropped from the four labels for the same reason: the second line
+                // already reads "flutter", and the picker lists one project's modules together, so
+                // "Build APK (debug) · my_app" repeated on all four lines just padded the list.
+                specs.add(RunTaskSpec("flutterBuildApk:${module.name}:debug", "Build APK (debug)", "flutter"))
+                specs.add(RunTaskSpec("flutterBuildApk:${module.name}:release", "Build APK (release)", "flutter"))
+                specs.add(RunTaskSpec("flutterBuildAppbundle:${module.name}:debug", "Build AAB (debug)", "flutter"))
+                specs.add(RunTaskSpec("flutterBuildAppbundle:${module.name}:release", "Build AAB (release)", "flutter"))
             } else if (module.type.id == "dart-console") {
                 specs.add(RunTaskSpec("dartPubGet:${module.name}", "Get dependencies · ${module.name}", "dart"))
                 specs.add(RunTaskSpec("flutterRun:${module.name}", "Run ${module.name}", "dart"))

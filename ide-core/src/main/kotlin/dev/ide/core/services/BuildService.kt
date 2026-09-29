@@ -640,8 +640,12 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
     fun runTasks(): List<RunTaskOption> = buildList {
         // Console (Java/Kotlin) modules: a `run` when a main is found, plus a `build` (assemble the jar) that
         // every such module offers — so a library module (no main) is still buildable from the Run picker.
+        // Modules that get rows of their own further down are skipped, because those name the same work
+        // with a build type in it: a Flutter module is console-runnable, so it used to contribute
+        // "Build my_app" and "Run my_app" on top of the four entries that actually say what gets built.
+        val specific = specificRunTaskModules()
         for (m in ctx.modules()) {
-            if (!isConsoleRunModule(m)) continue
+            if (!isConsoleRunModule(m) || m.name in specific) continue
             if (runnableMainFor(m) != null) add(
                 RunTaskOption(
                     "run:${m.name}", "Run ${m.name}", "run"
@@ -719,6 +723,34 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
                 )
             )
         }
+    }
+
+    /**
+     * Names of the modules [runTasks] already describes with rows of its own: Android app/library modules,
+     * which get one entry per variant, and any module a contributed build system lists tasks for — Flutter
+     * and Dart included. [isConsoleRunModule] calls every non-Android module console-runnable, so without
+     * this a Flutter module was offered both its own tasks and a bare "Run"/"Build <module>" on top.
+     *
+     * Deliberately conservative: a module whose build system produced nothing for it keeps its generic
+     * rows rather than losing its only entry.
+     */
+    private fun specificRunTaskModules(): Set<String> {
+        val out = HashSet<String>()
+        for (m in ctx.modules()) {
+            if (m.type.id == "android-app" || m.type.id == "android-lib") {
+                out += m.name
+                continue
+            }
+            val project = ctx.projectOf(m) ?: continue
+            val system = buildSystemFor(project) ?: buildSystemFor(m.type) ?: continue
+            // Spec ids are "command:module[:variant]"; the module segment is what decides whether a spec
+            // is *this* module's row. A system using some other id shape never matches, which is the
+            // conservative direction.
+            if (project.runTasksSafely(system).any { it.id.substringAfter(':').substringBefore(':') == m.name }) {
+                out += m.name
+            }
+        }
+        return out
     }
 
     /** Run/assemble the task with [id] (from [runTasks]); streams progress into [buildState]. */
