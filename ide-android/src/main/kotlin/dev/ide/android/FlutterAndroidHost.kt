@@ -151,9 +151,27 @@ object FlutterAndroidHost {
             export CI=true
             export PUB_CACHE=/root/.pub-cache
             # A stray Gradle daemon would pin the prefix (and RAM) between builds; the panel expects one-shot runs.
-            # The heap is deliberately not set here: the project's own gradle.properties owns org.gradle.jvmargs,
-            # and setting it in both places only makes which one wins depend on argument order.
-            export GRADLE_OPTS='-Dorg.gradle.daemon=false'
+            #
+            # The heap is clamped HERE, on purpose, and the project file is left alone. What `flutter create`
+            # writes into android/gradle.properties is a desktop figure (-Xmx4G or more) and leaves
+            # org.gradle.workers.max at the core count, so on a phone the build runs the Gradle JVM plus a
+            # worker JVM per core plus the Kotlin compile daemon. That combined RSS is what the kernel's
+            # low-memory killer takes: the :build process dies with the Java heap nowhere near its ceiling,
+            # which is what "Build process stopped (out of memory?)" reports — that line fires on the
+            # process's death, not on a Java OOM, so it names a cause it has not checked. Leaving the
+            # template's value alone is what made builds die intermittently: same project, same code, and
+            # whether it survived came down to how much RAM happened to be free.
+            #
+            # A -D on the command line beats gradle.properties deterministically, so this does not re-open
+            # the argument-order question the old comment worried about. `no-daemon` still honours jvmargs:
+            # Gradle forks a single-use daemon for it.
+            CS_MEM_KB=$(grep -m1 '^MemTotal' /proc/meminfo 2>/dev/null | cut -d: -f2 | tr -dc 0-9)
+            case "${'$'}CS_MEM_KB" in ''|*[!0-9]*) CS_MEM_KB=4194304 ;; esac
+            CS_HEAP_MB=$(( CS_MEM_KB / 1024 / 4 ))
+            if [ "${'$'}CS_HEAP_MB" -lt 1024 ]; then CS_HEAP_MB=1024; fi
+            if [ "${'$'}CS_HEAP_MB" -gt 2048 ]; then CS_HEAP_MB=2048; fi
+            export GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx${'$'}CS_HEAP_MB}m -Dorg.gradle.workers.max=2 -Dkotlin.compiler.execution.strategy=in-process"
+            echo "  Gradle: heap ${'$'}CS_HEAP_MB MB (de ${'$'}(( CS_MEM_KB / 1024 )) MB de RAM), 2 workers, Kotlin in-process"
             FLUTTER_BIN=$flutter
             ANDROID_SDK_PATH=$sdk
             NEEDS_ANDROID=$needsAndroid
