@@ -170,8 +170,17 @@ object FlutterAndroidHost {
             CS_HEAP_MB=$(( CS_MEM_KB / 1024 / 4 ))
             if [ "${'$'}CS_HEAP_MB" -lt 1024 ]; then CS_HEAP_MB=1024; fi
             if [ "${'$'}CS_HEAP_MB" -gt 2048 ]; then CS_HEAP_MB=2048; fi
-            export GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx${'$'}CS_HEAP_MB}m -Dorg.gradle.workers.max=2 -Dkotlin.compiler.execution.strategy=in-process"
-            echo "  Gradle: heap ${'$'}CS_HEAP_MB MB (de ${'$'}(( CS_MEM_KB / 1024 )) MB de RAM), 2 workers, Kotlin in-process"
+            export GRADLE_OPTS="-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx${'$'}{CS_HEAP_MB}m -Dorg.gradle.workers.max=2 -Dkotlin.compiler.execution.strategy=in-process"
+            # Mirrors UbuntuRuntime's toolchain lines: the detail prints the first time and then stays quiet,
+            # so the build log is not the same on every run. Nothing is downloaded or installed here — the
+            # heap is derived from the device's RAM, which does not move — so the marker is just the last
+            # value printed, and the line reappears only when that value actually changes, which is the
+            # only time the number is news.
+            CS_HEAP_TAG=/root/.cs-gradle-heap
+            if [ "$(cat ${'$'}CS_HEAP_TAG 2>/dev/null)" != "${'$'}CS_HEAP_MB" ]; then
+              echo "${'$'}CS_HEAP_MB" > ${'$'}CS_HEAP_TAG 2>/dev/null || true
+              echo "  Gradle: heap ${'$'}CS_HEAP_MB MB (de ${'$'}(( CS_MEM_KB / 1024 )) MB de RAM), 2 workers, Kotlin in-process"
+            fi
             FLUTTER_BIN=$flutter
             ANDROID_SDK_PATH=$sdk
             NEEDS_ANDROID=$needsAndroid

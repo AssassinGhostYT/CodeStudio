@@ -168,8 +168,13 @@ class FlutterBuildSystem(
         return RunAction(
             header = "Flutter Build $buildType · ${module.name} ($variant)",
             graph = cliTaskGraph(TaskName("flutter:${module.name}:build-$buildType"), dir, module, workspacePath, args),
-            banner = "Output: ${output.absolutePath}",
-            onSuccess = { log -> log("Build succeeded: ${output.absolutePath}") },
+            // An .apk is installed and launched by the host, so telling the user where it landed is noise:
+            // the whole point of the row is that they never have to go looking for the file. An .aab is a
+            // Play upload that nothing installs, so there the path is the only handle on the result.
+            banner = output.absolutePath.takeIf { buildType == "appbundle" },
+            onSuccess = { log ->
+                if (buildType == "apk") log("Compilación exitosa") else log("Compilación exitosa: ${output.absolutePath}")
+            },
             // An .aab is a Play upload, not something a device can install, so it stops at the path above.
             // An .apk hands the directory over and the host installs + launches it, which is what the
             // android module's own Run row already did for the user.
