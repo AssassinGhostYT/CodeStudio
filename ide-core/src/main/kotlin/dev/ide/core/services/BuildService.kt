@@ -599,17 +599,18 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
 
     /**
      * The executable form of a Run row the host itself doesn't own: one contributed by the project's bound
-     * build system, or by a [RunTaskProvider]. Returns the name to label the build with and the action, or
-     * null when nobody claims [id]. A contributor that throws while building its action is left to the
-     * caller's handler, which reports it as a failed start rather than as an unknown task.
+     * build system, or by a [RunTaskProvider]. Returns the name to label the build with, the project it
+     * belongs to — the install step below needs that project's android module for its applicationId — and
+     * the action, or null when nobody claims [id]. A contributor that throws while building its action is
+     * left to the caller's handler, which reports it as a failed start rather than as an unknown task.
      */
-    private fun contributedAction(id: String): Pair<String, RunAction>? {
+    private fun contributedAction(id: String): Triple<String, dev.ide.model.Project, RunAction>? {
         val context = buildContext()
         // First try the project-bound build system (a foreign build system that explicitly owns a project).
         for (project in ctx.store.workspace.projects) {
             val bound = buildSystemFor(project) ?: continue
             val spec = project.runTasksSafely(bound).firstOrNull { it.id == id } ?: continue
-            bound.actionFor(spec, project, context)?.let { return project.name to it }
+            bound.actionFor(spec, project, context)?.let { return Triple(project.name, project, it) }
         }
         // Then the per-module-type selection: a module whose type a contributed build system supports (e.g.
         // flutter-app → FlutterBuildSystem). Resolved by module (not project identity) so it works even when a
@@ -618,13 +619,13 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
             val system = buildSystemFor(module.type) ?: continue
             val project = ctx.projectOf(module) ?: continue
             val spec = project.runTasksSafely(system).firstOrNull { it.id == id } ?: continue
-            system.actionFor(spec, project, context)?.let { return project.name to it }
+            system.actionFor(spec, project, context)?.let { return Triple(project.name, project, it) }
         }
         for (provider in ctx.platform.extensions.extensions(RUN_TASK_PROVIDER_EP)) {
             for (module in ctx.modules()) {
                 val spec = provider.tasksFor(module).firstOrNull { it.id == id } ?: continue
                 val project = ctx.projectOf(module) ?: continue
-                provider.actionFor(spec, project, module, context)?.let { return module.name to it }
+                provider.actionFor(spec, project, module, context)?.let { return Triple(module.name, project, it) }
             }
         }
         return null
@@ -976,14 +977,16 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
                 // Not one of the host's own ids: hand it to whoever contributed it (a plugin build system for
                 // this project, or a RunTaskProvider). Its graph runs through the same executor and console.
                 else -> {
-                    val contributed = contributedAction(id) ?: return fail("Unknown task: $id")
-                    val (label, action) = contributed
+                    val (label, project, action) = contributedAction(id) ?: return fail("Unknown task: $id")
                     launch(
                         label,
                         action.graph,
                         action.header,
                         action.banner,
-                        onSuccess = action.onSuccess
+                        onSuccess = { log ->
+                            action.onSuccess?.invoke(log)
+                            action.apkOutputDir?.let { installBuiltApk(it, project, log) }
+                        }
                     )
                 }
             }
@@ -992,6 +995,45 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
         } catch (e: Throwable) {
             fail("Couldn't start the build: ${e.message ?: e.javaClass.simpleName}")
         }
+    }
+
+    /**
+     * Install + launch the APK a contributed build just produced, the way the `androidRun:` branch above does
+     * for the host's own Android modules. Flutter's `build apk` is what needed this: its row ended at
+     * "Build succeeded" plus a path, so installing the app meant going and finding the file by hand.
+     *
+     * The package name comes from the project's android-app module rather than from the artifact, because
+     * [ApkInstaller] needs it both to name the session and to launch afterwards and the APK's own manifest
+     * isn't readable without a parser. The default variant is the one asked for because a contributed row's
+     * id spells its variant in a way the host shouldn't have to know.
+     */
+    private suspend fun installBuiltApk(dir: Path, project: dev.ide.model.Project, log: (String) -> Unit) {
+        val installer = ctx.apkInstaller
+        if (installer == null) {
+            log("APK install is only available on device — $dir")
+            return
+        }
+        // Newest, so a stale APK from an earlier build is never the one launched. This is a path the build
+        // just wrote, but not one this process necessarily kept, so the listing is allowed to fail.
+        val apk = runCatching {
+            Files.newDirectoryStream(dir, "*.apk").use { files ->
+                files.filter { Files.isRegularFile(it) }
+                    .maxByOrNull { Files.getLastModifiedTime(it).toMillis() }
+            }
+        }.getOrNull()
+        if (apk == null) {
+            log("No .apk in $dir — the build reported success but left nothing to install.")
+            return
+        }
+        val app = project.modules.firstOrNull { it.type.id == "android-app" }
+        val facet = app?.facets?.get(AndroidFacet.KEY)
+        if (app == null || facet == null) {
+            log("No android module in ${project.name}, so there is no applicationId to launch. APK: $apk")
+            return
+        }
+        val pkg = AndroidVariants.defaultVariant(app)
+            ?.let { AndroidVariants.applicationId(facet, it) } ?: facet.namespace
+        installer.installAndLaunch(apk, pkg, log)
     }
 
     /** Run the default task (first of [runTasks]) — the plain Run button + existing callers. */

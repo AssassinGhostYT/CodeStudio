@@ -132,12 +132,19 @@ data class RunTaskSpec(val id: String, val label: String, val group: String)
  * notice, and an optional [onSuccess] step for work that follows a successful build (install and launch an
  * APK, report an artifact path). The host streams the graph through the same executor, console, and
  * cancellation path as a built-in task.
+ *
+ * [apkOutputDir] is what a contributed build system sets to get the install for free: on success the host
+ * installs the newest `*.apk` in that directory and launches it, exactly as its own `androidRun:` row does.
+ * Without it a build system that shells out to a tool ends at "build succeeded" and leaves the user hunting
+ * for the file by hand. It is a directory rather than a file because the artifact name is not knowable until
+ * the build has run — `flutter build apk` names it after the target and splits it per ABI.
  */
 class RunAction(
     val header: String,
     val graph: TaskGraph,
     val banner: String? = null,
     val onSuccess: (suspend (log: (String) -> Unit) -> Unit)? = null,
+    val apkOutputDir: Path? = null,
 )
 
 /**
