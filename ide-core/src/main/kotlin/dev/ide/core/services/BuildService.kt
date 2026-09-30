@@ -977,7 +977,7 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
                 // Not one of the host's own ids: hand it to whoever contributed it (a plugin build system for
                 // this project, or a RunTaskProvider). Its graph runs through the same executor and console.
                 else -> {
-                    val (label, project, action) = contributedAction(id) ?: return fail("Unknown task: $id")
+                    val (label, _, action) = contributedAction(id) ?: return fail("Unknown task: $id")
                     launch(
                         label,
                         action.graph,
@@ -985,7 +985,7 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
                         action.banner,
                         onSuccess = { log ->
                             action.onSuccess?.invoke(log)
-                            action.apkOutputDir?.let { installBuiltApk(it, project, log) }
+                            action.apkOutputDir?.let { installBuiltApk(it, log) }
                         }
                     )
                 }
@@ -1002,12 +1002,11 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
      * for the host's own Android modules. Flutter's `build apk` is what needed this: its row ended at
      * "Build succeeded" plus a path, so installing the app meant going and finding the file by hand.
      *
-     * The package name comes from the project's android-app module rather than from the artifact, because
-     * [ApkInstaller] needs it both to name the session and to launch afterwards and the APK's own manifest
-     * isn't readable without a parser. The default variant is the one asked for because a contributed row's
-     * id spells its variant in a way the host shouldn't have to know.
+     * The package name is left to the device, which reads it from the archive's own manifest. The module model
+     * cannot answer it: a contributed Flutter row has no android-app module, and the variant a row means is
+     * spelled in its id in a way the host shouldn't have to parse.
      */
-    private suspend fun installBuiltApk(dir: Path, project: dev.ide.model.Project, log: (String) -> Unit) {
+    private suspend fun installBuiltApk(dir: Path, log: (String) -> Unit) {
         val installer = ctx.apkInstaller
         if (installer == null) {
             log("APK install is only available on device — $dir")
@@ -1025,15 +1024,11 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
             log("No .apk in $dir — the build reported success but left nothing to install.")
             return
         }
-        val app = project.modules.firstOrNull { it.type.id == "android-app" }
-        val facet = app?.facets?.get(AndroidFacet.KEY)
-        if (app == null || facet == null) {
-            log("No android module in ${project.name}, so there is no applicationId to launch. APK: $apk")
-            return
-        }
-        val pkg = AndroidVariants.defaultVariant(app)
-            ?.let { AndroidVariants.applicationId(facet, it) } ?: facet.namespace
-        installer.installAndLaunch(apk, pkg, log)
+        // No package name is read from the module model. A Flutter module has no android-app module and no
+        // [AndroidFacet] to read it from, and where one does exist the model can only guess the variant, so an
+        // applicationIdSuffix would install one package and try to launch another. The artifact is the truth:
+        // the device reads the name out of the archive's own manifest, which is what aapt2 would be asked for.
+        installer.installAndLaunch(apk, null, log)
     }
 
     /** Run the default task (first of [runTasks]) — the plain Run button + existing callers. */

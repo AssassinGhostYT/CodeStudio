@@ -31,9 +31,19 @@ import java.nio.file.Path
 class ApkInstallerImpl(context: Context) : ApkInstaller {
     private val context = context.applicationContext
 
-    override suspend fun installAndLaunch(apk: Path, packageName: String, log: (String) -> Unit): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun installAndLaunch(apk: Path, packageName: String?, log: (String) -> Unit): Boolean = withContext(Dispatchers.IO) {
         if (!Files.exists(apk)) { log("APK not found: $apk"); return@withContext false }
         val pm = context.packageManager
+        // A contributed build (Flutter) has no android-app module in the model, so the caller has no package to
+        // hand over. The archive itself does: getPackageArchiveInfo reads the binary manifest with the parser
+        // the platform already ships, so no parser has to be written for it. It is also the only source that
+        // stays right when a build's applicationId carries a per-variant suffix the model would have to guess.
+        val pkg = packageName
+            ?: runCatching { pm.getPackageArchiveInfo(apk.toString(), 0)?.packageName }.getOrNull()
+        if (pkg.isNullOrEmpty()) {
+            log("No se pudo leer el nombre del paquete de $apk — no hay nada que lanzar.")
+            return@withContext false
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !pm.canRequestPackageInstalls()) {
             log("Allow CodeStudio to install apps (Settings → Install unknown apps), then Run again.")
             runCatching {
@@ -47,7 +57,7 @@ class ApkInstallerImpl(context: Context) : ApkInstaller {
 
         val installer = pm.packageInstaller
         val sessionId = installer.createSession(
-            PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply { setAppPackageName(packageName) },
+            PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply { setAppPackageName(pkg) },
         )
         runCatching {
             installer.openSession(sessionId).use { session ->
@@ -56,7 +66,7 @@ class ApkInstallerImpl(context: Context) : ApkInstaller {
                     session.fsync(out)
                 }
                 val action = "$INSTALL_ACTION.$sessionId"
-                registerStatusReceiver(action, packageName, log)
+                registerStatusReceiver(action, pkg, log)
                 val flags = PendingIntent.FLAG_UPDATE_CURRENT or
                     (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0)
                 val pi = PendingIntent.getBroadcast(context, sessionId, Intent(action).setPackage(context.packageName), flags)

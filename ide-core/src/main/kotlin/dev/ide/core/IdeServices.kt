@@ -313,9 +313,13 @@ class AndroidDeviceTools(
  * :ide-android (it needs Android's `PackageInstaller` + the OS install-confirmation UI); null on the
  * desktop, where the android task stops at producing the signed artifact. [installAndLaunch] returns once
  * the installation is initiated and streams progress + the eventual launch to [log].
+ *
+ * [packageName] is null when the caller cannot know it — a contributed build like Flutter's has no android
+ * module in the model. The implementation then reads it from the archive's own manifest, so it always matches
+ * the APK that was actually built.
  */
 interface ApkInstaller {
-    suspend fun installAndLaunch(apk: Path, packageName: String, log: (String) -> Unit): Boolean
+    suspend fun installAndLaunch(apk: Path, packageName: String?, log: (String) -> Unit): Boolean
 }
 
 /** The status of running a Compose `@Preview` through the interpreter: [ok] = interpretable/rendered. */

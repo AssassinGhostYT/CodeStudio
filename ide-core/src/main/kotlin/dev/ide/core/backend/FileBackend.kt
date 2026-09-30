@@ -76,11 +76,17 @@ internal class FileBackend(private val ctx: BackendContext) : FileService {
             // Code/resources/assets roots, each with a distinct icon by role — sources first, then res/assets.
             ctx.services.treeRootsDetailed(module)
                 .filter { Files.isDirectory(it.path) }
+                .filterNot { isUnderDerivedDir(it.path) }
                 .sortedWith(compareBy({ it.roles.rootRank() }, { it.path.toString() }))
                 .forEach { info -> children.add(sourceRootNode(info, module, root)) }
-            // The module's root-level files (module.toml, build scripts, README…) — visible config, not just
+            // A module's root-level files (module.toml, build scripts, README…) — visible config, not just
             // creatable source files. `module.toml` opens the Module Settings editor instead of a text view.
             if (moduleDir != null) moduleRootFiles(moduleDir, module).forEach { children.add(it) }
+            // A Flutter module's `android/` project: its manifest and Gradle scripts drive the APK build, and
+            // `moduleRootFiles` never descends into a subdirectory, so without this the curated view of a
+            // Flutter project shows no manifest and no build scripts at all — while a Compose project, whose
+            // scripts sit at the module root, shows both.
+            if (moduleDir != null) androidProjectFiles(module, moduleDir).forEach { children.add(it) }
             // A curated, dimmed "build outputs" node (APK/AAB/jar/mapping) at the bottom — like Studio's, so
             // the user can locate and export the artifacts without leaving the project view.
             buildOutputsNode(module)?.let { children.add(it) }
@@ -117,6 +123,56 @@ internal class FileBackend(private val ctx: BackendContext) : FileService {
         val (_, files) = childPartition(moduleDir)
         return files.map { fileNode(it, module) }
     }
+
+    /**
+     * The config files of a module's `android/` Gradle project: its `AndroidManifest.xml`, the root build
+     * scripts, and the app module's own. A Flutter module type registers no AndroidFacet — there is no android
+     * module in the model, the Flutter tool owns the whole build — so `services.manifestPath` is null and the
+     * manifest is otherwise unreachable from the tree. The `android/` dir is found by walking up from the
+     * content roots the module type *does* register (`android/app/src/main/res`, …), so this follows the
+     * project rather than assuming a layout, and stays empty for a module with no `android/` roots.
+     *
+     * Read-only view: it adds nodes to the curated tree and registers nothing, so the Flutter Run rows are
+     * unaffected — unlike declaring an AndroidFacet, which would also make the module an Android build target.
+     */
+    private fun androidProjectFiles(module: Module, moduleDir: Path): List<TreeNode> {
+        val androidDir = ctx.services.treeRootsDetailed(module)
+            .map { it.path.normalize() }
+            .filter { it.startsWith(moduleDir) }
+            .mapNotNull { p -> generateSequence(p) { it.parent }.firstOrNull { it.fileName?.toString() == "android" } }
+            .firstOrNull()
+            ?: return emptyList()
+        if (!Files.isDirectory(androidDir)) return emptyList()
+        val appDir = androidDir.resolve("app").takeIf { Files.isDirectory(it) }
+        val files = buildList {
+            // The app module's own scripts sit next to its manifest, and both are what the build reads.
+            if (appDir != null) {
+                add(appDir.resolve("build.gradle.kts"))
+                add(appDir.resolve("proguard-rules.pro"))
+            }
+            add(androidDir.resolve("app/src/main/AndroidManifest.xml"))
+            add(androidDir.resolve("build.gradle.kts"))
+            add(androidDir.resolve("settings.gradle.kts"))
+            add(androidDir.resolve("gradle.properties"))
+        }
+        // Shallowest first so the manifest leads, and distinct because a module whose app dir IS the android
+        // dir would otherwise list the same build script twice.
+        return files.distinct()
+            .filter { Files.isRegularFile(it) }
+            .sortedWith(compareBy({ moduleDir.relativize(it).nameCount }, { it.fileName.toString() }))
+            .map { fileNode(it, module) }
+    }
+
+    /**
+     * True when [path] passes *through* a derived directory the curated view must not show. [isDerivedDir] only
+     * looks at a directory's own name, which is enough when listing a directory's children but not for a module
+     * root: DartPub registers `.dart_tool/pub-cache/<pkg>` and `.dart_tool/flutter-sdk/…/lib` as SOURCE roots so
+     * the analyzer can resolve `package:flutter/…`, and `treeRootsDetailed` keeps them because SOURCE is a tree
+     * role. They are library sources, not project code, so they belong in the All-Files view only — filtered
+     * here rather than in the roots themselves, which would break resolution.
+     */
+    private fun isUnderDerivedDir(path: Path): Boolean =
+        generateSequence(path.normalize()) { it.parent }.any { isDerivedDir(it) }
 
     /**
      * A curated, dimmed "build outputs" node for a module: the deliverables under `<module>/build/` — the
