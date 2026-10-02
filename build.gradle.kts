@@ -1,6 +1,19 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
+buildscript {
+    dependencies {
+        // Google Play reads the DEX code-optimization percentages (25% optimization / shrinking / obfuscation,
+        // enforced from February 2027) out of the `r8.json` that R8 itself writes, and the R8 Configuration
+        // Analyzer — the tool that says which keep rules are costing us those percentages — needs R8 9.3.7-dev or
+        // newer. AGP 9.2.1 bundles an older R8, so R8 is replaced here: this is Google's documented way to move R8
+        // without moving AGP, and it must live on the buildscript classpath (not the plugins block) to win.
+        // A newer R8 also optimizes harder, which is where the score itself comes from; the analyzer only points
+        // at what to aim at.
+        classpath("com.android.tools:r8:9.4.14")
+    }
+}
+
 plugins {
     // Resolve all plugin versions once for the whole build; modules apply them themselves. The Kotlin
     // JVM and Multiplatform plugins ship in the same artifact, so both must be declared here (with a

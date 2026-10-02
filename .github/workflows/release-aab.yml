@@ -52,7 +52,12 @@ jobs:
       - name: Build signed release AAB
         run: |
           set -o pipefail
-          ./gradlew :ide-android:bundleRelease --console=plain --stacktrace 2>&1 | tee /tmp/gradle.log
+          mkdir -p "$PWD/tmp/r8analysis"
+          # Asks R8 to write `keepruleradius.json`: the per-keep-rule impact report behind Play's DEX
+          # optimization percentages. Purely diagnostic — an unknown -D is ignored by older R8, and the file is
+          # uploaded as an artifact below, so the release build itself is untouched by this.
+          ./gradlew :ide-android:bundleRelease --console=plain --stacktrace \
+            -Dcom.android.tools.r8.dumpkeepradiustodirectory="$PWD/tmp/r8analysis" 2>&1 | tee /tmp/gradle.log
 
       - name: Report build errors
         if: ${{ always() }}
@@ -61,6 +66,15 @@ jobs:
             grep -nE '^e: |^w: |ERROR|error:|FAILED|Caused by:|What went wrong|> Task ' /tmp/gradle.log \
               | tail -80 | while IFS= read -r line; do echo "::error::$line"; done
           fi
+
+      - name: Upload R8 configuration analysis
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: r8-config-analysis
+          path: |
+            tmp/r8analysis/**
+          if-no-files-found: warn
 
       - name: Upload release AAB
         uses: actions/upload-artifact@v4
