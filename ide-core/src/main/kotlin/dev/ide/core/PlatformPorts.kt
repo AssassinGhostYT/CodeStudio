@@ -36,3 +36,20 @@ internal val REAL_VIEW_RUNTIME = ServiceKey<RealViewRuntime>("platform.realViewR
  *  it is built from the baked-in transport config *after* the manager exists — hence public, unlike the ports
  *  above. Absent (desktop / tests) resolves to the no-op service. Resolved on `IdeServicesBackend`. */
 val ANALYTICS_SERVICE = ServiceKey<AnalyticsService>("platform.analytics")
+
+/**
+ * A host that can restart the whole application.
+ *
+ * Plugins are loaded once per process, so a plugin the user installs, updates, uninstalls or toggles takes
+ * effect by starting again (see [dev.ide.core.plugins.PluginChanges]). Optional: where no launcher registered
+ * one (desktop, tests) the Plugins screen states the restart as something for the user to do, rather than
+ * offering a button that cannot work.
+ */
+val APP_RESTARTER = ServiceKey<AppRestarter>("platform.appRestarter")
+
+/** Implemented by the launcher; see [APP_RESTARTER]. */
+interface AppRestarter {
+    /** Take the app down, every process of it, and bring its UI back up. Does not return on a host that
+     *  really restarts, so the caller must have finished whatever has to survive (saving open files). */
+    fun restart()
+}

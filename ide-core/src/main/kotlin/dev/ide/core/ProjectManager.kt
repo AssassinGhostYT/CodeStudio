@@ -7,6 +7,8 @@ import dev.ide.android.support.tools.KeystoreRegistry
 import dev.ide.build.engine.ProgramInterpreter
 import dev.ide.core.sync.ExternalProjectMarker
 import dev.ide.core.sync.ProjectSyncService
+import dev.ide.core.plugins.KnownPlugin
+import dev.ide.core.plugins.PluginChanges
 import dev.ide.model.LanguageLevel
 import dev.ide.model.PlatformKind
 import dev.ide.model.impl.ModelPersistence
@@ -18,6 +20,7 @@ import dev.ide.platform.ServiceContainer
 import dev.ide.platform.ServiceKey
 import dev.ide.platform.impl.ApplicationContainer
 import dev.ide.platform.impl.PlatformCore
+import dev.ide.plugin.external.PluginSource
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
@@ -76,6 +79,11 @@ class ProjectManager private constructor(
     /** On-device Kotlin compiler-plugin loader (from :ide-android): D8-dex + DexClassLoader, so runtime
      *  (non-bundled) Kotlin compiler plugins can be applied on ART. Null on desktop (URLClassLoader default). */
     private val kotlinPluginLoader: dev.ide.lang.kotlin.compile.KotlinPluginLoader? = null,
+    /** Where installed (non built-in) plugins come from, handed to [env]. Empty on desktop and in tests, so
+     *  the environment loads only the built-ins. */
+    private val pluginSources: List<PluginSource> = emptyList(),
+    /** The running IDE's version, handed to [env] for `minHostVersion` checks (and the editor's own). */
+    private val hostVersion: String? = null,
 ) {
     init {
         Files.createDirectories(projectsRoot)
@@ -87,7 +95,30 @@ class ProjectManager private constructor(
      * project's workspace container), and the host plugin registrations. All application *bootstrap* lives in
      * [ApplicationEnvironment], so this manager is purely about *managing* projects. Disposed by [dispose].
      */
-    val env: ApplicationEnvironment = ApplicationEnvironment(disabledPluginIds = readDisabledPlugins())
+    val env: ApplicationEnvironment = ApplicationEnvironment(
+        disabledPluginIds = readDisabledPlugins(),
+        pluginSources = pluginSources,
+        consentedPluginIds = consentedPlugins(),
+        hostVersion = hostVersion,
+    )
+
+    /**
+     * What has changed about the plugins since [env] loaded them: a plugin app installed, updated or
+     * uninstalled on the device (reported by the host, which is the only side that watches the package
+     * manager), and the enable/consent decisions made through this manager. Read by the Plugins screen,
+     * which offers the restart that applies them. See [dev.ide.core.plugins.PluginChanges].
+     */
+    val pluginChanges: PluginChanges = PluginChanges(
+        installedAtStart = env.installedPlugins.map {
+            KnownPlugin(packageName = it.origin.label, id = it.manifest.id, name = it.manifest.name)
+        } + env.rejectedPlugins.map {
+            // No id: its manifest is what could not be read. It still needs a name, so an uninstall of it
+            // reads as the plugin the user saw rather than as a bare package name.
+            KnownPlugin(packageName = it.origin.label, id = "", name = it.name)
+        },
+        disabledAtStart = readDisabledPlugins(),
+        consentedAtStart = consentedPlugins(),
+    )
 
     init {
         // The launcher-supplied platform ports become APPLICATION services on the shared container, so every
@@ -285,7 +316,25 @@ class ProjectManager private constructor(
     /** Persist [ids] as the disabled built-in plugins; takes effect on the next launch. */
     fun setDisabledPlugins(ids: Set<String>) {
         setPreference(DISABLED_PLUGINS_KEY, ids.sorted().joinToString(","))
+        pluginChanges.choicesChanged(ids, consentedPlugins())
     }
+
+    // --- installed plugin consent (app-global; applied on the next launch) ---
+
+    /** The persisted ids of installed plugins the user has accepted. Read once at startup to gate [env]'s
+     *  plugin load; the Plugins settings screen edits it via [setConsentedPlugins] and prompts for a restart. */
+    fun consentedPlugins(): Set<String> =
+        preference(CONSENTED_PLUGINS_KEY)?.split(",")?.mapNotNull { it.trim().ifEmpty { null } }?.toSet() ?: emptySet()
+
+    /** Persist [ids] as the consented installed plugins; takes effect on the next launch. */
+    fun setConsentedPlugins(ids: Set<String>) {
+        setPreference(CONSENTED_PLUGINS_KEY, ids.sorted().joinToString(","))
+        pluginChanges.choicesChanged(disabledPlugins(), ids)
+    }
+
+    /** The launcher's app restarter, or null when this host cannot restart itself (desktop, tests). Resolved
+     *  from the container so the Plugins screen can apply plugin changes by restarting. */
+    fun appRestarter(): AppRestarter? = env.container.getServiceOrNull(APP_RESTARTER)
 
     private fun loadPrefs(): Properties = Properties().apply {
         if (Files.exists(prefsFile)) Files.newInputStream(prefsFile).use { load(it) }
@@ -492,6 +541,7 @@ class ProjectManager private constructor(
     companion object {
         private const val LEGACY_IMPORTED_PREF = "legacy.projects.imported"
         private const val DISABLED_PLUGINS_KEY = "plugins.disabled"
+        private const val CONSENTED_PLUGINS_KEY = "plugins.consented"
 
         /** Desktop host: an installed Android SDK if present (so `android.*` resolves), else a detected JDK; Java 17. */
         fun desktop(projectsRoot: Path, legacyDataDirs: List<Path> = emptyList()): ProjectManager =
@@ -551,6 +601,11 @@ class ProjectManager private constructor(
             appLogChannel: AppLogChannel? = null,
             /** Whether app-log forwarding is enabled (the "Forward app logs" setting; read per build). Default on. */
             appLogEnabledProvider: () -> Boolean = { true },
+            /** Where installed (non built-in) plugins come from: from :ide-android, an `ApkPluginSource` over
+             *  the package manager. Empty → only the built-ins load. */
+            pluginSources: List<PluginSource> = emptyList(),
+            /** The running IDE's version, for installed plugins' `minHostVersion` checks. */
+            hostVersion: String? = null,
         ): ProjectManager {
 
 
@@ -580,6 +635,8 @@ class ProjectManager private constructor(
                 customViewRuntime = customViewRuntime,
                 realViewRuntime = realViewRuntime,
                 kotlinPluginLoader = kotlinPluginLoader,
+                pluginSources = pluginSources,
+                hostVersion = hostVersion,
             )
         }
     }

@@ -122,6 +122,20 @@
             </intent-filter>
         </activity>
 
+        <!-- Restarts the app so that plugin changes take effect. Declared in its own `:restart` process: it
+             has to survive the death of the process that asked for the restart, because killing our own
+             process in the same breath as asking the system to start us again races the activity start
+             against that death. Being the one that starts MainActivity also makes it the momentarily
+             foreground activity, which is what Android's background-activity-launch rules require. No UI:
+             translucent, out of recents, and finished in onCreate. -->
+        <activity
+                android:name=".RestartActivity"
+                android:process=":restart"
+                android:exported="false"
+                android:excludeFromRecents="true"
+                android:taskAffinity=""
+                android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <!-- Real Termux terminal emulator as a full-screen Activity. com.termux.app.TermuxActivity (with its
              launchMode=singleTask configChanges) is declared in :termux:application's manifest and merged
              into this APK. Internally launched from the IDE toolbar's "Terminal" button — not a launcher

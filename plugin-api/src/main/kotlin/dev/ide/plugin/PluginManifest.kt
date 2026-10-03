@@ -3,6 +3,26 @@ package dev.ide.plugin
 import dev.ide.platform.PluginId
 
 /**
+ * The plugin SPI/ABI version this build of the IDE loads. A plugin built outside the IDE declares the version
+ * it was compiled against as [PluginManifest.apiVersion]; a mismatch is rejected at load rather than allowed
+ * to fail later as a linkage error. Bumped whenever the SPI changes incompatibly.
+ *
+ * **Incompatibly includes adding a parameter to [PluginManifest].** Kotlin compiles a call that relies on
+ * default arguments into a synthetic constructor whose descriptor names every parameter, so a plugin
+ * compiled against a manifest with one field fewer calls a method the new one does not have. That is
+ * source-compatible and binary-incompatible, and the difference is invisible until a plugin built against
+ * the older artifact is loaded.
+ */
+const val PLUGIN_API_VERSION: Int = 1
+
+/**
+ * The version the SPI artifacts are published under, so a project that compiles against them can be
+ * scaffolded with a coordinate that resolves. Independent of the IDE's own version, because the SPI changes
+ * far less often than the app ships.
+ */
+const val PLUGIN_SPI_VERSION: String = "1.0.0"
+
+/**
  * A plugin's identity and load-order metadata. Built-ins construct this as a Kotlin literal on their entry
  * point; the same shape round-trips through TOML for a future externally-packaged plugin, so the loader for
  * that tier parses into this exact type without an SPI change.
@@ -29,7 +49,11 @@ data class PluginManifest(
     val essential: Boolean = false,
 
     // Inert until the external/dex tier (parsed + carried now, enforced by that tier's loader):
+    /** FQCNs implementing the engine [Plugin] facet. */
     val entryPoints: List<String> = emptyList(),
+    /** FQCNs implementing the UI facet. Carried so a manifest that names one parses; the UI facet itself is
+     *  loaded by the host, not the engine loader. Either list alone is a complete plugin. */
+    val uiEntryPoints: List<String> = emptyList(),
     val capabilities: List<String> = emptyList(),
     val minHostVersion: String? = null,
     val trusted: Boolean = true,

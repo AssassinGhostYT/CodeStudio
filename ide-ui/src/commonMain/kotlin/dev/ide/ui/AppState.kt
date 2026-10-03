@@ -716,6 +716,10 @@ class IdeUiState(
         }
     }
 
+    /** Write every open buffer to disk before something that will not come back (an app restart). A clean or
+     *  read-only buffer is a no-op inside [writeToDisk]. */
+    fun saveAllNow() { openFiles.toList().forEach(::writeToDisk) }
+
     private fun writeToDisk(file: OpenFile) {
         if (file.readOnly || !file.modified) return
         val text = file.text // one lazy materialization, on save (not per keystroke)

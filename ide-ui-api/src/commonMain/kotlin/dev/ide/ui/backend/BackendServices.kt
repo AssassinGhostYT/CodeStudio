@@ -913,7 +913,42 @@ data class UiPluginInfo(
     val essential: Boolean,
     val enabled: Boolean,
     val dependsOn: List<String> = emptyList(),
+    /** True for a plugin shipped inside the IDE, false for one the user installed separately. The Plugins
+     *  screen lists the two under separate tabs. */
+    val builtIn: Boolean = true,
+    /** Where an installed plugin came from (its package name), shown on its row. Empty for a built-in. */
+    val origin: String = "",
+    /** Why an installed plugin did not load this launch, or null if it loaded. */
+    val error: String? = null,
+    /** False when the plugin has no usable manifest, so there is no id to persist an enable/disable choice
+     *  against. The row is informational and [error] says what is wrong with it. */
+    val togglable: Boolean = true,
+
+    /**
+     * True for an installed plugin the user has not been asked about yet. It is not loaded, and the Plugins
+     * screen asks before it ever runs: discovering a plugin app is not consent to execute it inside the IDE.
+     */
+    val needsConsent: Boolean = false,
+    /** What the plugin's manifest declares it does. Unenforced, so it is shown as a claim. */
+    val capabilities: List<String> = emptyList(),
+    /**
+     * Hex SHA-256 of the signing certificate of the installed package, read from the package manager rather
+     * than from anything the plugin declares. Null when it could not be read.
+     */
+    val signature: String? = null,
 )
+
+/** What happened to a plugin that the IDE running now has not taken up. */
+enum class UiPluginChangeKind { INSTALLED, UPDATED, UNINSTALLED, ENABLED, DISABLED }
+
+/**
+ * A change to this device's plugins that the running IDE has not applied.
+ *
+ * Plugins are loaded once, when the app starts, so installing, updating or uninstalling a plugin app (or
+ * turning one on or off here) leaves the IDE running what it loaded. The Plugins screen lists these and
+ * offers the restart that applies them.
+ */
+data class UiPluginChange(val name: String, val kind: UiPluginChangeKind)
 
 /** IDE settings, the extensible settings pages, the inspection catalogue, and app preferences. */
 interface SettingsService {
@@ -956,6 +991,26 @@ interface SettingsService {
     /** Enable or disable built-in plugin [id]. Persisted app-globally and applied on the next launch; a no-op
      *  for an essential plugin. */
     fun setPluginEnabled(id: String, enabled: Boolean) {}
+
+    /**
+     * Record the user's answer for an installed plugin. Granting lets it load from the next launch; refusing
+     * disables it, which is also what stops the question being asked again.
+     */
+    fun setPluginConsent(id: String, granted: Boolean) {}
+
+    /**
+     * Plugin changes made since the app started that are not in effect yet: a plugin app installed, updated
+     * or uninstalled on the device, and the enable/consent answers given here. Empty means the IDE is running
+     * exactly the plugins the device has, so nothing needs a restart.
+     */
+    fun pendingPluginChanges(): List<UiPluginChange> = emptyList()
+
+    /** True when this host can restart itself, so the Plugins screen can offer it as a button. */
+    fun canRestartApplication(): Boolean = false
+
+    /** Restart the app to apply [pendingPluginChanges]. The caller saves anything unsaved first: on a host
+     *  that really restarts, this does not return. */
+    fun restartApplication() {}
 }
 
 // ---------------------------------------------------------------------------
