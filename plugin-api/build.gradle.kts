@@ -1,7 +1,14 @@
+import org.gradle.api.publish.maven.MavenPublication
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
     `java-library`
+    `maven-publish`
 }
+
+// The SPI is versioned on its own, independently of the IDE's release: a plugin compiled against it has to
+// keep resolving when the IDE moves on. Keep in sync with PLUGIN_SPI_VERSION in PluginManifest.kt.
+version = "1.0.0"
 
 // plugin-api — the SPI for UI-contributed plugin features.
 //
@@ -16,4 +23,15 @@ dependencies {
 
     // IdeAction.perform is suspend; tests drive it with runBlocking.
     testImplementation(libs.kotlinx.coroutines.core)
+}
+
+// `./gradlew :plugin-api:publishToMavenLocal` puts the SPI in the local Maven repository so a scaffolded
+// plugin project resolves `dev.ide:plugin-api:1.0.0`. platform-core is an `api` dependency, so its own
+// publication (below) has to be present too; its POM points plugin consumers at the matching coordinate.
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+        }
+    }
 }

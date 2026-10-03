@@ -420,9 +420,12 @@ $body
             append("- El complemento se ejecuta dentro del proceso del IDE, con sus permisos. El cargador de clases\n")
             append("  separa versiones, no privilegios.\n\n")
             append("## Compilar\n\n")
-            append("El SPI se resuelve como dependencia `compileOnly` desde un repositorio Maven. Mientras el SPI no\n")
-            append("esté publicado en un repositorio accesible, este proyecto no resolverá esa dependencia; el resto del\n")
-            append("proyecto ya es un proyecto Android normal.\n")
+            append("El SPI se resuelve como dependencia `compileOnly` desde el repositorio Maven local. Publícalo una vez\n")
+            append("desde el árbol de código de CodeStudio:\n\n")
+            append("```\n")
+            append("./gradlew :plugin-api:publishToMavenLocal :platform-core:publishToMavenLocal\n")
+            append("```\n\n")
+            append("Después, compila este proyecto como cualquier app Android (`assembleDebug` / `assembleRelease`).\n")
         }
     }
 
