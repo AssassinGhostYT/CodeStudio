@@ -75,6 +75,7 @@ enum class TemplateCategory(val displayName: String) {
     ANDROID("Android"),
     JAVA("Java"),
     KOTLIN("Kotlin"),
+    PLUGIN("Plugins"),
     OTHER("Other"),
 }
 

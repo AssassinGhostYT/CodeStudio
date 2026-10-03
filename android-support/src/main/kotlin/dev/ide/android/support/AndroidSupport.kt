@@ -2,6 +2,7 @@ package dev.ide.android.support
 
 import dev.ide.android.support.templates.AndroidAppTemplate
 import dev.ide.android.support.templates.AndroidLibraryTemplate
+import dev.ide.android.support.templates.CodeStudioPluginTemplate
 import dev.ide.android.support.templates.Game2048SampleTemplate
 import dev.ide.android.support.templates.JetpackComposeAppTemplate
 import dev.ide.android.support.templates.MaterialYouAppTemplate
@@ -41,6 +42,7 @@ object AndroidSupport {
         templates.register(MaterialYouAppTemplate, PLUGIN)
         templates.register(JetpackComposeAppTemplate, PLUGIN)
         templates.register(AndroidLibraryTemplate, PLUGIN)
+        templates.register(CodeStudioPluginTemplate, PLUGIN)
     }
 
     /** Contribute the Jetpack Compose sample games (Snake, Tic-Tac-Toe, Memory Match, 2048) as sample projects. */
