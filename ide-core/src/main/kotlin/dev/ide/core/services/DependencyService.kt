@@ -5,6 +5,7 @@ import dev.ide.android.support.gms.GoogleServices
 import dev.ide.android.support.tools.AarExtractor
 import dev.ide.core.DependencyPartition
 import dev.ide.core.EngineContext
+import dev.ide.core.plugins.BundledSpiArtifactFetcher
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.path.readText
 import kotlin.io.path.writeText
@@ -88,6 +89,7 @@ internal class DependencyService(private val ctx: EngineContext) : Disposable {
     private val depsResolver = MavenDependencyResolver(
         cache = depsCache,
         fileFor = { p -> ctx.store.vfs.fileFor(p) },
+        fetcher = BundledSpiArtifactFetcher(),
     )
 
     /**
@@ -101,6 +103,7 @@ internal class DependencyService(private val ctx: EngineContext) : Disposable {
     private val jvmDepsResolver = MavenDependencyResolver(
         cache = depsCache,
         fileFor = { p -> ctx.store.vfs.fileFor(p) },
+        fetcher = BundledSpiArtifactFetcher(),
         variantRequest = VariantRequest.JVM,
     )
 

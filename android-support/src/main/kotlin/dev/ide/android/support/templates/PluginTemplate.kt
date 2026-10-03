@@ -99,7 +99,8 @@ object CodeStudioPluginTemplate : ProjectTemplate {
             repositories {
                 google()
                 mavenCentral()
-                // The plugin SPI is resolved from here once it is published (see README).
+                // The plugin SPI ships inside CodeStudio and is resolved locally; this is a fallback for a
+                // developer who published their own copy to the local Maven repository.
                 mavenLocal()
             }
         }
@@ -420,12 +421,9 @@ $body
             append("- El complemento se ejecuta dentro del proceso del IDE, con sus permisos. El cargador de clases\n")
             append("  separa versiones, no privilegios.\n\n")
             append("## Compilar\n\n")
-            append("El SPI se resuelve como dependencia `compileOnly` desde el repositorio Maven local. Publícalo una vez\n")
-            append("desde el árbol de código de CodeStudio:\n\n")
-            append("```\n")
-            append("./gradlew :plugin-api:publishToMavenLocal :platform-core:publishToMavenLocal\n")
-            append("```\n\n")
-            append("Después, compila este proyecto como cualquier app Android (`assembleDebug` / `assembleRelease`).\n")
+            append("El SPI (`dev.ide:plugin-api` / `dev.ide:platform-core`) viene incluido en CodeStudio, así que se\n")
+            append("resuelve sin conexión y sin publicar nada. Compila e instala este proyecto como cualquier app\n")
+            append("Android (`assembleDebug` / `assembleRelease`).\n")
         }
     }
 

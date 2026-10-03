@@ -1,3 +1,6 @@
+import java.io.File
+import org.gradle.api.tasks.bundling.Jar
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
     `java-library`
@@ -74,3 +77,70 @@ tasks.test {
         )
     })
 }
+
+// --- Bundled plugin SPI (offline Maven repository) ------------------------------------------------
+// A project scaffolded by CodeStudioPluginTemplate declares `compileOnly("dev.ide:plugin-api:1.0.0")`. The
+// IDE resolves dependencies itself (there is no real Gradle on device) against repositories it cannot be
+// assumed to reach offline, which surfaced as "Couldn't reach the repositories" when building a plugin.
+// So the SPI ships INSIDE the app: plugin-api and platform-core are staged here, as a Maven-layout
+// repository under this module's classpath resources, and the engine's resolver serves it before the
+// network (see BundledSpiArtifactFetcher). Keep the coordinates/version in sync with plugin-api /
+// platform-core build files and PLUGIN_SPI_VERSION.
+val pluginApiJar = project(":plugin-api").tasks.named<Jar>("jar")
+val platformCoreJar = project(":platform-core").tasks.named<Jar>("jar")
+
+val pluginApiPom = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <project xmlns="http://maven.apache.org/POM/4.0.0"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+      <modelVersion>4.0.0</modelVersion>
+      <groupId>dev.ide</groupId>
+      <artifactId>plugin-api</artifactId>
+      <version>1.0.0</version>
+      <packaging>jar</packaging>
+      <dependencies>
+        <dependency>
+          <groupId>dev.ide</groupId>
+          <artifactId>platform-core</artifactId>
+          <version>1.0.0</version>
+          <scope>compile</scope>
+        </dependency>
+      </dependencies>
+    </project>
+""".trimIndent()
+
+val platformCorePom = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <project xmlns="http://maven.apache.org/POM/4.0.0"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+      <modelVersion>4.0.0</modelVersion>
+      <groupId>dev.ide</groupId>
+      <artifactId>platform-core</artifactId>
+      <version>1.0.0</version>
+      <packaging>jar</packaging>
+    </project>
+""".trimIndent()
+
+val bundlePluginSpiRepo = tasks.register("bundlePluginSpiRepo") {
+    description = "Stage the plugin SPI (plugin-api + platform-core) as a Maven repo under android-support resources."
+    dependsOn(pluginApiJar, platformCoreJar)
+    val outDir = layout.buildDirectory.dir("plugin-spi-repo")
+    inputs.files(pluginApiJar, platformCoreJar)
+    outputs.dir(outDir)
+    doLast {
+        val root = outDir.get().asFile.resolve("spi-repo")
+        fun stage(group: String, artifact: String, version: String, jar: File, pom: String) {
+            val dir = root.resolve("${group.replace('.', '/')}/$artifact/$version")
+            dir.mkdirs()
+            jar.copyTo(dir.resolve("$artifact-$version.jar"), overwrite = true)
+            dir.resolve("$artifact-$version.pom").writeText(pom)
+        }
+        stage("dev.ide", "plugin-api", "1.0.0", pluginApiJar.get().archiveFile.get().asFile, pluginApiPom)
+        stage("dev.ide", "platform-core", "1.0.0", platformCoreJar.get().archiveFile.get().asFile, platformCorePom)
+    }
+}
+
+// The staged repo becomes part of android-support's resources, hence of the app's classpath resources.
+sourceSets.named("main") { resources.srcDir(bundlePluginSpiRepo) }
