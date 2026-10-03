@@ -202,6 +202,14 @@ internal fun AppNavGraph(
             Screen.Plugins -> PluginsScreen(
                 backend = state.backend,
                 onBack = { app.navigateTo(Screen.Hub) },
+                // The Logs viewer is an editor overlay, so the row offers it only with a project open.
+                onOpenLogs = if (app.epoch > 0) {
+                    { pluginId ->
+                        state.logsSource = pluginId
+                        state.logsOpen = true
+                        app.navigateTo(Screen.Editor)
+                    }
+                } else null,
                 // A restart takes the whole app down, so every modified buffer is written first. Offered only
                 // where the host can restart itself; the screen states the restart either way.
                 onRestart = if (state.backend.settings.canRestartApplication()) {
