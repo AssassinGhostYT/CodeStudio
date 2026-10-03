@@ -1,5 +1,4 @@
 import java.io.File
-import org.gradle.api.tasks.bundling.Jar
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -86,8 +85,17 @@ tasks.test {
 // repository under this module's classpath resources, and the engine's resolver serves it before the
 // network (see BundledSpiArtifactFetcher). Keep the coordinates/version in sync with plugin-api /
 // platform-core build files and PLUGIN_SPI_VERSION.
-val pluginApiJar = project(":plugin-api").tasks.named<Jar>("jar")
-val platformCoreJar = project(":platform-core").tasks.named<Jar>("jar")
+// Resolve the two SPI modules through a configuration (lazily — a direct `tasks.named("jar")` would run
+// before the other projects are configured and fail with "Task with name 'jar' not found").
+val pluginSpiJars: Configuration by configurations.creating {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+    isTransitive = false
+}
+dependencies {
+    pluginSpiJars(project(":plugin-api"))
+    pluginSpiJars(project(":platform-core"))
+}
 
 val pluginApiPom = """
     <?xml version="1.0" encoding="UTF-8"?>
@@ -125,9 +133,8 @@ val platformCorePom = """
 
 val bundlePluginSpiRepo = tasks.register("bundlePluginSpiRepo") {
     description = "Stage the plugin SPI (plugin-api + platform-core) as a Maven repo under android-support resources."
-    dependsOn(pluginApiJar, platformCoreJar)
     val outDir = layout.buildDirectory.dir("plugin-spi-repo")
-    inputs.files(pluginApiJar, platformCoreJar)
+    inputs.files(pluginSpiJars)
     outputs.dir(outDir)
     doLast {
         val root = outDir.get().asFile.resolve("spi-repo")
@@ -137,8 +144,11 @@ val bundlePluginSpiRepo = tasks.register("bundlePluginSpiRepo") {
             jar.copyTo(dir.resolve("$artifact-$version.jar"), overwrite = true)
             dir.resolve("$artifact-$version.pom").writeText(pom)
         }
-        stage("dev.ide", "plugin-api", "1.0.0", pluginApiJar.get().archiveFile.get().asFile, pluginApiPom)
-        stage("dev.ide", "platform-core", "1.0.0", platformCoreJar.get().archiveFile.get().asFile, platformCorePom)
+        val jars = pluginSpiJars.files
+        val apiJar = jars.single { it.name.startsWith("plugin-api-") }
+        val coreJar = jars.single { it.name.startsWith("platform-core-") }
+        stage("dev.ide", "plugin-api", "1.0.0", apiJar, pluginApiPom)
+        stage("dev.ide", "platform-core", "1.0.0", coreJar, platformCorePom)
     }
 }
 
