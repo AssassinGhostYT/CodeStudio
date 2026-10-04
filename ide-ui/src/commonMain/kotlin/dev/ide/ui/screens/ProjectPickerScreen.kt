@@ -92,6 +92,7 @@ import dev.ide.ui.generated.resources.project_opened_minutes
 import dev.ide.ui.generated.resources.project_opened_weeks
 import dev.ide.ui.generated.resources.projects
 import dev.ide.ui.generated.resources.quick_backups
+import dev.ide.ui.generated.resources.quick_plugins
 import dev.ide.ui.generated.resources.quick_favorites
 import dev.ide.ui.generated.resources.quick_section_title
 import dev.ide.ui.generated.resources.quick_templates
