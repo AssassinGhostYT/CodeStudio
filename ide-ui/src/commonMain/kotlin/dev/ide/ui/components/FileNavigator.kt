@@ -53,6 +53,7 @@ import dev.ide.ui.backend.TreeViewMode
 import dev.ide.ui.backend.UiMenuGroup
 import dev.ide.ui.backend.UiMenuNode
 import dev.ide.ui.icons.CaIcons
+import dev.ide.ui.generated.resources.settings_plugins
 import dev.ide.ui.icons.actionIcon
 import dev.ide.ui.icons.TreeIcon
 import dev.ide.ui.icons.TreeIcons
@@ -138,6 +139,7 @@ fun FileNavigator(
     onConfigureModule: (TreeNode) -> Unit = {},
     /** Open the Add-Source-Root dialog for a module node. */
     onAddSourceRoot: (TreeNode) -> Unit = {},
+    onOpenPlugins: () -> Unit = {},
     canImport: Boolean = false,
     onImport: () -> Unit = {},
     /** Import external file(s) from the system file manager into a specific directory ([dirPath]); wired into
@@ -223,6 +225,13 @@ fun FileNavigator(
                 CaIcons.download,
                 stringResource(Res.string.filetree_import_files),
                 onClick = onImport,
+                boxSize = 34,
+                iconSize = 18
+            )
+            IconButtonCa(
+                CaIcons.pkg,
+                stringResource(Res.string.settings_plugins),
+                onClick = onOpenPlugins,
                 boxSize = 34,
                 iconSize = 18
             )

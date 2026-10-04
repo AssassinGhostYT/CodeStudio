@@ -78,9 +78,9 @@ import org.jetbrains.compose.resources.stringResource
 
 /** The two kinds of plugin the IDE loads, one tab each. */
 private enum class PluginTab(val label: StringResource) {
-    BuiltIn(Res.string.plugins_tab_builtin),
-    Installed(Res.string.plugins_tab_installed),
     Explore(Res.string.plugins_tab_explore),
+    Installed(Res.string.plugins_tab_installed),
+    BuiltIn(Res.string.plugins_tab_builtin),
 }
 
 /**
@@ -112,7 +112,7 @@ fun PluginsScreen(
     // plugin app installed or updated on the device since launch, and it goes away by itself when a change
     // is answered back to what is already loaded.
     var pending by remember { mutableStateOf(backend.settings.pendingPluginChanges()) }
-    var tab by remember { mutableStateOf(PluginTab.BuiltIn) }
+    var tab by remember { mutableStateOf(PluginTab.Explore) }
     val scope = rememberCoroutineScope()
     var storeCatalog by remember { mutableStateOf(UiPluginStoreCatalog(emptyList())) }
     var storeLoading by remember { mutableStateOf(false) }

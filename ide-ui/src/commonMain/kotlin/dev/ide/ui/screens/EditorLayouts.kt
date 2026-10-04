@@ -53,6 +53,7 @@ import dev.ide.ui.components.AdSlot
 import dev.ide.ui.components.BuildConsole
 import dev.ide.ui.components.BuildDock
 import dev.ide.ui.components.DockBarHeight
+import dev.ide.ui.Screen
 import dev.ide.ui.components.FileNavigator
 import dev.ide.ui.components.FileOpKind
 import dev.ide.ui.components.fileOpPath
@@ -121,6 +122,7 @@ internal fun openTreeFile(node: TreeNode, fileActions: FileActions, open: (Strin
 internal fun buildLeftPanels(
     state: IdeUiState,
     fileActions: FileActions,
+    app: AppNavState,
     indexBuilding: Boolean,
     onNewFile: (String, List<PackageSegment>) -> Unit,
     onNewFolder: (String, List<PackageSegment>) -> Unit,
@@ -143,7 +145,7 @@ internal fun buildLeftPanels(
         SidebarPanel(LeftPanelId.FILES, filesTitle, CaIcons.docText, order = 10) {
             FilesPanelContent(
                 state, fileActions, onNewFile, onNewFolder, onNewResource, onNewSource,
-                onFileOp, onOpenModuleConfig, closeDrawer,
+                onFileOp, onOpenModuleConfig, { app.navigateTo(Screen.Plugins) }, closeDrawer,
             )
         },
         SidebarPanel(LeftPanelId.SEARCH, searchTitle, CaIcons.search, order = 20) {
@@ -193,6 +195,7 @@ private fun FilesPanelContent(
     onNewSource: (String, NewSourceLang, List<PackageSegment>) -> Unit,
     onFileOp: (TreeNode, FileOpKind) -> Unit,
     onOpenModuleConfig: (String?) -> Unit,
+    onOpenPlugins: () -> Unit = {},
     closeDrawer: () -> Unit,
 ) {
     val project = state.backend.project
@@ -209,6 +212,7 @@ private fun FilesPanelContent(
         onNewSource = onNewSource,
         onConfigureModule = { node -> closeDrawer(); onOpenModuleConfig(node.moduleConfigName ?: node.name) },
         onAddSourceRoot = { node -> closeDrawer(); state.addSourceRootModule = node.moduleConfigName ?: node.name },
+        onOpenPlugins = onOpenPlugins,
         canImport = fileActions.canImport,
         onImport = { doImport(state, fileActions) },
         onImportInto = { dir -> doImportInto(state, fileActions, dir) },
@@ -265,6 +269,7 @@ internal fun ExpandedLayout(
     val leftPanels = buildLeftPanels(
         state, fileActions, indexStatus.building,
         onNewFile, onNewFolder, onNewResource, onNewSource, onFileOp, onOpenModuleConfig,
+        app = app,
         closeDrawer = {}, // desktop panes are persistent — never auto-collapse
     )
     val rightPanels = pluginPanels(ToolWindowAnchor.RIGHT, state.backend, state.active?.path)
@@ -403,6 +408,7 @@ internal fun CompactLayout(
     val leftPanels = buildLeftPanels(
         state, fileActions, indexStatus.building,
         onNewFile, onNewFolder, onNewResource, onNewSource, onFileOp, onOpenModuleConfig,
+        app = app,
         closeDrawer = { state.selectedLeftPanel = null }, // a navigating action closes the drawer on phone
     )
     Box(Modifier.fillMaxSize()) {
