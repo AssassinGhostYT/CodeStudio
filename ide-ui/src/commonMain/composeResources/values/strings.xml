@@ -783,7 +783,10 @@ Nunca recopilamos su código, nombres de archivos o proyectos, qué funciones us
     <string name="plugins_requires">Requiere %1$s</string>
     <string name="plugins_tab_builtin">Integrados</string>
     <string name="plugins_tab_installed">Instalados</string>
+    <string name="plugins_tab_explore">Explorar</string>
     <string name="plugins_installed_empty">Aún no hay nada instalado. Un complemento de CodeStudio que instales desde tu tienda de apps aparecerá aquí.</string>
+    <string name="plugins_explore_empty">El catálogo está vacío.</string>
+    <string name="plugins_explore_unavailable">La tienda de complementos no está disponible.</string>
     <string name="plugins_failed">No se cargó: %1$s</string>
     <string name="plugins_needs_consent">Aún no se ejecuta. Revisa qué puede hacer antes de permitirlo.</string>
     <string name="keystore_manager_title">Administrador de keystores</string>
