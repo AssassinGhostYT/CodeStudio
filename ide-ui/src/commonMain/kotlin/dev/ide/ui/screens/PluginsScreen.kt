@@ -59,6 +59,7 @@ import dev.ide.ui.generated.resources.plugins_restarting
 import dev.ide.ui.generated.resources.plugins_review
 import dev.ide.ui.generated.resources.plugins_tab_builtin
 import dev.ide.ui.generated.resources.plugins_tab_installed
+import dev.ide.ui.generated.resources.plugins_tab_explore
 import dev.ide.ui.generated.resources.plugins_explore_empty
 import dev.ide.ui.generated.resources.plugins_explore_unavailable
 import dev.ide.ui.generated.resources.settings_plugins
@@ -67,15 +68,13 @@ import dev.ide.ui.theme.Ca
 import dev.ide.ui.backend.FileActions
 import dev.ide.ui.backend.UiPluginStoreItem
 import dev.ide.ui.backend.UiPluginStoreCatalog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.foundation.clickable
-import androidx.compose.material3.Button
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material3.CircularProgressIndicator
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
