@@ -70,8 +70,6 @@ import dev.ide.ui.backend.UiPluginStoreItem
 import dev.ide.ui.backend.UiPluginStoreCatalog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Download
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
