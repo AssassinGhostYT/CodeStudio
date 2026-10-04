@@ -93,6 +93,7 @@ import dev.ide.ui.generated.resources.project_opened_weeks
 import dev.ide.ui.generated.resources.projects
 import dev.ide.ui.generated.resources.quick_backups
 import dev.ide.ui.generated.resources.quick_plugins
+import dev.ide.ui.generated.resources.plugins
 import dev.ide.ui.generated.resources.quick_favorites
 import dev.ide.ui.generated.resources.quick_section_title
 import dev.ide.ui.generated.resources.quick_templates
@@ -441,7 +442,7 @@ private fun QuickAccessRow(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             QuickAccessTile(stringResource(Res.string.quick_plugins), Modifier.weight(1f), onPlugins) {
-                Icon(CaIcons.pkg, null, Modifier.size(24.dp))
+                Image(painterResource(Res.drawable.plugins), null, Modifier.size(24.dp))
             }
             QuickAccessTile(stringResource(Res.string.quick_templates), Modifier.weight(1f), onTemplates) {
                 Image(painterResource(Res.drawable.quick_templates), null, Modifier.size(24.dp))
