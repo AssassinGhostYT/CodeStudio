@@ -39,6 +39,7 @@ import dev.ide.core.backend.ModuleBackend
 import dev.ide.core.backend.PreviewBackend
 import dev.ide.core.backend.LearnBackend
 import dev.ide.core.backend.ProjectBackend
+import dev.ide.core.backend.PluginStoreBackend
 import dev.ide.core.backend.StoreBackend
 import dev.ide.core.backend.SdkBackend
 import dev.ide.core.backend.SearchBackend
@@ -323,6 +324,7 @@ class IdeServicesBackend(
     override val signing: SigningService = SigningBackend(this)
     override val projects: ProjectService = ProjectBackend(this)
     override val store: StoreService = StoreBackend(this)
+    override val pluginStore: dev.ide.ui.backend.PluginStoreService = PluginStoreBackend(this)
     // Held as the concrete type so the Compose preview host can reach its ide-core-only lesson-lowering methods
     // ([lowerLessonComposePreview]) that return an ide-core type the [LearnService] UI interface can't name.
     private val learnBackend = LearnBackend(this)

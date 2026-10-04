@@ -55,6 +55,10 @@ interface IdeBackend {
      *  backend that wires no catalog inherits [StoreService.Unsupported]. */
     val store: StoreService get() = StoreService.Unsupported
 
+    /** The community plugin store: what people published, and the download half of installing one. Optional —
+     *  a backend that wires no catalog inherits [PluginStoreService.Unsupported] (no "Explorar" tab). */
+    val pluginStore: PluginStoreService get() = PluginStoreService.Unsupported
+
     /** The interactive Learn experience: lesson tracks, step-by-step content, auto-checked exercises, and
      *  local progress. Optional — a backend that wires no content inherits [LearnService.Unsupported]. */
     val learn: LearnService get() = LearnService.Unsupported
