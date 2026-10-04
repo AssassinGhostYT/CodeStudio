@@ -343,6 +343,7 @@ private fun ProjectPickerRoute(
         } else null,
         onBackup = app::backupProjects,
         onOpenHub = { app.openHub(Screen.Projects) },
+        onOpenPlugins = { app.navigateTo(Screen.Plugins) },
         onOpenStore = { app.selectHomeTab(HomeTab.Store) },
         storagePath = backend.projects.storageRootPath(),
         onOpenInFiles = if (fileActions.canReveal) {
