@@ -44,7 +44,7 @@ class PluginsScreenSnapshot {
     private fun snapshot(name: String, w: Int, h: Int, backend: IdeBackend) {
         val scene = ImageComposeScene(width = w, height = h, density = Density(2f)) {
             CodeStudioTheme(dark = true) {
-                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { PluginsScreen(backend, onBack = {}) }
+                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { PluginsScreen(backend, fileActions = dev.ide.ui.StubBackend(), onBack = {}) }
             }
         }
         try {

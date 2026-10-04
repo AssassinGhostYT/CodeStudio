@@ -59,9 +59,23 @@ import dev.ide.ui.generated.resources.plugins_restarting
 import dev.ide.ui.generated.resources.plugins_review
 import dev.ide.ui.generated.resources.plugins_tab_builtin
 import dev.ide.ui.generated.resources.plugins_tab_installed
+import dev.ide.ui.generated.resources.plugins_explore_empty
+import dev.ide.ui.generated.resources.plugins_explore_unavailable
 import dev.ide.ui.generated.resources.settings_plugins
 import dev.ide.ui.icons.CaIcons
 import dev.ide.ui.theme.Ca
+import dev.ide.ui.backend.FileActions
+import dev.ide.ui.backend.UiPluginStoreItem
+import dev.ide.ui.backend.UiPluginStoreCatalog
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material3.CircularProgressIndicator
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
@@ -69,6 +83,7 @@ import org.jetbrains.compose.resources.stringResource
 private enum class PluginTab(val label: StringResource) {
     BuiltIn(Res.string.plugins_tab_builtin),
     Installed(Res.string.plugins_tab_installed),
+    Explore(Res.string.plugins_tab_explore),
 }
 
 /**
@@ -87,6 +102,7 @@ private enum class PluginTab(val label: StringResource) {
 @Composable
 fun PluginsScreen(
     backend: IdeBackend,
+    fileActions: FileActions,
     onBack: () -> Unit,
     /** Show this plugin's own log records. Null when there is no editor to show the Logs viewer over. */
     onOpenLogs: ((pluginId: String) -> Unit)? = null,
@@ -100,6 +116,10 @@ fun PluginsScreen(
     // is answered back to what is already loaded.
     var pending by remember { mutableStateOf(backend.settings.pendingPluginChanges()) }
     var tab by remember { mutableStateOf(PluginTab.BuiltIn) }
+    val scope = rememberCoroutineScope()
+    var storeCatalog by remember { mutableStateOf(UiPluginStoreCatalog(emptyList())) }
+    var storeLoading by remember { mutableStateOf(false) }
+    var storeError by remember { mutableStateOf<String?>(null) }
     // The plugin whose consent sheet is open. Nothing loads while this is unanswered, so the sheet is a
     // gate rather than a notification.
     var asking by remember { mutableStateOf<UiPluginInfo?>(null) }
@@ -107,34 +127,97 @@ fun PluginsScreen(
     val builtIn = plugins.filter { it.builtIn }
     val installed = plugins.filterNot { it.builtIn }
 
+    LaunchedEffect(tab) {
+        if (tab == PluginTab.Explore) {
+            scope.launch {
+                storeLoading = true
+                storeError = null
+                try {
+                    val cat = backend.pluginStore.catalog()
+                    storeCatalog = cat
+                    storeError = cat.error
+                } catch (e: Exception) {
+                    storeError = e.message
+                } finally {
+                    storeLoading = false
+                }
+            }
+        }
+    }
+
     ExpressiveScaffold(title = stringResource(Res.string.settings_plugins), onBack = onBack) { innerPadding ->
         Column(Modifier.widthIn(max = 640.dp).fillMaxSize().padding(innerPadding)) {
             // Above the tabs: a toggle on either tab needs the same restart, so the hint is not per-tab.
             if (pending.isNotEmpty()) RestartHint(pending, onRestart)
-            PluginTabs(tab, builtIn.size, installed.size) { tab = it }
+            PluginTabs(tab, builtIn.size, installed.size, storeCatalog.items.size) { tab = it }
             Column(
                 Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                val shown = if (tab == PluginTab.BuiltIn) builtIn else installed
-                if (shown.isEmpty()) {
-                    EmptyInstalled()
-                } else {
-                    for (p in shown) {
-                        PluginRow(
-                            p,
-                            onReview = { asking = p },
-                            onToggle = { enabled ->
-                                backend.settings.setPluginEnabled(p.id, enabled)
-                                plugins = backend.settings.pluginCatalog()
-                                pending = backend.settings.pendingPluginChanges()
-                            },
-                            // Built-ins log under their own ids too, but their logs are the IDE's; this is
-                            // for the author of an installed plugin watching their own code run.
-                            onOpenLogs = onOpenLogs
-                                ?.takeIf { !p.builtIn && p.togglable }
-                                ?.let { open -> { open(p.id) } },
+                when (tab) {
+                    PluginTab.BuiltIn -> {
+                        if (builtIn.isEmpty()) {
+                            EmptyInstalled()
+                        } else {
+                            for (p in builtIn) {
+                                PluginRow(
+                                    p,
+                                    onReview = { asking = p },
+                                    onToggle = { enabled ->
+                                        backend.settings.setPluginEnabled(p.id, enabled)
+                                        plugins = backend.settings.pluginCatalog()
+                                        pending = backend.settings.pendingPluginChanges()
+                                    },
+                                    onOpenLogs = onOpenLogs
+                                        ?.takeIf { !p.builtIn && p.togglable }
+                                        ?.let { open -> { open(p.id) } },
+                                )
+                            }
+                        }
+                    }
+                    PluginTab.Installed -> {
+                        if (installed.isEmpty()) {
+                            EmptyInstalled()
+                        } else {
+                            for (p in installed) {
+                                PluginRow(
+                                    p,
+                                    onReview = { asking = p },
+                                    onToggle = { enabled ->
+                                        backend.settings.setPluginEnabled(p.id, enabled)
+                                        plugins = backend.settings.pluginCatalog()
+                                        pending = backend.settings.pendingPluginChanges()
+                                    },
+                                    onOpenLogs = onOpenLogs
+                                        ?.takeIf { !p.builtIn && p.togglable }
+                                        ?.let { open -> { open(p.id) } },
+                                )
+                            }
+                        }
+                    }
+                    PluginTab.Explore -> {
+                        ExploreStore(
+                            catalog = storeCatalog,
+                            loading = storeLoading,
+                            error = storeError,
+                            backend = backend,
+                            fileActions = fileActions,
+                            onRefreshed = {
+                                scope.launch {
+                                    storeLoading = true
+                                    storeError = null
+                                    try {
+                                        val cat = backend.pluginStore.catalog()
+                                        storeCatalog = cat
+                                        storeError = cat.error
+                                    } catch (e: Exception) {
+                                        storeError = e.message
+                                    } finally {
+                                        storeLoading = false
+                                    }
+                                }
+                            }
                         )
                     }
                 }
@@ -157,7 +240,7 @@ fun PluginsScreen(
 }
 
 @Composable
-private fun PluginTabs(selected: PluginTab, builtInCount: Int, installedCount: Int, onSelect: (PluginTab) -> Unit) {
+private fun PluginTabs(selected: PluginTab, builtInCount: Int, installedCount: Int, exploreCount: Int, onSelect: (PluginTab) -> Unit) {
     PrimaryTabRow(
         selectedTabIndex = PluginTab.entries.indexOf(selected),
         containerColor = MaterialTheme.colorScheme.surface,
@@ -174,7 +257,7 @@ private fun PluginTabs(selected: PluginTab, builtInCount: Int, installedCount: I
                 text = {
                     TabLabel(
                         stringResource(t.label),
-                        if (t == PluginTab.BuiltIn) builtInCount else installedCount,
+                        when (t) { PluginTab.BuiltIn -> builtInCount; PluginTab.Installed -> installedCount; PluginTab.Explore -> exploreCount },
                     )
                 },
             )
@@ -363,4 +446,100 @@ private fun RequiredPill() {
             .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(Ca.radius.pill))
             .padding(horizontal = 10.dp, vertical = 4.dp),
     )
+}
+
+
+@Composable
+private fun ExploreStore(
+    catalog: UiPluginStoreCatalog,
+    loading: Boolean,
+    error: String?,
+    backend: IdeBackend,
+    fileActions: FileActions,
+    onRefreshed: () -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    var installingId by remember { mutableStateOf<String?>(null) }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (loading) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                CircularProgressIndicator(modifier = Modifier.size(16.dp))
+                Text("Cargando catálogo...")
+            }
+            return@Column
+        }
+        error?.let {
+            Text(
+                stringResource(Res.string.plugins_failed, it),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            TextButton(onClick = onRefreshed) { Text("Recargar") }
+            return@Column
+        }
+        if (catalog.items.isEmpty()) {
+            Text(
+                stringResource(Res.string.plugins_explore_empty),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            return@Column
+        }
+        catalog.items.forEach { item ->
+            StoreItemRow(
+                item = item,
+                installing = installingId == item.id,
+                onInstall = {
+                    scope.launch {
+                        installingId = item.id
+                        try {
+                            val res = backend.pluginStore.install(item.id)
+                            res.apkPath?.let { fileActions.installApk(it) }
+                        } catch (e: Exception) {
+                            // swallow
+                        } finally {
+                            installingId = null
+                        }
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun StoreItemRow(
+    item: UiPluginStoreItem,
+    installing: Boolean,
+    onInstall: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(Ca.radius.md))
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(item.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text("${item.version} · ${item.author}", color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.bodySmall)
+            if (item.description.isNotEmpty()) {
+                Text(item.description, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
+            }
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            if (item.installed) {
+                Text("Instalado", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+            } else {
+                if (installing) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                } else {
+                    Button(onClick = onInstall) {
+                        Text("Instalar")
+                    }
+                }
+            }
+        }
+    }
 }

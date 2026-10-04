@@ -201,6 +201,7 @@ internal fun AppNavGraph(
 
             Screen.Plugins -> PluginsScreen(
                 backend = state.backend,
+                fileActions = fileActions,
                 onBack = { app.navigateTo(Screen.Hub) },
                 // The Logs viewer is an editor overlay, so the row offers it only with a project open.
                 onOpenLogs = if (app.epoch > 0) {
