@@ -1225,7 +1225,7 @@ We never collect your code, file or project names, which features you use, or an
     <string name="block_palette_comment">Comment</string>
     <string name="home_tagline">Your mobile IDE — powerful and lightweight.</string>
     <string name="quick_section_title">Quick access</string>
-    <string name="quick_recent">Recent</string>
+    <string name="quick_plugins">Plugins</string>
     <string name="quick_templates">Templates</string>
     <string name="quick_favorites">Favorites</string>
     <string name="quick_backups">Backups</string>

@@ -100,7 +100,6 @@ fun SettingsHubScreen(
                 HubDest(CaIcons.grid, stringResource(Res.string.settings_symbols), stringResource(Res.string.settings_symbols_subtitle), onOpenSymbols),
                 HubDest(CaIcons.pkg, stringResource(Res.string.settings_sdk_manager), stringResource(Res.string.settings_sdk_manager_subtitle), onOpenSdkManager),
                 HubDest(CaIcons.key, stringResource(Res.string.settings_keystore_manager), stringResource(Res.string.settings_keystore_manager_subtitle), onOpenKeystoreManager),
-                HubDest(CaIcons.box, stringResource(Res.string.settings_plugins), stringResource(Res.string.settings_plugins_subtitle), onOpenPlugins),
                 HubDest(CaIcons.layers, stringResource(Res.string.settings_storage), stringResource(Res.string.settings_storage_subtitle), onOpenStorage),
             )
             Card(

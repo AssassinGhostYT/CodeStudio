@@ -1223,7 +1223,7 @@ Nunca recopilamos su código, nombres de archivos o proyectos, qué funciones us
     <string name="block_palette_comment">Comentario</string>
     <string name="home_tagline">Tu IDE móvil, poderoso y ligero.</string>
     <string name="quick_section_title">Acceso rápido</string>
-    <string name="quick_recent">Recientes</string>
+    <string name="quick_plugins">Plugins</string>
     <string name="quick_templates">Plantillas</string>
     <string name="quick_favorites">Favoritos</string>
     <string name="quick_backups">Respaldos</string>

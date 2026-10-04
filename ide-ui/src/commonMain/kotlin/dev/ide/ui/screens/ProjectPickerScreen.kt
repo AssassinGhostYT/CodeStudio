@@ -43,7 +43,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -94,7 +93,6 @@ import dev.ide.ui.generated.resources.project_opened_weeks
 import dev.ide.ui.generated.resources.projects
 import dev.ide.ui.generated.resources.quick_backups
 import dev.ide.ui.generated.resources.quick_favorites
-import dev.ide.ui.generated.resources.quick_recent
 import dev.ide.ui.generated.resources.quick_section_title
 import dev.ide.ui.generated.resources.quick_templates
 import dev.ide.ui.generated.resources.settings_hub_title
@@ -115,10 +113,10 @@ import org.jetbrains.compose.resources.stringResource
 
 /**
  * The "Projects" picker: a brand header, the New-Project / Import-Gradle leading cards, a Quick-Access row
- * (Recientes / Plantillas / Favoritos / Respaldos), and either a populated project list or an empty-state.
- * Tiles in [QuickAccessRow] either deep-link (Plantillas → [onOpenStore]) or fire-and-forget locally
- * (Recientes / Favoritos show "Próximamente"; Respaldos triggers [onBackup] and surfaces the result via
- * Snackbar).
+ * (Plugins / Plantillas / Favoritos / Respaldos), and either a populated project list or an empty-state.
+ * Tiles in [QuickAccessRow] either deep-link (Plugins → [onOpenPlugins], Plantillas → [onOpenStore]) or
+ * fire-and-forget locally (Favoritos shows "Próximamente"; Respaldos triggers [onBackup] and surfaces the
+ * result via Snackbar).
  */
 @Composable
 fun ProjectPickerScreen(
@@ -128,13 +126,17 @@ fun ProjectPickerScreen(
     onDeleteProject: ((ProjectInfo) -> Unit)? = null,
     /** Import an external Gradle project folder (best effort). Shows a secondary card; null hides it. */
     onImportGradle: (() -> Unit)? = null,
-    /** Export a project as a shareable `.caproj` (shows a per-card Share action). Null hides it. */
+    /** Export a project to a sharable `.caproj` (shows a per-card Share action). Null hides it. */
     onExportProject: ((ProjectInfo) -> Unit)? = null,
     /** Backup every project to a sharable zip. Wired to both the header cube icon and the Respaldos tile. */
     onBackup: (() -> Unit)? = null,
     /** Open the global Settings & Tools hub (settings · code style · SDK & keystore managers) — reachable
      *  here without an open project. Null hides the entry point. */
     onOpenHub: (() -> Unit)? = null,
+    /** Open the Plugins screen — the installed plugins you can enable, plus the store tab of what people
+     *  published — when the user taps the Plugins quick-access tile. Null falls back to the same
+     *  "Próximamente" snackbar as the other quick-access tiles. */
+    onOpenPlugins: (() -> Unit)? = null,
     /** Switch to the Explorar / Store tab when the user taps the Plantillas quick-access tile. Null falls
      *  back to the same "Próximamente" snackbar as the other quick-access tiles (desktop / no-store-flag). */
     onOpenStore: (() -> Unit)? = null,
@@ -178,7 +180,7 @@ fun ProjectPickerScreen(
                 // expects `() -> Unit` — without the trailing Unit the block evaluates to Job and the
                 // param assignment fails the type check.
                 QuickAccessRow(
-                    onRecent = { scope.launch { snackbarHostState.showSnackbar(comingSoonMsg) }; Unit },
+                    onPlugins = onOpenPlugins ?: { scope.launch { snackbarHostState.showSnackbar(comingSoonMsg) }; Unit },
                     onTemplates = onOpenStore ?: { scope.launch { snackbarHostState.showSnackbar(comingSoonMsg) }; Unit },
                     onFavorites = { scope.launch { snackbarHostState.showSnackbar(comingSoonMsg) }; Unit },
                     onBackups = onBackup ?: { scope.launch { snackbarHostState.showSnackbar(comingSoonMsg) }; Unit },
@@ -412,12 +414,16 @@ private fun BrandHeader(onBackup: (() -> Unit)?, onOpenHub: (() -> Unit)?) {
 /**
  * The "Acceso rápido" row: four equal-width tappable tiles for the most-used shortcuts from the project
  * picker. Each tile shows a circular brand-green icon well and a small label. Tiles that have no backing
- * feature yet (Recientes / Favoritos) show a "Próximamente" snackbar; Plantillas deep-links to the Store
- * tab; Respaldos triggers [onBackups] (which the host wires to a real backup flow).
+ * feature yet (Favoritos) show a "Próximamente" snackbar; Plugins deep-links to the Plugins screen and
+ * Plantillas to the Store tab; Respaldos triggers [onBackups] (which the host wires to a real backup flow).
+ *
+ * The icon is a [Composable] slot rather than a `Painter` so a tile can carry either a bundled drawable
+ * ([Res.drawable.quick_templates]) or a Material icon vector ([dev.ide.ui.icons.CaIcons]) without two
+ * parallel tiles.
  */
 @Composable
 private fun QuickAccessRow(
-    onRecent: () -> Unit,
+    onPlugins: () -> Unit,
     onTemplates: () -> Unit,
     onFavorites: () -> Unit,
     onBackups: () -> Unit,
@@ -433,16 +439,29 @@ private fun QuickAccessRow(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            QuickAccessTile(painterResource(Res.drawable.quick_recent), stringResource(Res.string.quick_recent), Modifier.weight(1f), onRecent)
-            QuickAccessTile(painterResource(Res.drawable.quick_templates), stringResource(Res.string.quick_templates), Modifier.weight(1f), onTemplates)
-            QuickAccessTile(painterResource(Res.drawable.quick_favorites), stringResource(Res.string.quick_favorites), Modifier.weight(1f), onFavorites)
-            QuickAccessTile(painterResource(Res.drawable.quick_backups), stringResource(Res.string.quick_backups), Modifier.weight(1f), onBackups)
+            QuickAccessTile(stringResource(Res.string.quick_plugins), Modifier.weight(1f), onPlugins) {
+                Icon(CaIcons.pkg, null, Modifier.size(24.dp))
+            }
+            QuickAccessTile(stringResource(Res.string.quick_templates), Modifier.weight(1f), onTemplates) {
+                Image(painterResource(Res.drawable.quick_templates), null, Modifier.size(24.dp))
+            }
+            QuickAccessTile(stringResource(Res.string.quick_favorites), Modifier.weight(1f), onFavorites) {
+                Image(painterResource(Res.drawable.quick_favorites), null, Modifier.size(24.dp))
+            }
+            QuickAccessTile(stringResource(Res.string.quick_backups), Modifier.weight(1f), onBackups) {
+                Image(painterResource(Res.drawable.quick_backups), null, Modifier.size(24.dp))
+            }
         }
     }
 }
 
 @Composable
-private fun QuickAccessTile(icon: Painter, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun QuickAccessTile(
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+    icon: @Composable () -> Unit,
+) {
     val interaction = remember { MutableInteractionSource() }
     val shape = RoundedCornerShape(Ca.radius.lg)
     Column(
@@ -459,7 +478,7 @@ private fun QuickAccessTile(icon: Painter, label: String, modifier: Modifier = M
             Modifier.size(40.dp).background(Ide.colors.success.copy(alpha = 0.15f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
-            Image(icon, null, Modifier.size(24.dp))
+            icon()
         }
         Text(
             label,
