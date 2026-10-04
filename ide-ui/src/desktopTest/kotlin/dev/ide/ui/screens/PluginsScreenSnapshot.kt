@@ -44,11 +44,7 @@ class PluginsScreenSnapshot {
     private fun snapshot(name: String, w: Int, h: Int, backend: IdeBackend) {
         val scene = ImageComposeScene(width = w, height = h, density = Density(2f)) {
             CodeStudioTheme(dark = true) {
-<<<<<<< HEAD
                 Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { PluginsScreen(backend, fileActions = StubBackend(), onBack = {}) }
-=======
-                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { PluginsScreen(backend, fileActions = StubBackend(), onBack = {}) }
->>>>>>> a54a47e (Fix: add Explore tab foundation (separate from built-in) + pass FileActions)
             }
         }
         try {
