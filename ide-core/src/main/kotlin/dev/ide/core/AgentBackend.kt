@@ -224,10 +224,33 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
             selectedId = selected,
             clientProviderId = selected,
             apiKey = pref(keyField(selected)),
-            model = pref("model") ?: provider?.defaultModel.orEmpty(),
+            model = chosenModel(selected) ?: preferredModels[selected] ?: provider?.defaultModel.orEmpty(),
             baseUrl = null,
         )
     }
+
+    /**
+     * The model the user picked for [providerId], or null to let the provider choose. Picks are stored per
+     * provider: one shared `model` preference meant switching provider kept the old provider's model id, and
+     * the first request then failed against a model the new provider does not have. The legacy shared value is
+     * still honoured when it plausibly belongs to this provider.
+     */
+    private fun chosenModel(providerId: String): String? {
+        pref("model.$providerId")?.let { return it }
+        val legacy = pref("model") ?: return null
+        return legacy.takeIf { modelBelongsTo(it, providerId) }
+    }
+
+    private fun modelBelongsTo(model: String, providerId: String): Boolean = when (providerId) {
+        "anthropic" -> model.startsWith("claude")
+        "gemini" -> model.startsWith("gemini") || model.startsWith("gemma") || model.startsWith("models/")
+        "openai" -> !model.startsWith("claude") && !model.startsWith("gemini") && '/' !in model
+        "openrouter" -> '/' in model
+        else -> true
+    }
+
+    /** Per provider, the model `LlmProvider.preferredModel` chose from the account's live list. */
+    private val preferredModels = java.util.concurrent.ConcurrentHashMap<String, String>()
 
     private fun keyField(providerId: String): String = when (providerId) {
         "openai" -> "openaiKey"
@@ -237,8 +260,11 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
         else -> "anthropicKey"
     }
 
+    /**
+     * Forces the loop to be rebuilt on the next send. The loop itself is kept so the rebuild carries its
+     * history over: nulling it here is what made picking a model in the chat silently drop the conversation.
+     */
     private fun resetLoop() {
-        loop = null
         loopSignature = null
     }
 
@@ -273,8 +299,11 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
 
     override fun setModel(model: String) {
         val selected = pref("provider") ?: registry.providers.firstOrNull()?.id ?: "anthropic"
-        val field = if (selected == GATEWAY) "gatewayModel" else "model"
-        ctx.manager?.setPreference("settings.$AI_PAGE.$field", model)
+        if (selected == GATEWAY) {
+            ctx.manager?.setPreference("settings.$AI_PAGE.gatewayModel", model)
+        } else {
+            ctx.manager?.setPreference("settings.$AI_PAGE.model.$selected", model)
+        }
         resetLoop()
     }
 
@@ -306,6 +335,7 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
         scope.launch {
             val fetched = runCatching { provider.listModels(ProviderConfig(key, cfg.baseUrl, cfg.caCertificatePem)) }
                 .getOrDefault(provider.models)
+            provider.preferredModel(fetched)?.let { preferredModels[cfg.selectedId] = it }
             _models.value = fetched.map { UiAgentModel(it.id, it.displayName) }
         }
     }
@@ -391,6 +421,8 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
         val signature =
             "${cfg.selectedId}|$model|${cfg.baseUrl}|${cfg.apiKey.hashCode()}|${cfg.caCertificatePem.hashCode()}|$maxIterations|$maxTokens|$thinkingBudget|$webSearch|$reasoningEffort"
         if (loop == null || loopSignature != signature) {
+            // Carry the transcript across the rebuild: the old loop's history, else the visible messages.
+            val carried = loop?.snapshot().orEmpty()
             val client = provider.client(ProviderConfig(cfg.apiKey ?: "", cfg.baseUrl, cfg.caCertificatePem))
             loop = AgentLoop(
                 client, model, tools, gate, ::systemPrompt,
@@ -400,6 +432,7 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
                 webSearch = webSearch,
                 reasoningEffort = reasoningEffort,
             )
+            if (carried.isNotEmpty()) loop.restore(carried)
             loopSignature = signature
         }
         val activeLoop = loop ?: return

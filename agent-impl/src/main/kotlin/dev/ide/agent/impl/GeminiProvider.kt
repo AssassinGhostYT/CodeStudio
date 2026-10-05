@@ -23,11 +23,18 @@ import kotlinx.serialization.json.put
 class GeminiProvider(private val transport: LlmTransport) : LlmProvider {
     override val id: String = "gemini"
     override val displayName: String = "Google Gemini"
+    // Flash first: it is what a free API key can actually use. Google took 2.5 Pro off the free tier entirely
+    // (limit 0) and closed the 2.5 family to new projects, so a Pro default failed a fresh key's first request.
     override val models: List<LlmModelInfo> = listOf(
-        LlmModelInfo("gemini-2.5-pro", "Gemini 2.5 Pro"),
-        LlmModelInfo("gemini-2.5-flash", "Gemini 2.5 Flash"),
+        LlmModelInfo("gemini-3.8-flash", "Gemini 3.8 Flash", supportsThinking = true),
+        LlmModelInfo("gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite", supportsThinking = true),
+        LlmModelInfo("gemini-3.1-pro-preview", "Gemini 3.1 Pro (paid)", supportsThinking = true),
+        LlmModelInfo("gemini-2.5-flash", "Gemini 2.5 Flash", supportsThinking = true),
     )
-    override val defaultModel: String = "gemini-2.5-pro"
+    override val defaultModel: String = "gemini-3.8-flash"
+
+    /** The newest general-purpose Flash the account lists (see [GeminiModels.newestFlash]). */
+    override fun preferredModel(available: List<LlmModelInfo>): String? = GeminiModels.newestFlash(available.map { it.id })
 
     override fun client(config: ProviderConfig): LlmClient {
         // Per-client (per-session) context cache: the stable system instruction + tool declarations are the
@@ -142,6 +149,33 @@ class GeminiProvider(private val transport: LlmTransport) : LlmProvider {
         /** 2.5 Pro cannot fully disable thinking; the smallest budget it accepts. */
         const val PRO_MIN_THINKING_BUDGET = 128
     }
+}
+
+/** Model-id parsing shared by the provider and the backend's token budgeting. */
+internal object GeminiModels {
+    private val version = Regex("""^gemini-(\d+)(?:\.(\d+))?""")
+    private val plainFlash = Regex("""^gemini-(\d+)(?:\.(\d+))?-flash(-preview)?$""")
+
+    /** The major version in a model id (`gemini-3.8-flash` -> 3), or 0 when it does not parse. */
+    fun generation(model: String): Int =
+        version.find(model.removePrefix("models/"))?.groupValues?.get(1)?.toIntOrNull() ?: 0
+
+    /**
+     * The newest general-purpose Flash in [ids]: the plain `gemini-X.Y-flash` form, preferring a stable release
+     * over a `-preview` of the same version and skipping the specialised variants (lite, image, TTS, live).
+     * Flash is the right default because it is what a free key can actually use.
+     */
+    fun newestFlash(ids: List<String>): String? = ids
+        .map { it.removePrefix("models/") }
+        .mapNotNull { id ->
+            val m = plainFlash.find(id) ?: return@mapNotNull null
+            val major = m.groupValues[1].toInt()
+            val minor = m.groupValues[2].toIntOrNull() ?: 0
+            val stable = if (m.groupValues[3].isEmpty()) 1 else 0
+            Triple(id, major * 1000 + minor, stable)
+        }
+        .maxWithOrNull(compareBy<Triple<String, Int, Int>> { it.second }.thenBy { it.third })
+        ?.first
 }
 
 /**

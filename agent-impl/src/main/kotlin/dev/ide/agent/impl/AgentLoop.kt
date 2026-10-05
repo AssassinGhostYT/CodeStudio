@@ -51,6 +51,19 @@ class AgentLoop(
         history.clear()
     }
 
+    /** The conversation so far, so a rebuilt loop can carry it over (see [restore]). */
+    fun snapshot(): List<LlmMessage> = history.toList()
+
+    /**
+     * Adopts a conversation captured by [snapshot]. Changing a setting rebuilds the loop, and without this the
+     * model would silently start from nothing while the on-screen transcript still showed the whole thread —
+     * which is what picking a model in the chat used to do.
+     */
+    fun restore(messages: List<LlmMessage>) {
+        history.clear()
+        history += messages
+    }
+
     suspend fun send(userText: String, sink: AgentEventSink) {
         history += LlmMessage.user(userText)
         sink.emit(AgentEvent.UserMessage(userText))

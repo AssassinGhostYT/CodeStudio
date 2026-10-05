@@ -119,6 +119,14 @@ interface LlmProvider {
     /** Query the provider's available models with the user's credentials. Defaults to the static [models]
      *  list; providers override to fetch live and fall back to [models] on any error. */
     suspend fun listModels(config: ProviderConfig): List<LlmModelInfo> = models
+
+    /**
+     * The model to use when the user has not picked one, chosen from what their account actually offers
+     * ([available], usually from [listModels]). A static [defaultModel] goes stale as a provider retires models
+     * or moves them off its free tier, and a stale default fails on the very first request. Null keeps
+     * [defaultModel].
+     */
+    fun preferredModel(available: List<LlmModelInfo>): String? = null
 }
 
 /** Resolves providers by id. Built-in providers are registered by AgentPlugin; plugins may add more. */
