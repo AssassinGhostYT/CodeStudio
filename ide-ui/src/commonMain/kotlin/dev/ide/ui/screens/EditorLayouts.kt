@@ -121,7 +121,6 @@ internal fun openTreeFile(node: TreeNode, fileActions: FileActions, open: (Strin
 internal fun buildLeftPanels(
     state: IdeUiState,
     fileActions: FileActions,
-    onOpenPlugins: () -> Unit,
     indexBuilding: Boolean,
     onNewFile: (String, List<PackageSegment>) -> Unit,
     onNewFolder: (String, List<PackageSegment>) -> Unit,
@@ -130,6 +129,7 @@ internal fun buildLeftPanels(
     onFileOp: (TreeNode, FileOpKind) -> Unit,
     onOpenModuleConfig: (String?) -> Unit,
     closeDrawer: () -> Unit,
+    onOpenPlugins: () -> Unit = {},
 ): List<SidebarPanel> {
     val filesTitle = stringResource(Res.string.edchrome_files)
     val searchTitle = stringResource(Res.string.search)
