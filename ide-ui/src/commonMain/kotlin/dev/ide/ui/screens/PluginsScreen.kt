@@ -57,7 +57,6 @@ import dev.ide.ui.generated.resources.plugins_restart_hint
 import dev.ide.ui.generated.resources.plugins_restart_now
 import dev.ide.ui.generated.resources.plugins_restarting
 import dev.ide.ui.generated.resources.plugins_review
-import dev.ide.ui.generated.resources.plugins_tab_builtin
 import dev.ide.ui.generated.resources.plugins_tab_installed
 import dev.ide.ui.generated.resources.plugins_tab_explore
 import dev.ide.ui.generated.resources.plugins_explore_empty
@@ -78,6 +77,7 @@ import org.jetbrains.compose.resources.stringResource
 
 /** The two kinds of plugin the IDE loads, one tab each. */
 private enum class PluginTab(val label: StringResource) {
+    Installed(Res.string.plugins_tab_installed),
     Explore(Res.string.plugins_tab_explore),
     Installed(Res.string.plugins_tab_installed),
     BuiltIn(Res.string.plugins_tab_builtin),
@@ -153,26 +153,6 @@ fun PluginsScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 when (tab) {
-                    PluginTab.BuiltIn -> {
-                        if (builtIn.isEmpty()) {
-                            EmptyInstalled()
-                        } else {
-                            for (p in builtIn) {
-                                PluginRow(
-                                    p,
-                                    onReview = { asking = p },
-                                    onToggle = { enabled ->
-                                        backend.settings.setPluginEnabled(p.id, enabled)
-                                        plugins = backend.settings.pluginCatalog()
-                                        pending = backend.settings.pendingPluginChanges()
-                                    },
-                                    onOpenLogs = onOpenLogs
-                                        ?.takeIf { !p.builtIn && p.togglable }
-                                        ?.let { open -> { open(p.id) } },
-                                )
-                            }
-                        }
-                    }
                     PluginTab.Installed -> {
                         if (installed.isEmpty()) {
                             EmptyInstalled()
@@ -254,7 +234,7 @@ private fun PluginTabs(selected: PluginTab, builtInCount: Int, installedCount: I
                 text = {
                     TabLabel(
                         stringResource(t.label),
-                        when (t) { PluginTab.BuiltIn -> builtInCount; PluginTab.Installed -> installedCount; PluginTab.Explore -> exploreCount },
+                        when (t) { PluginTab.Installed -> installedCount; PluginTab.Explore -> exploreCount },
                     )
                 },
             )
