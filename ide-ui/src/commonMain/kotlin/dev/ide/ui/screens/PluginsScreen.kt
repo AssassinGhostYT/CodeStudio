@@ -145,7 +145,7 @@ fun PluginsScreen(
         Column(Modifier.widthIn(max = 640.dp).fillMaxSize().padding(innerPadding)) {
             // Above the tabs: a toggle on either tab needs the same restart, so the hint is not per-tab.
             if (pending.isNotEmpty()) RestartHint(pending, onRestart)
-            PluginTabs(tab, builtIn.size, installed.size, storeCatalog.items.size) { tab = it }
+            PluginTabs(tab, installed.size, storeCatalog.items.size) { tab = it }
             Column(
                 Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 16.dp),
@@ -235,7 +235,7 @@ fun PluginsScreen(
 }
 
 @Composable
-private fun PluginTabs(selected: PluginTab, builtInCount: Int, installedCount: Int, exploreCount: Int, onSelect: (PluginTab) -> Unit) {
+private fun PluginTabs(selected: PluginTab, installedCount: Int, exploreCount: Int, onSelect: (PluginTab) -> Unit) {
     PrimaryTabRow(
         selectedTabIndex = PluginTab.entries.indexOf(selected),
         containerColor = MaterialTheme.colorScheme.surface,
