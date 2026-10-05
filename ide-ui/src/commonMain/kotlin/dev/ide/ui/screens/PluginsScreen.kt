@@ -80,7 +80,6 @@ private enum class PluginTab(val label: StringResource) {
     Installed(Res.string.plugins_tab_installed),
     Explore(Res.string.plugins_tab_explore),
     Installed(Res.string.plugins_tab_installed),
-    BuiltIn(Res.string.plugins_tab_builtin),
 }
 
 /**
@@ -153,6 +152,25 @@ fun PluginsScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 when (tab) {
+                        if (builtIn.isEmpty()) {
+                            EmptyInstalled()
+                        } else {
+                            for (p in builtIn) {
+                                PluginRow(
+                                    p,
+                                    onReview = { asking = p },
+                                    onToggle = { enabled ->
+                                        backend.settings.setPluginEnabled(p.id, enabled)
+                                        plugins = backend.settings.pluginCatalog()
+                                        pending = backend.settings.pendingPluginChanges()
+                                    },
+                                    onOpenLogs = onOpenLogs
+                                        ?.takeIf { !p.builtIn && p.togglable }
+                                        ?.let { open -> { open(p.id) } },
+                                )
+                            }
+                        }
+                    }
                     PluginTab.Installed -> {
                         if (installed.isEmpty()) {
                             EmptyInstalled()
@@ -234,7 +252,6 @@ private fun PluginTabs(selected: PluginTab, builtInCount: Int, installedCount: I
                 text = {
                     TabLabel(
                         stringResource(t.label),
-                        when (t) { PluginTab.Installed -> installedCount; PluginTab.Explore -> exploreCount },
                     )
                 },
             )
