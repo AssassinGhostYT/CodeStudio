@@ -789,6 +789,9 @@ We never collect your code, file or project names, which features you use, or an
     <string name="plugins_installed_empty">Nothing installed yet. A CodeStudio plugin you install from your app store appears here.</string>
     <string name="plugins_explore_empty">The plugin catalog is empty.</string>
     <string name="plugins_explore_unavailable">The plugin store is not available.</string>
+    <string name="plugins_explore_loading">Loading the catalog…</string>
+    <string name="plugins_explore_refresh">Refresh</string>
+    <string name="plugins_store_installed">Installed</string>
     <string name="plugins_failed">Did not load: %1$s</string>
     <string name="plugins_needs_consent">Not running yet. Review what it can do before allowing it.</string>
     <string name="keystore_manager_title">Keystore Manager</string>

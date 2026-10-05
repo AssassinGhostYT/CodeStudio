@@ -94,6 +94,11 @@ class CodeStudioAppState(
     var iconManagerReturn: Screen by mutableStateOf(Screen.Editor)
         private set
 
+    /** Where the Plugins screen returns on Back: the editor when opened from the file tree's panel header, or
+     *  the landing picker when opened from the home tile. */
+    var pluginsReturn: Screen by mutableStateOf(Screen.Editor)
+        private set
+
     /** When the Icon Manager was opened from the file tree's "New Image Asset" entry, the `res/` folder whose
      *  scalables/ the import should land in. Null when opened from the editor's menu (imports un-scoped). */
     var iconManagerResDir: String? by mutableStateOf(null)
@@ -274,6 +279,13 @@ class CodeStudioAppState(
     fun openHub(from: Screen) {
         hubReturn = from
         screen = Screen.Hub
+    }
+
+    /** Open the community plugin manager, remembering [from] as its Back destination so Back returns to the
+     *  place the user actually came from (the home tile or the editor's file tree), not to the hub. */
+    fun openPlugins(from: Screen) {
+        pluginsReturn = from
+        screen = Screen.Plugins
     }
 
     /** Open the Keystore Manager, remembering its Back destination and whether it was reached with a project
@@ -468,8 +480,10 @@ class CodeStudioAppState(
             screen == Screen.KeystoreCreate || screen == Screen.KeystoreImport -> screen = Screen.KeystoreManager
             // The hub's sub-screens step back to the hub; the keystore manager honours its entry origin.
             screen == Screen.SdkManager || screen == Screen.Settings || screen == Screen.CodeStyle ||
-                screen == Screen.EditorSymbols || screen == Screen.Plugins || screen == Screen.Storage ->
+                screen == Screen.EditorSymbols || screen == Screen.Storage ->
                 screen = Screen.Hub
+            // The plugin manager honours its entry origin: the home tile or the editor's file tree.
+            screen == Screen.Plugins -> screen = pluginsReturn
             screen == Screen.KeystoreManager -> screen = keystoreReturn
             // The app-icon studio steps back to the manager; the manager honours its entry origin.
             screen == Screen.AppIconStudio -> screen = Screen.IconManager

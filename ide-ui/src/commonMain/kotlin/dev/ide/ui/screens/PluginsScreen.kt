@@ -48,6 +48,7 @@ import dev.ide.ui.generated.resources.plugins_change_uninstalled
 import dev.ide.ui.generated.resources.plugins_change_updated
 import dev.ide.ui.generated.resources.plugins_changes_more
 import dev.ide.ui.generated.resources.plugins_failed
+import dev.ide.ui.generated.resources.install
 import dev.ide.ui.generated.resources.plugins_installed_empty
 import dev.ide.ui.generated.resources.plugins_logs
 import dev.ide.ui.generated.resources.plugins_needs_consent
@@ -59,8 +60,10 @@ import dev.ide.ui.generated.resources.plugins_restarting
 import dev.ide.ui.generated.resources.plugins_review
 import dev.ide.ui.generated.resources.plugins_tab_installed
 import dev.ide.ui.generated.resources.plugins_tab_explore
+import dev.ide.ui.generated.resources.plugins_explore_loading
+import dev.ide.ui.generated.resources.plugins_explore_refresh
+import dev.ide.ui.generated.resources.plugins_store_installed
 import dev.ide.ui.generated.resources.plugins_explore_empty
-import dev.ide.ui.generated.resources.plugins_explore_unavailable
 import dev.ide.ui.generated.resources.settings_plugins
 import dev.ide.ui.icons.CaIcons
 import dev.ide.ui.theme.Ca
@@ -75,19 +78,21 @@ import androidx.compose.runtime.rememberCoroutineScope
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
-/** The two kinds of plugin the IDE loads, one tab each. */
+/** The two tabs of the community plugin manager. */
 private enum class PluginTab(val label: StringResource) {
     Installed(Res.string.plugins_tab_installed),
     Explore(Res.string.plugins_tab_explore),
 }
 
 /**
- * The Plugins settings screen: enable or disable the plugins this build loaded, split across two tabs.
- * **Built-in** plugins ship inside the IDE; **Installed** ones came from a separate app the user installed and
- * carry the package they came from, plus the reason any of them failed to load. A plugin app whose manifest
+ * The community plugin manager: **Explore** (the public store) and **Installed** (the creator plugins this
+ * build loaded, with their package and the reason any of them failed to load). A plugin app whose manifest
  * the IDE could not read is listed there too, with its reason and no switch. Each tab's count is on its
  * label, so an installed plugin is visible without switching. Essential plugins are shown locked (a "Required"
  * pill instead of a switch), which never applies to an installed plugin.
+ *
+ * The IDE's own built-in plugins are deliberately NOT here: they are settings modules, not creator plugins,
+ * so they keep their own place in Settings.
  *
  * Nothing here is live: plugins are loaded once, when the app starts. A change is persisted immediately
  * (app-global) and applied by restarting, so the screen names everything that is waiting, both the answers
@@ -119,7 +124,8 @@ fun PluginsScreen(
     // gate rather than a notification.
     var asking by remember { mutableStateOf<UiPluginInfo?>(null) }
 
-    val builtIn = plugins.filter { it.builtIn }
+    // Built-in CodeStudio plugins deliberately stay out of this screen: they are settings modules, not
+    // creator plugins, so they are not offered for install here nor listed as "installed".
     val installed = plugins.filterNot { it.builtIn }
 
     LaunchedEffect(tab) {
@@ -439,7 +445,10 @@ private fun ExploreStore(
         if (loading) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CircularProgressIndicator(modifier = Modifier.size(16.dp))
-                Text("Cargando catálogo...")
+                Text(
+                    stringResource(Res.string.plugins_explore_loading),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
             return@Column
         }
@@ -449,7 +458,7 @@ private fun ExploreStore(
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodyMedium,
             )
-            TextButton(onClick = onRefreshed) { Text("Recargar") }
+            TextButton(onClick = onRefreshed) { Text(stringResource(Res.string.plugins_explore_refresh)) }
             return@Column
         }
         if (catalog.items.isEmpty()) {
@@ -470,8 +479,6 @@ private fun ExploreStore(
                         try {
                             val res = backend.pluginStore.install(item.id)
                             res.apkPath?.let { fileActions.installApk(it) }
-                        } catch (e: Exception) {
-                            // swallow
                         } finally {
                             installingId = null
                         }
@@ -505,14 +512,16 @@ private fun StoreItemRow(
         }
         Column(horizontalAlignment = Alignment.End) {
             if (item.installed) {
-                Text("Instalado", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    stringResource(Res.string.plugins_store_installed),
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
             } else {
                 if (installing) {
                     CircularProgressIndicator(modifier = Modifier.size(20.dp))
                 } else {
-                    Button(onClick = onInstall) {
-                        Text("Instalar")
-                    }
+                    Button(onClick = onInstall) { Text(stringResource(Res.string.install)) }
                 }
             }
         }
