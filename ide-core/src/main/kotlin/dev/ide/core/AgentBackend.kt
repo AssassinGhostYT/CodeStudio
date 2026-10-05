@@ -425,7 +425,7 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
             // Carry the transcript across the rebuild: the old loop's history, else the visible messages.
             val carried = loop?.snapshot().orEmpty()
             val client = provider.client(ProviderConfig(cfg.apiKey ?: "", cfg.baseUrl, cfg.caCertificatePem))
-            loop = AgentLoop(
+            val rebuilt = AgentLoop(
                 client, model, tools, gate, ::systemPrompt,
                 maxTokens = maxTokens,
                 maxIterations = maxIterations,
@@ -433,7 +433,8 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
                 webSearch = webSearch,
                 reasoningEffort = reasoningEffort,
             )
-            if (carried.isNotEmpty()) loop.restore(carried)
+            if (carried.isNotEmpty()) rebuilt.restore(carried)
+            loop = rebuilt
             loopSignature = signature
         }
         val activeLoop = loop ?: return

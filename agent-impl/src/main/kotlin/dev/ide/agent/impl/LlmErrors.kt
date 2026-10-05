@@ -10,7 +10,7 @@ import kotlinx.serialization.json.JsonObject
  * chat shows something actionable instead of a raw JSON dump. A provider-suggested retry delay is recovered
  * from the `Retry-After` header, Gemini's `RetryInfo.retryDelay`, or an OpenAI "try again in Ns" message.
  */
-internal enum class LlmErrorKind(val retryable: Boolean) {
+enum class LlmErrorKind(val retryable: Boolean) {
     /** A per-minute limit (requests or tokens). Clears by itself, usually within a minute. */
     RATE_LIMIT(true),
     OVERLOADED(true),

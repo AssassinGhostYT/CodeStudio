@@ -371,7 +371,7 @@ private fun WaitRow(untilMs: Long, reason: String) {
     val seconds = ((untilMs - now + 999) / 1000).coerceAtLeast(0)
     Row(
         Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(Ca.radius.medium))
+            .clip(RoundedCornerShape(Ca.radius.md))
             .background(Ca.colors.accentSoft)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
