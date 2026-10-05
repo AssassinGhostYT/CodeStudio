@@ -134,7 +134,7 @@ fun PluginsScreen(
     var pending by remember { mutableStateOf(backend.settings.pendingPluginChanges()) }
     // The tabs are a Store-only affordance; the narrowed scopes show one list and hide the row entirely.
     var tab by remember { mutableStateOf(if (scope == PluginsScope.InstalledOnly) PluginTab.Installed else PluginTab.Explore) }
-    val scope = rememberCoroutineScope()
+    val ioScope = rememberCoroutineScope()
     var storeCatalog by remember { mutableStateOf(UiPluginStoreCatalog(emptyList())) }
     var storeLoading by remember { mutableStateOf(false) }
     var storeError by remember { mutableStateOf<String?>(null) }
@@ -149,7 +149,7 @@ fun PluginsScreen(
 
     LaunchedEffect(tab) {
         if (tab == PluginTab.Explore) {
-            scope.launch {
+            ioScope.launch {
                 storeLoading = true
                 storeError = null
                 try {
@@ -205,7 +205,7 @@ fun PluginsScreen(
                             backend = backend,
                             fileActions = fileActions,
                             onRefreshed = {
-                                scope.launch {
+                                ioScope.launch {
                                     storeLoading = true
                                     storeError = null
                                     try {
