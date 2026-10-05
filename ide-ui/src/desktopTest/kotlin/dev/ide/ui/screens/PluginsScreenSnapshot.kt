@@ -9,6 +9,7 @@ import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
 import dev.ide.ui.StubBackend
+import dev.ide.ui.backend.FileActions
 import dev.ide.ui.backend.IdeBackend
 import dev.ide.ui.backend.UiPluginInfo
 import dev.ide.ui.theme.CodeStudioTheme
@@ -44,7 +45,7 @@ class PluginsScreenSnapshot {
     private fun snapshot(name: String, w: Int, h: Int, backend: IdeBackend) {
         val scene = ImageComposeScene(width = w, height = h, density = Density(2f)) {
             CodeStudioTheme(dark = true) {
-                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { PluginsScreen(backend, fileActions = StubBackend(), onBack = {}) }
+                Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) { PluginsScreen(backend, fileActions = FileActions.None, onBack = {}) }
             }
         }
         try {
