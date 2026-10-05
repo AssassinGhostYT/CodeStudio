@@ -15,7 +15,7 @@
     <string name="chat_send">Отправить</string>
     <string name="chat_stop">Остановить</string>
     <string name="chat_new">Новая сессия</string>
-    <string name="chat_use_model">Использовать %1$s</string>
+    <string name="chat_use_model">Использовать</string>
     <string name="chat_retry">Повторить</string>
     <string name="chat_thinking">Думаю…</string>
     <string name="chat_providers_title">Провайдеры AI</string>
@@ -38,4 +38,9 @@
     <string name="chat_antigravity_signin">Войти через Google</string>
     <string name="chat_antigravity_waiting">Ожидание браузера — разрешите доступ и вернитесь в CodeStudio</string>
     <string name="chat_cancel">Отмена</string>
+    <string name="chat_history">История</string>
+    <string name="chat_history_empty">В этом проекте пока нет сохранённых чатов.</string>
+    <string name="chat_history_messages">%1$d сообщений</string>
+    <string name="chat_history_for">В %1$s</string>
+    <string name="chat_delete">Удалить чат</string>
 </resources>

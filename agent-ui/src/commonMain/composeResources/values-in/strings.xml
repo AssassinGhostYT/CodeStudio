@@ -15,7 +15,7 @@
     <string name="chat_send">Kirim</string>
     <string name="chat_stop">Hentikan</string>
     <string name="chat_new">Sesi baru</string>
-    <string name="chat_use_model">Gunakan %1$s</string>
+    <string name="chat_use_model">Gunakan</string>
     <string name="chat_retry">Coba lagi</string>
     <string name="chat_thinking">Berpikir…</string>
     <string name="chat_providers_title">Penyedia AI</string>
@@ -38,4 +38,9 @@
     <string name="chat_antigravity_signin">Masuk dengan Google</string>
     <string name="chat_antigravity_waiting">Menunggu browser — setujui akses, lalu kembali ke CodeStudio</string>
     <string name="chat_cancel">Batal</string>
+    <string name="chat_history">Riwayat</string>
+    <string name="chat_history_empty">Proyek ini belum memiliki obrolan tersimpan.</string>
+    <string name="chat_history_messages">%1$d pesan</string>
+    <string name="chat_history_for">Di %1$s</string>
+    <string name="chat_delete">Hapus obrolan</string>
 </resources>

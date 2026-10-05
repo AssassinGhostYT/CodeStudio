@@ -6,7 +6,7 @@
     <string name="chat_close">Close</string>
     <string name="chat_stop">Stop</string>
     <string name="chat_send">Send</string>
-    <string name="chat_use_model">Use %1$s</string>
+    <string name="chat_use_model">Use</string>
     <string name="chat_retry">Retry</string>
     <string name="chat_manage_keys">Manage providers</string>
     <string name="chat_providers_title">AI providers</string>
@@ -40,4 +40,9 @@
     <string name="chat_antigravity_signin">Sign in with Google</string>
     <string name="chat_antigravity_waiting">Waiting for the browser — approve access, then return to CodeStudio</string>
     <string name="chat_cancel">Cancel</string>
+    <string name="chat_history">History</string>
+    <string name="chat_history_empty">This project has no saved chats yet.</string>
+    <string name="chat_history_messages">%1$d messages</string>
+    <string name="chat_history_for">In %1$s</string>
+    <string name="chat_delete">Delete chat</string>
 </resources>

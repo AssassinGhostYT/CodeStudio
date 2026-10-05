@@ -15,7 +15,7 @@
     <string name="chat_send">إرسال</string>
     <string name="chat_stop">إيقاف</string>
     <string name="chat_new">جلسة جديدة</string>
-    <string name="chat_use_model">استخدام %1$s</string>
+    <string name="chat_use_model">استخدام</string>
     <string name="chat_retry">إعادة المحاولة</string>
     <string name="chat_thinking">جاري التفكير…</string>
     <string name="chat_providers_title">مزودو الذكاء الاصطناعي</string>
@@ -38,4 +38,9 @@
     <string name="chat_antigravity_signin">تسجيل الدخول بحساب Google</string>
     <string name="chat_antigravity_waiting">في انتظار المتصفح — امنح الإذن ثم عُد إلى CodeStudio</string>
     <string name="chat_cancel">إلغاء</string>
+    <string name="chat_history">السجل</string>
+    <string name="chat_history_empty">لا توجد محادثات محفوظة في هذا المشروع بعد.</string>
+    <string name="chat_history_messages">%1$d رسالة</string>
+    <string name="chat_history_for">في %1$s</string>
+    <string name="chat_delete">حذف المحادثة</string>
 </resources>

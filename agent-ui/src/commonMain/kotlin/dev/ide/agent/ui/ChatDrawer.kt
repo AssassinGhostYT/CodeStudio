@@ -74,6 +74,7 @@ import dev.ide.ui.backend.UiAgentRole
 import dev.ide.ui.backend.UiAgentToolCall
 import dev.ide.ui.backend.UiAgentToolStatus
 import dev.ide.agent.ui.generated.resources.Res
+import dev.ide.agent.ui.generated.resources.chat_history
 import dev.ide.agent.ui.generated.resources.chat_add_key
 import dev.ide.agent.ui.generated.resources.chat_close
 import dev.ide.agent.ui.generated.resources.chat_copied
@@ -112,6 +113,7 @@ fun ChatDrawer(backend: IdeBackend, onClose: (() -> Unit)? = null, modifier: Mod
     var cfg by remember { mutableStateOf(backend.agent.config()) }
     var input by remember { mutableStateOf("") }
     var showProviders by remember { mutableStateOf(false) }
+    var showHistory by remember { mutableStateOf(false) }
 
     // Fetch the provider's live model list when the drawer opens or the provider changes.
     LaunchedEffect(cfg.selectedProvider) { backend.agent.refreshModels() }
@@ -128,6 +130,7 @@ fun ChatDrawer(backend: IdeBackend, onClose: (() -> Unit)? = null, modifier: Mod
                     cfg = backend.agent.config()
                 },
                 onNew = { backend.agent.newSession() },
+                onHistory = { showHistory = true },
                 onClose = onClose,
             )
             Hairline()
@@ -157,6 +160,9 @@ fun ChatDrawer(backend: IdeBackend, onClose: (() -> Unit)? = null, modifier: Mod
                 onStop = { backend.agent.stop() },
             )
         }
+        if (showHistory) {
+            AgentHistorySheet(backend, backend.git.projectName()) { showHistory = false }
+        }
         if (showProviders) {
             AgentProvidersSheet(backend) {
                 showProviders = false
@@ -174,6 +180,7 @@ private fun ChatHeader(
     onManage: () -> Unit,
     onCycleMode: () -> Unit,
     onNew: () -> Unit,
+    onHistory: () -> Unit,
     onClose: (() -> Unit)?,
 ) {
     Row(
@@ -198,6 +205,7 @@ private fun ChatHeader(
             textColor = Ca.colors.accent,
         )
         IconButtonCa(CaIcons.key, stringResource(Res.string.chat_manage_keys), onManage, iconSize = 16, boxSize = 30)
+        IconButtonCa(CaIcons.clock, stringResource(Res.string.chat_history), onHistory, iconSize = 16, boxSize = 30)
         IconButtonCa(CaIcons.refresh, stringResource(Res.string.chat_new), onNew, iconSize = 16, boxSize = 30)
         if (onClose != null) {
             IconButtonCa(CaIcons.close, stringResource(Res.string.chat_close), onClose, iconSize = 16, boxSize = 30)
@@ -329,7 +337,9 @@ private fun ErrorMessage(
                     )
                     Text(
                         if (suggestedModel != null) {
-                            stringResource(Res.string.chat_use_model, suggestedModel)
+                            // Arg-free label plus the model id: a formatted string is the one shape whose
+                            // accessor has gone missing in CI builds, and the model name reads the same either way.
+                            stringResource(Res.string.chat_use_model) + " " + suggestedModel
                         } else {
                             stringResource(Res.string.chat_retry)
                         },
