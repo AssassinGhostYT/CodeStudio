@@ -41,6 +41,10 @@ jobs:
         run: |
           mkdir -p ~/.gradle
           echo "kotlin.incremental=false" >> ~/.gradle/gradle.properties
+          # The runner image ships a populated ~/.gradle; a task restored from it can hand back an older
+          # resource-accessor set and fail on a string that is in the sources ("Unresolved reference
+          # 'chat_xxx'"). Nothing is gained by the cache on a one-shot runner.
+          echo "org.gradle.caching=false" >> ~/.gradle/gradle.properties
 
       # 1) The fast correctness gate: every framework unit test. Regression suites are @Tag("regression")
       #    and excluded from `test`, so this stays quick.

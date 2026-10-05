@@ -40,13 +40,22 @@ jobs:
           mkdir -p ~/.gradle
           echo "kotlin.incremental=false" >> ~/.gradle/gradle.properties
 
+      # The runner image ships a populated ~/.gradle. With org.gradle.caching=true, a task can be restored
+      # from it, and Compose's resource-accessor generator has been restored that way with an older string set:
+      # the build then fails with "Unresolved reference 'chat_xxx'" for a string that is in the sources and
+      # that a clean local build generates. Nothing is gained by the cache on a one-shot runner.
+      - name: Disable the Gradle build cache (CI)
+        run: |
+          mkdir -p ~/.gradle
+          echo "org.gradle.caching=false" >> ~/.gradle/gradle.properties
+
       # `collectApk` runs assembleProfile and leaves the one installable build at
       # ide-android/build/apk/CodeStudio.apk — a single flat file instead of the whole
       # build/outputs/apk/<variant>/ tree, which is what made a download a folder hunt.
       - name: Build profile APK
         run: |
           set -o pipefail
-          ./gradlew :ide-android:collectApk --console=plain
+          ./gradlew :ide-android:collectApk --console=plain --no-build-cache
 
       - name: Validate APK archive and 16 KB alignment
         run: |
