@@ -6,6 +6,7 @@
     <string name="chat_close">关闭</string>
     <string name="chat_stop">停止</string>
     <string name="chat_send">发送</string>
+    <string name="chat_use_model">使用 %1$s</string>
     <string name="chat_retry">重试</string>
     <string name="chat_manage_keys">管理服务商</string>
     <string name="chat_providers_title">AI 服务商</string>

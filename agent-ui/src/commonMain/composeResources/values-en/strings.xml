@@ -6,6 +6,7 @@
     <string name="chat_close">Close</string>
     <string name="chat_stop">Stop</string>
     <string name="chat_send">Send</string>
+    <string name="chat_use_model">Use %1$s</string>
     <string name="chat_retry">Retry</string>
     <string name="chat_manage_keys">Manage providers</string>
     <string name="chat_providers_title">AI providers</string>

@@ -15,6 +15,7 @@
     <string name="chat_send">إرسال</string>
     <string name="chat_stop">إيقاف</string>
     <string name="chat_new">جلسة جديدة</string>
+    <string name="chat_use_model">استخدام %1$s</string>
     <string name="chat_retry">إعادة المحاولة</string>
     <string name="chat_thinking">جاري التفكير…</string>
     <string name="chat_providers_title">مزودو الذكاء الاصطناعي</string>

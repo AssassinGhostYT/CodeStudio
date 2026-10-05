@@ -61,13 +61,17 @@ data class SseRequest(val url: String, val headers: Map<String, String>, val jso
  * Thrown when a provider request fails at the HTTP layer. [message] is a categorized, user-facing string
  * (see [LlmErrors]); [statusCode] is the HTTP status when there was a response; [retryable] says whether the
  * failure is transient (rate limit / overload / 5xx / network) and [retryAfterMs] carries any
- * provider-suggested wait so the transport can back off intelligently.
+ * provider-suggested wait so the transport can back off intelligently. [kind] is the `LlmErrorKind` name when
+ * the failure was categorized and [quota] which quota tripped, for a host that wants to offer a fix (a
+ * different model) or wait the limit out.
  */
 class LlmHttpException(
     message: String,
     val statusCode: Int? = null,
     val retryAfterMs: Long? = null,
     val retryable: Boolean = false,
+    val kind: LlmErrorKind? = null,
+    val quota: QuotaInfo? = null,
     cause: Throwable? = null,
 ) : RuntimeException(message, cause)
 
@@ -199,11 +203,15 @@ class OkHttpLlmTransport(
     private fun toException(t: Throwable?, response: Response?, prefetchedBody: String? = null): LlmHttpException {
         if (response == null) {
             val net = LlmErrors.network(t)
-            return LlmHttpException(net.message, retryable = net.retryable, cause = t)
+            return LlmHttpException(
+                net.message, retryable = net.retryable, kind = net.kind, quota = net.quota, cause = t,
+            )
         }
         val body = prefetchedBody ?: runCatching { response.body?.string() }.getOrNull()
         val parsed = LlmErrors.parseHttp(response.code, body, response.header("retry-after"))
-        return LlmHttpException(parsed.message, response.code, parsed.retryAfterMs, parsed.retryable, t)
+        return LlmHttpException(
+            parsed.message, response.code, parsed.retryAfterMs, parsed.retryable, parsed.kind, parsed.quota, t,
+        )
     }
 
     private companion object {

@@ -14,6 +14,7 @@ import dev.ide.agent.ToolSpec
 import dev.ide.agent.WriteRequest
 import dev.ide.agent.impl.AgentLoop
 import dev.ide.agent.impl.AgentProviders
+import dev.ide.agent.impl.LlmErrorKind
 import dev.ide.agent.impl.OkHttpLlmTransport
 import dev.ide.agent.impl.SystemPrompt
 import dev.ide.agent.impl.builtinTools
@@ -484,6 +485,9 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
 
     private fun applyEvent(assistantId: Long, event: AgentEvent) {
         when (event) {
+            if (event !is AgentEvent.Waiting) {
+                mutateAssistant(assistantId) { if (it.waitUntilMs != null) it.copy(waitUntilMs = null, waitReason = "") else it }
+            }
             is AgentEvent.UserMessage -> Unit // already seeded
             is AgentEvent.AssistantTextDelta ->
                 mutateAssistant(assistantId) { it.copy(text = it.text + event.text) }
@@ -509,9 +513,12 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
                     if (it.id == event.id) it.copy(status = UiAgentToolStatus.DENIED, detail = event.reason) else it
                 })
             }
+            is AgentEvent.Waiting -> mutateAssistant(assistantId) {
+                it.copy(waitUntilMs = event.untilEpochMs, waitReason = event.reason)
+            }
             is AgentEvent.TurnCompleted -> finishStreaming()
             is AgentEvent.Error -> {
-                appendError(event.message, canRetry = true)
+                appendError(event.message, canRetry = true, suggestedModel = suggestionFor(event.kind))
                 finishStreaming()
             }
         }
@@ -530,17 +537,36 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
         }
     }
 
-    private fun appendError(message: String, canRetry: Boolean = false) {
+    private fun appendError(message: String, canRetry: Boolean = false, suggestedModel: String? = null) {
         _chatState.update {
             it.copy(
                 messages = it.messages + UiAgentMessage(
                     msgIds.incrementAndGet(), UiAgentRole.ASSISTANT,
-                    text = message, isError = true, canRetry = canRetry,
+                    text = message, isError = true, canRetry = canRetry, suggestedModel = suggestedModel,
                 ),
                 busy = false,
             )
         }
     }
+
+    /**
+     * For an error a different model fixes (no quota for this model, or its daily allowance spent), the model
+     * to offer instead: the provider's pick from the account's live list, then its default, then anything else
+     * it lists, skipping every model that has already failed this way.
+     */
+    private fun suggestionFor(kind: String?): String? {
+        if (kind != LlmErrorKind.MODEL_NOT_ON_PLAN.name && kind != LlmErrorKind.DAILY_LIMIT.name) return null
+        val cfg = resolveConfig()
+        if (cfg.selectedId == GATEWAY) return null
+        val provider = registry.provider(cfg.clientProviderId) ?: return null
+        exhaustedModels += cfg.model
+        val listed = _models.value.map { it.id }.ifEmpty { provider.models.map { it.id } }
+        val candidates = listOfNotNull(preferredModels[cfg.selectedId], provider.defaultModel) + listed
+        return candidates.firstOrNull { it !in exhaustedModels }
+    }
+
+    /** Models that already failed this way in this session, so the suggestion keeps moving instead of looping. */
+    private val exhaustedModels = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     private fun systemPrompt(): String =
         SystemPrompt.build(modePref(), tools.tools.map { it.spec.name }, projectContext())

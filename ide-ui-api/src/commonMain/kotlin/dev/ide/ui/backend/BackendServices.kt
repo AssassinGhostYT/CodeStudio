@@ -1205,6 +1205,12 @@ interface AgentService {
     /** Send a user message; streams the agent's response into [chatState]. */
     fun send(text: String)
 
+    /** Switch to [model] and re-run the last failed turn (the one-tap fix for a model the account can't use). */
+    fun switchModelAndRetry(model: String) {
+        setModel(model)
+        retry()
+    }
+
     /** Re-run the last turn after a failure (rate limit, network). No-op if there's nothing to retry. */
     fun retry()
 

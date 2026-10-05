@@ -15,6 +15,7 @@ import dev.ide.agent.TokenUsage
 import dev.ide.agent.ToolExecutionResult
 import dev.ide.agent.WriteRequest
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
@@ -45,6 +46,17 @@ class AgentLoop(
     /** Trims re-sent tool output so a long task does not re-bill the whole transcript each step. */
     private val compactor: HistoryCompactor = HistoryCompactor(),
 ) {
+    private companion object {
+        /** How many rate-limit waits one turn may sit through before it gives up and reports the error. */
+        const val MAX_RATE_LIMIT_WAITS = 6
+
+        /** The wait when a rate limit names no retry delay. */
+        const val DEFAULT_RATE_LIMIT_WAIT_MS = 30_000L
+
+        /** A provider asking for longer than this is reported rather than waited out. */
+        const val MAX_RATE_LIMIT_WAIT_MS = 120_000L
+    }
+
     private val history = mutableListOf<LlmMessage>()
 
     fun reset() {
@@ -83,6 +95,7 @@ class AgentLoop(
 
     private suspend fun runTurns(sink: AgentEventSink) {
         var iteration = 0
+        var rateLimitWaits = 0
         while (iteration++ < maxIterations) {
             val request = LlmRequest(
                 model = model,
@@ -98,7 +111,26 @@ class AgentLoop(
             val turn = Turn()
             client.chat(request).collect { event -> turn.consume(event, sink) }
 
-            turn.failure?.let { sink.emit(AgentEvent.Error(it)); return }
+            turn.failure?.let {
+                val wait = rateLimitWait(turn)
+                if (wait != null && rateLimitWaits < MAX_RATE_LIMIT_WAITS) {
+                    // Nothing reached the user, so the same request can simply be sent again once the window
+                    // has moved on. The attempt does not count against the iteration cap.
+                    rateLimitWaits++
+                    iteration--
+                    sink.emit(
+                        AgentEvent.Waiting(
+                            System.currentTimeMillis() + wait,
+                            "Rate limited by the provider. Retrying when the limit resets.",
+                        ),
+                    )
+                    delay(wait)
+                    continue
+                }
+                sink.emit(AgentEvent.Error(it, (turn.failureCause as? LlmHttpException)?.kind?.name))
+                return
+            }
+            rateLimitWaits = 0
 
             history += LlmMessage.assistant(turn.assistantParts())
             val calls = turn.toolCalls()
@@ -172,6 +204,19 @@ class AgentLoop(
     }
 
     /** Accumulates a single streamed turn into an assistant message plus the tool calls to run. */
+    /**
+     * How long to wait before resending a turn that failed on a per-minute rate limit, or null when the
+     * failure is not one to wait out: a different error, a daily or not-on-plan quota (waiting does not help),
+     * a wait longer than [MAX_RATE_LIMIT_WAIT_MS], or a turn that already streamed something to the user.
+     */
+    private fun rateLimitWait(turn: Turn): Long? {
+        val cause = turn.failureCause as? LlmHttpException ?: return null
+        if (cause.kind != LlmErrorKind.RATE_LIMIT || turn.producedOutput) return null
+        val wait = cause.retryAfterMs ?: DEFAULT_RATE_LIMIT_WAIT_MS
+        if (wait > MAX_RATE_LIMIT_WAIT_MS) return null
+        return wait.coerceAtLeast(1_000L)
+    }
+
     private class Turn {
         val text = StringBuilder()
         private val thinkingParts = ArrayList<ContentPart.Thinking>()
@@ -180,6 +225,8 @@ class AgentLoop(
         var usage: TokenUsage? = null
         var stopReason: StopReason = StopReason.END_TURN
         var failure: String? = null
+        var failureCause: Throwable? = null
+        val producedOutput: Boolean get() = text.isNotEmpty() || toolOrder.isNotEmpty() || thinkingParts.isNotEmpty()
 
         suspend fun consume(event: LlmStreamEvent, sink: AgentEventSink) {
             when (event) {
@@ -195,7 +242,10 @@ class AgentLoop(
                 }
                 is LlmStreamEvent.Usage -> usage = event.usage
                 is LlmStreamEvent.Completed -> stopReason = event.stopReason
-                is LlmStreamEvent.Failed -> failure = event.message
+                is LlmStreamEvent.Failed -> {
+                    failure = event.message
+                    failureCause = event.cause
+                }
                 is LlmStreamEvent.ToolCallStarted, is LlmStreamEvent.ToolCallArgsDelta -> Unit
             }
         }

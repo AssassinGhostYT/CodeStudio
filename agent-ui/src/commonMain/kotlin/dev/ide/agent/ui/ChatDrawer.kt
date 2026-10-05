@@ -42,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -134,7 +135,11 @@ fun ChatDrawer(backend: IdeBackend, onClose: (() -> Unit)? = null, modifier: Mod
                 if (chat.messages.isEmpty()) {
                     EmptyState(configured = cfg.configured, onManage = { showProviders = true })
                 } else {
-                    Transcript(chat.messages, onRetry = { backend.agent.retry() })
+                    Transcript(
+                        chat.messages,
+                        onRetry = { backend.agent.retry() },
+                        onUseModel = { backend.agent.switchModelAndRetry(it); cfg = backend.agent.config() },
+                    )
                 }
             }
             Hairline()
@@ -229,7 +234,7 @@ private fun ModelPicker(cfg: UiAgentConfig, models: List<UiAgentModel>, onPick: 
 }
 
 @Composable
-private fun Transcript(messages: List<UiAgentMessage>, onRetry: () -> Unit) {
+private fun Transcript(messages: List<UiAgentMessage>, onRetry: () -> Unit, onUseModel: (String) -> Unit) {
     val listState = rememberLazyListState()
     val last = messages.lastOrNull()
     val tail = (last?.text?.length ?: 0) + (last?.thinking?.length ?: 0) + (last?.toolCalls?.size ?: 0)
@@ -247,16 +252,22 @@ private fun Transcript(messages: List<UiAgentMessage>, onRetry: () -> Unit) {
         items(messages, key = { it.id }) { msg ->
             // Only the most recent failure offers a retry (it resumes the latest turn).
             val retry = if (msg.id == lastId && msg.isError && msg.canRetry) onRetry else null
-            MessageItem(msg, retry)
+            val useModel = if (msg.id == lastId && msg.isError) msg.suggestedModel else null
+            MessageItem(msg, retry, useModel, onUseModel)
         }
     }
 }
 
 @Composable
-private fun MessageItem(msg: UiAgentMessage, onRetry: (() -> Unit)? = null) {
+private fun MessageItem(
+    msg: UiAgentMessage,
+    onRetry: (() -> Unit)? = null,
+    suggestedModel: String? = null,
+    onUseModel: (String) -> Unit = {},
+) {
     Box(Modifier.fillMaxWidth().entranceSlideUp()) {
         when {
-            msg.isError -> ErrorMessage(msg.text, onRetry)
+            msg.isError -> ErrorMessage(msg.text, onRetry, suggestedModel, onUseModel)
             msg.role == UiAgentRole.USER -> Column(
                 Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.End,
@@ -278,7 +289,12 @@ private fun MessageItem(msg: UiAgentMessage, onRetry: (() -> Unit)? = null) {
 }
 
 @Composable
-private fun ErrorMessage(text: String, onRetry: (() -> Unit)?) {
+private fun ErrorMessage(
+    text: String,
+    onRetry: (() -> Unit)?,
+    suggestedModel: String? = null,
+    onUseModel: (String) -> Unit = {},
+) {
     Column(
         Modifier.fillMaxWidth()
             .background(Ca.colors.error.copy(alpha = 0.10f), RoundedCornerShape(16.dp))
@@ -291,20 +307,32 @@ private fun ErrorMessage(text: String, onRetry: (() -> Unit)?) {
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             CopyButton(text, tint = Ca.colors.error)
-            if (onRetry != null) {
+            val action: (() -> Unit)? = if (suggestedModel != null) {
+                { onUseModel(suggestedModel) }
+            } else {
+                onRetry
+            }
+            if (action != null) {
                 val interaction = remember { MutableInteractionSource() }
                 Row(
                     Modifier.clip(RoundedCornerShape(Ca.radius.pill))
                         .background(Ca.colors.error.copy(alpha = 0.16f))
                         .pressScale(interaction)
-                        .clickable(interactionSource = interaction, indication = null, onClick = onRetry)
+                        .clickable(interactionSource = interaction, indication = null, onClick = action)
                         .padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp),
                 ) {
-                    Icon(CaIcons.refresh, null, Modifier.size(13.dp), tint = Ca.colors.error)
+                    Icon(
+                        if (suggestedModel != null) CaIcons.sparkle else CaIcons.refresh,
+                        null, Modifier.size(13.dp), tint = Ca.colors.error,
+                    )
                     Text(
-                        stringResource(Res.string.chat_retry),
+                        if (suggestedModel != null) {
+                            stringResource(Res.string.chat_use_model, suggestedModel)
+                        } else {
+                            stringResource(Res.string.chat_retry)
+                        },
                         color = Ca.colors.error, style = Ca.type.caption, fontWeight = FontWeight.SemiBold,
                     )
                 }
@@ -319,6 +347,7 @@ private fun AssistantMessage(msg: UiAgentMessage) {
         if (msg.thinking.isNotBlank()) ThinkingBlock(msg.thinking, msg.streaming)
         if (msg.toolCalls.isNotEmpty()) ToolCallsSection(msg.toolCalls)
         if (msg.text.isNotBlank()) AssistantMarkdown(msg.text)
+        msg.waitUntilMs?.let { WaitRow(it, msg.waitReason) }
         // A blinking caret while the answer is still streaming in.
         if (msg.streaming && msg.text.isNotBlank()) TypingCaret()
         if (msg.streaming && msg.text.isBlank() && msg.thinking.isBlank() && msg.toolCalls.isEmpty()) {
@@ -326,6 +355,34 @@ private fun AssistantMessage(msg: UiAgentMessage) {
         }
         // Copy the finished answer.
         if (!msg.streaming && msg.text.isNotBlank()) CopyButton(msg.text)
+    }
+}
+
+/** A paused run: why, and a live countdown to when it resumes. Stop cancels it like any other turn. */
+@Composable
+private fun WaitRow(untilMs: Long, reason: String) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(untilMs) {
+        while (now < untilMs) {
+            delay(250)
+            now = System.currentTimeMillis()
+        }
+    }
+    val seconds = ((untilMs - now + 999) / 1000).coerceAtLeast(0)
+    Row(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(Ca.radius.medium))
+            .background(Ca.colors.accentSoft)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(CaIcons.clock, null, Modifier.size(13.dp), tint = Ca.colors.accent)
+        Text(reason, style = Ca.type.caption, color = Ca.colors.textSecondary, modifier = Modifier.weight(1f))
+        Text(
+            if (seconds >= 60) "${seconds / 60}:${(seconds % 60).toString().padStart(2, '0')}" else "${seconds}s",
+            style = Ca.type.caption, color = Ca.colors.accent, fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 

@@ -6,6 +6,7 @@
     <string name="chat_close">Cerrar chat</string>
     <string name="chat_stop">Detener</string>
     <string name="chat_send">Enviar</string>
+    <string name="chat_use_model">Usar %1$s</string>
     <string name="chat_retry">Reintentar</string>
     <string name="chat_manage_keys">Gestionar proveedores y claves</string>
     <string name="chat_providers_title">Proveedores de IA</string>

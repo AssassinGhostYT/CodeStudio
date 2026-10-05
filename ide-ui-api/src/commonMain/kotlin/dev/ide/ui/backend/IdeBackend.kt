@@ -699,6 +699,11 @@ data class UiAgentMessage(
     val isError: Boolean = false,
     /** When [isError], whether re-running the last turn is worth offering (a transient failure). */
     val canRetry: Boolean = false,
+    /** While the run is paused for a rate limit, when it resumes (epoch ms) and why; null otherwise. */
+    val waitUntilMs: Long? = null,
+    val waitReason: String = "",
+    /** When [isError] came from a model the account cannot use, a model that should work instead. */
+    val suggestedModel: String? = null,
 )
 
 /** The observable chat transcript. */

@@ -15,6 +15,7 @@
     <string name="chat_send">Kirim</string>
     <string name="chat_stop">Hentikan</string>
     <string name="chat_new">Sesi baru</string>
+    <string name="chat_use_model">Gunakan %1$s</string>
     <string name="chat_retry">Coba lagi</string>
     <string name="chat_thinking">Berpikir…</string>
     <string name="chat_providers_title">Penyedia AI</string>

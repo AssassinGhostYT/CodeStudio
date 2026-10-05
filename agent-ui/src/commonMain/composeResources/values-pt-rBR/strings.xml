@@ -15,6 +15,7 @@
     <string name="chat_send">Enviar</string>
     <string name="chat_stop">Parar</string>
     <string name="chat_new">Nova sessão</string>
+    <string name="chat_use_model">Usar %1$s</string>
     <string name="chat_retry">Tentar novamente</string>
     <string name="chat_thinking">Pensando…</string>
     <string name="chat_providers_title">Provedores de IA</string>
