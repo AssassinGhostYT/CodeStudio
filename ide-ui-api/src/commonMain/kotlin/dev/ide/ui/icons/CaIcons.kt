@@ -212,6 +212,11 @@ object CaIcons {
     // ---- file-tree node icons (resolved by TreeIcons) ----
     /** A package: a square divided into a grid. */
     val pkg = build("pkg", roundRect(4.5f, 4.5f, 15f, 15f, 2.5f), s("M12 4.5v15M4.5 12h15"))
+    /** A puzzle piece: knobs on the top and right edges, sockets on the bottom and left. */
+    val puzzle = build(
+        "puzzle",
+        s("M4.5 8h2.5a2.2 2.2 0 1 1 4.4 0h3.1v2.5a2.2 2.2 0 1 1 0 4.5v2.5h-3.1a2.2 2.2 0 1 0-4.4 0h-2.5v-3.4a2.2 2.2 0 1 0 0-4.5Z"),
+    )
     // A key: round bow + diagonal shaft with two teeth (signing keystores).
     val key = build("key", circle(8f, 8f, 3.5f), s("M10.5 10.5L20 20"), s("M16 16l1.6-1.6"), s("M18.5 18.5l1.6-1.6"))
     /** The Android robot head — for android modules and the manifest. */

@@ -229,7 +229,7 @@ fun FileNavigator(
                 iconSize = 18
             )
             IconButtonCa(
-                CaIcons.pkg,
+                CaIcons.puzzle,
                 stringResource(Res.string.settings_plugins),
                 onClick = onOpenPlugins,
                 boxSize = 34,

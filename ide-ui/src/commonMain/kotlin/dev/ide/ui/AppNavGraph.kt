@@ -29,6 +29,7 @@ import dev.ide.ui.screens.LessonTrackScreen
 import dev.ide.ui.screens.ModuleConfigScreen
 import dev.ide.ui.screens.ModulesTab
 import dev.ide.ui.screens.PluginsScreen
+import dev.ide.ui.screens.PluginsScope
 import dev.ide.ui.screens.ProjectPickerScreen
 import dev.ide.ui.screens.ProjectsStoreScreen
 import dev.ide.ui.screens.RunScreen
@@ -127,7 +128,7 @@ internal fun AppNavGraph(
                 onToggleTheme = { app.toggleTheme(dark) },
                 onOpenHub = { app.openHub(Screen.Editor) },
                 onOpenIconManager = { app.openIconManager(Screen.Editor) },
-                onOpenPlugins = { app.openPlugins(Screen.Editor) },
+                onOpenPlugins = { app.openPlugins(Screen.Editor, PluginsScope.InstalledOnly) },
                 onOpenModuleConfig = { module -> app.openModuleConfig(module, ModulesTab.Settings) },
                 onCloseProject = { app.navigateTo(Screen.Projects) },
                 onOpenRun = { app.navigateTo(Screen.Run) },
@@ -205,6 +206,7 @@ internal fun AppNavGraph(
                 fileActions = fileActions,
                 // Back returns to wherever the screen was opened from, not always to the hub.
                 onBack = { app.navigateTo(app.pluginsReturn) },
+                scope = app.pluginsScope,
                 // The Logs viewer is an editor overlay, so the row offers it only with a project open.
                 onOpenLogs = if (app.epoch > 0) {
                     { pluginId ->
@@ -282,7 +284,7 @@ internal fun AppNavGraph(
                 onOpenSymbols = { app.navigateTo(Screen.EditorSymbols) },
                 onOpenSdkManager = { app.navigateTo(Screen.SdkManager) },
                 onOpenKeystoreManager = app::openKeystoreManagerFromHub,
-                onOpenPlugins = { app.openPlugins(Screen.Hub) },
+                onOpenPlugins = { app.openPlugins(Screen.Hub, PluginsScope.BuiltInOnly) },
                 onOpenStorage = { app.navigateTo(Screen.Storage) },
             )
 
@@ -346,7 +348,7 @@ private fun ProjectPickerRoute(
         } else null,
         onBackup = app::backupProjects,
         onOpenHub = { app.openHub(Screen.Projects) },
-        onOpenPlugins = { app.openPlugins(Screen.Projects) },
+        onOpenPlugins = { app.openPlugins(Screen.Projects, PluginsScope.Store) },
         onOpenStore = { app.selectHomeTab(HomeTab.Store) },
         storagePath = backend.projects.storageRootPath(),
         onOpenInFiles = if (fileActions.canReveal) {

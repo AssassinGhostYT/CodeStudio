@@ -20,6 +20,7 @@ import dev.ide.ui.backend.UiSettings
 import dev.ide.ui.backend.UiStoreItem
 import dev.ide.ui.platform.ioDispatcher
 import dev.ide.ui.screens.ModulesTab
+import dev.ide.ui.screens.PluginsScope
 import dev.ide.ui.screens.doImportGradle
 import dev.ide.ui.theme.CaAccent
 import kotlinx.coroutines.CoroutineScope
@@ -97,6 +98,10 @@ class CodeStudioAppState(
     /** Where the Plugins screen returns on Back: the editor when opened from the file tree's panel header, or
      *  the landing picker when opened from the home tile. */
     var pluginsReturn: Screen by mutableStateOf(Screen.Editor)
+        private set
+
+    /** Which slice of the plugin world the Plugins screen shows, set by [openPlugins] from the entry point. */
+    var pluginsScope: PluginsScope by mutableStateOf(PluginsScope.Store)
         private set
 
     /** When the Icon Manager was opened from the file tree's "New Image Asset" entry, the `res/` folder whose
@@ -281,10 +286,12 @@ class CodeStudioAppState(
         screen = Screen.Hub
     }
 
-    /** Open the community plugin manager, remembering [from] as its Back destination so Back returns to the
-     *  place the user actually came from (the home tile or the editor's file tree), not to the hub. */
-    fun openPlugins(from: Screen) {
+    /** Open the plugin screen for one of its entry points: the home tile gets the full manager, the file tree
+     *  a shortcut to what is installed, and Settings the IDE's built-in modules. [from] is remembered as the
+     *  Back destination, so Back returns to where the user actually came from, not always to the hub. */
+    fun openPlugins(from: Screen, scope: PluginsScope = PluginsScope.Store) {
         pluginsReturn = from
+        pluginsScope = scope
         screen = Screen.Plugins
     }
 

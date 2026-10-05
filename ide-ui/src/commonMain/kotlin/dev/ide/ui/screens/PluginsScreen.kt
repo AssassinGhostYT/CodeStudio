@@ -41,6 +41,7 @@ import dev.ide.ui.components.CaSwitch
 import dev.ide.ui.components.PluginConsent
 import dev.ide.ui.components.ExpressiveScaffold
 import dev.ide.ui.generated.resources.Res
+import dev.ide.ui.generated.resources.plugins_builtin_empty
 import dev.ide.ui.generated.resources.plugins_change_disabled
 import dev.ide.ui.generated.resources.plugins_change_enabled
 import dev.ide.ui.generated.resources.plugins_change_installed
@@ -78,6 +79,22 @@ import androidx.compose.runtime.rememberCoroutineScope
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.stringResource
 
+/**
+ * Which slice of the plugin world this screen instance shows. Each entry point opens the one that makes sense
+ * there: the home tile is the full manager, the file tree's header button is a shortcut to what you already
+ * have, and Settings keeps the IDE's own built-in plugins where they have always lived.
+ */
+enum class PluginsScope {
+    /** The store plus the installed creator plugins — the two-tab manager the home tile opens. */
+    Store,
+
+    /** Only the installed creator plugins. The file tree has no room for a store, so it links straight here. */
+    InstalledOnly,
+
+    /** Only the IDE's own built-in plugins (the Dart/XML/... modules), listed from Settings. */
+    BuiltInOnly,
+}
+
 /** The two tabs of the community plugin manager. */
 private enum class PluginTab(val label: StringResource) {
     Installed(Res.string.plugins_tab_installed),
@@ -85,14 +102,13 @@ private enum class PluginTab(val label: StringResource) {
 }
 
 /**
- * The community plugin manager: **Explore** (the public store) and **Installed** (the creator plugins this
- * build loaded, with their package and the reason any of them failed to load). A plugin app whose manifest
- * the IDE could not read is listed there too, with its reason and no switch. Each tab's count is on its
- * label, so an installed plugin is visible without switching. Essential plugins are shown locked (a "Required"
- * pill instead of a switch), which never applies to an installed plugin.
- *
- * The IDE's own built-in plugins are deliberately NOT here: they are settings modules, not creator plugins,
- * so they keep their own place in Settings.
+ * The plugins screen, narrowed to [scope]. In [PluginsScope.Store] it is the two-tab community manager:
+ * **Explore** (the public store) and **Installed** (the creator plugins this build loaded, with their package
+ * and the reason any of them failed to load). [PluginsScope.InstalledOnly] drops the tabs and shows just the
+ * installed creator plugins; [PluginsScope.BuiltInOnly] lists the IDE's own built-in modules, which is what
+ * Settings has always shown. A plugin app whose manifest the IDE could not read is listed with its reason and
+ * no switch. Each tab's count is on its label, so an installed plugin is visible without switching. Essential
+ * plugins are shown locked (a "Required" pill instead of a switch), which never applies to an installed plugin.
  *
  * Nothing here is live: plugins are loaded once, when the app starts. A change is persisted immediately
  * (app-global) and applied by restarting, so the screen names everything that is waiting, both the answers
@@ -104,6 +120,7 @@ fun PluginsScreen(
     backend: IdeBackend,
     fileActions: FileActions,
     onBack: () -> Unit,
+    scope: PluginsScope = PluginsScope.Store,
     /** Show this plugin's own log records. Null when there is no editor to show the Logs viewer over. */
     onOpenLogs: ((pluginId: String) -> Unit)? = null,
     /** Save open work and restart the app, applying the waiting changes. Null where the host cannot restart
@@ -115,7 +132,8 @@ fun PluginsScreen(
     // plugin app installed or updated on the device since launch, and it goes away by itself when a change
     // is answered back to what is already loaded.
     var pending by remember { mutableStateOf(backend.settings.pendingPluginChanges()) }
-    var tab by remember { mutableStateOf(PluginTab.Explore) }
+    // The tabs are a Store-only affordance; the narrowed scopes show one list and hide the row entirely.
+    var tab by remember { mutableStateOf(if (scope == PluginsScope.InstalledOnly) PluginTab.Installed else PluginTab.Explore) }
     val scope = rememberCoroutineScope()
     var storeCatalog by remember { mutableStateOf(UiPluginStoreCatalog(emptyList())) }
     var storeLoading by remember { mutableStateOf(false) }
@@ -124,8 +142,9 @@ fun PluginsScreen(
     // gate rather than a notification.
     var asking by remember { mutableStateOf<UiPluginInfo?>(null) }
 
-    // Built-in CodeStudio plugins deliberately stay out of this screen: they are settings modules, not
-    // creator plugins, so they are not offered for install here nor listed as "installed".
+    // Built-in CodeStudio plugins are the IDE's own settings modules, never creator plugins, so they are
+    // listed only from Settings ([PluginsScope.BuiltInOnly]) and never counted as "installed".
+    val builtIn = plugins.filter { it.builtIn }
     val installed = plugins.filterNot { it.builtIn }
 
     LaunchedEffect(tab) {
@@ -150,7 +169,7 @@ fun PluginsScreen(
         Column(Modifier.widthIn(max = 640.dp).fillMaxSize().padding(innerPadding)) {
             // Above the tabs: a toggle on either tab needs the same restart, so the hint is not per-tab.
             if (pending.isNotEmpty()) RestartHint(pending, onRestart)
-            PluginTabs(tab, installed.size, storeCatalog.items.size) { tab = it }
+            if (scope == PluginsScope.Store) PluginTabs(tab, installed.size, storeCatalog.items.size) { tab = it }
             Column(
                 Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp, vertical = 16.dp),
@@ -158,10 +177,11 @@ fun PluginsScreen(
             ) {
                 when (tab) {
                     PluginTab.Installed -> {
-                        if (installed.isEmpty()) {
-                            EmptyInstalled()
+                        val shown = if (scope == PluginsScope.BuiltInOnly) builtIn else installed
+                        if (shown.isEmpty()) {
+                            EmptyInstalled(builtIn = scope == PluginsScope.BuiltInOnly)
                         } else {
-                            for (p in installed) {
+                            for (p in shown) {
                                 PluginRow(
                                     p,
                                     onReview = { asking = p },
@@ -259,9 +279,9 @@ private fun TabLabel(text: String, count: Int) {
 }
 
 @Composable
-private fun EmptyInstalled() {
+private fun EmptyInstalled(builtIn: Boolean = false) {
     Text(
-        stringResource(Res.string.plugins_installed_empty),
+        stringResource(if (builtIn) Res.string.plugins_builtin_empty else Res.string.plugins_installed_empty),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         style = MaterialTheme.typography.bodyMedium,
         modifier = Modifier.fillMaxWidth()
