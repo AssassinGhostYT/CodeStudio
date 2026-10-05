@@ -51,3 +51,18 @@ compose.resources {
     packageOfResClass = "dev.ide.agent.ui.generated.resources"
     generateResClass = always
 }
+
+// TEMPORARY DIAGNOSTIC (removed once the accessor question is settled): print the chat_* accessors this
+// module's generated resource file actually contains.
+tasks.matching { it.name.startsWith("generateResourceAccessorsForCommonMain") }.configureEach {
+    doLast {
+        val dir = layout.buildDirectory.dir("generated/compose/resourceGenerator/kotlin/commonMainResourceAccessors").get().asFile
+        val files = dir.walkTopDown().filter { it.extension == "kt" }.sortedBy { it.name }.toList()
+        println("DIAG files=${files.size}")
+        files.forEach { f ->
+            val hits = f.readLines().filter { it.contains("internal val") && it.contains("chat_") }
+            println("DIAG ${f.name} chatAccessors=${hits.size}")
+            hits.forEach { println("DIAG   " + it.trim()) }
+        }
+    }
+}
