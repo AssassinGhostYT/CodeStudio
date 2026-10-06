@@ -133,7 +133,9 @@ fun PluginsScreen(
     // is answered back to what is already loaded.
     var pending by remember { mutableStateOf(backend.settings.pendingPluginChanges()) }
     // The tabs are a Store-only affordance; the narrowed scopes show one list and hide the row entirely.
-    var tab by remember { mutableStateOf(if (scope == PluginsScope.InstalledOnly) PluginTab.Installed else PluginTab.Explore) }
+    // Both narrowed scopes open that list: InstalledOnly on the installed creator plugins, BuiltInOnly on
+    // the IDE's own (Kotlin, Java, XML, ...). Defaulting either to Explore would show the store instead.
+    var tab by remember { mutableStateOf(if (scope == PluginsScope.Store) PluginTab.Explore else PluginTab.Installed) }
     val ioScope = rememberCoroutineScope()
     var storeCatalog by remember { mutableStateOf(UiPluginStoreCatalog(emptyList())) }
     var storeLoading by remember { mutableStateOf(false) }
