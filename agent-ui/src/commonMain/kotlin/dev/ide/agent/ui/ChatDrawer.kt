@@ -89,6 +89,7 @@ import dev.ide.agent.ui.generated.resources.chat_need_key
 import dev.ide.agent.ui.generated.resources.chat_new
 import dev.ide.agent.ui.generated.resources.chat_placeholder
 import dev.ide.agent.ui.generated.resources.chat_retry
+import dev.ide.agent.ui.generated.resources.chat_use_model
 import dev.ide.agent.ui.generated.resources.chat_send
 import dev.ide.agent.ui.generated.resources.chat_stop
 import dev.ide.agent.ui.generated.resources.chat_thinking
