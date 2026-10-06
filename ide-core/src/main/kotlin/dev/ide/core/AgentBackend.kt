@@ -13,6 +13,7 @@ import dev.ide.agent.ToolExecutionResult
 import dev.ide.agent.ToolSpec
 import dev.ide.agent.WriteRequest
 import dev.ide.agent.impl.AgentLoop
+import dev.ide.agent.LlmMessage
 import dev.ide.agent.impl.AgentProviders
 import dev.ide.agent.impl.LlmErrorKind
 import dev.ide.agent.impl.OkHttpLlmTransport
@@ -33,6 +34,7 @@ import dev.ide.ui.backend.UiAgentPermissionMode
 import dev.ide.ui.backend.UiAgentPermissionRequest
 import dev.ide.ui.backend.UiAgentProvider
 import dev.ide.ui.backend.UiAgentRole
+import dev.ide.ui.backend.UiAgentSessionSummary
 import dev.ide.ui.backend.UiAgentToolCall
 import dev.ide.ui.backend.UiAgentToolStatus
 import kotlinx.coroutines.CancellationException
@@ -47,6 +49,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.nio.file.Files
+import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.io.path.readText
@@ -382,11 +385,30 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
 
     // --- session lifecycle ---
 
+    // --- saved sessions, scoped to the open project ---
+
+    override fun sessions(): List<UiAgentSessionSummary> = sessionStore.list()
+
+    override fun resumeSession(id: String) {
+        val saved = sessionStore.load(id) ?: return
+        newSession()
+        val maxId = saved.messages.maxOfOrNull { it.id } ?: 0L
+        while (msgIds.get() < maxId) msgIds.set(maxId)
+        pendingHistory = saved.history
+        _chatState.value = UiAgentChatState(messages = saved.messages, sessionId = id)
+    }
+
+    override fun deleteSession(id: String) {
+        sessionStore.delete(id)
+        if (_chatState.value.sessionId == id) newSession()
+    }
+
     override fun newSession() {
         job?.cancel()
         loop?.reset()
         loop = null
         loopSignature = null
+        pendingHistory = null
         sessionAllowAll = false
         _permissionRequest.value = null
         _chatState.value = UiAgentChatState()
@@ -423,7 +445,8 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
             "${cfg.selectedId}|$model|${cfg.baseUrl}|${cfg.apiKey.hashCode()}|${cfg.caCertificatePem.hashCode()}|$maxIterations|$maxTokens|$thinkingBudget|$webSearch|$reasoningEffort"
         if (loop == null || loopSignature != signature) {
             // Carry the transcript across the rebuild: the old loop's history, else the visible messages.
-            val carried = loop?.snapshot().orEmpty()
+            val carried = pendingHistory ?: loop?.snapshot().orEmpty()
+            pendingHistory = null
             val client = provider.client(ProviderConfig(cfg.apiKey ?: "", cfg.baseUrl, cfg.caCertificatePem))
             val rebuilt = AgentLoop(
                 client, model, tools, gate, ::systemPrompt,
@@ -447,6 +470,7 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
                     UiAgentMessage(userId, UiAgentRole.USER, text) +
                     UiAgentMessage(assistantId, UiAgentRole.ASSISTANT, streaming = true),
                 busy = true,
+                sessionId = it.sessionId ?: UUID.randomUUID().toString(),
             )
         }
 
@@ -481,14 +505,16 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
                 appendError(e.message ?: "The agent request failed.", canRetry = true)
                 finishStreaming()
             }
+            saveSession()
         }
     }
 
     private fun applyEvent(assistantId: Long, event: AgentEvent) {
+        // Any event after a wait means the wait is over.
+        if (event !is AgentEvent.Waiting) {
+            mutateAssistant(assistantId) { if (it.waitUntilMs != null) it.copy(waitUntilMs = null, waitReason = "") else it }
+        }
         when (event) {
-            if (event !is AgentEvent.Waiting) {
-                mutateAssistant(assistantId) { if (it.waitUntilMs != null) it.copy(waitUntilMs = null, waitReason = "") else it }
-            }
             is AgentEvent.UserMessage -> Unit // already seeded
             is AgentEvent.AssistantTextDelta ->
                 mutateAssistant(assistantId) { it.copy(text = it.text + event.text) }
@@ -564,6 +590,19 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
         val listed = _models.value.map { it.id }.ifEmpty { provider.models.map { it.id } }
         val candidates = listOfNotNull(preferredModels[cfg.selectedId], provider.defaultModel) + listed
         return candidates.firstOrNull { it !in exhaustedModels }
+    }
+
+    /** Saved conversations of the project the workspace is currently open on. */
+    private val sessionStore = AgentSessionStore { ctx.servicesOrNull?.workspaceRoot }
+
+    /** History to seed a rebuilt loop with, set when a saved conversation is resumed. */
+    private var pendingHistory: List<LlmMessage>? = null
+
+    private fun saveSession() {
+        val state = _chatState.value
+        val id = state.sessionId ?: return
+        val history = loop?.snapshot() ?: return
+        runCatching { sessionStore.save(id, state.messages, history) }
     }
 
     /** Models that already failed this way in this session, so the suggestion keeps moving instead of looping. */

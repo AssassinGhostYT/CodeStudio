@@ -40,7 +40,7 @@
     <string name="chat_cancel">Batal</string>
     <string name="chat_history">Riwayat</string>
     <string name="chat_history_empty">Proyek ini belum memiliki obrolan tersimpan.</string>
-    <string name="chat_history_messages">%1$d pesan</string>
-    <string name="chat_history_for">Di %1$s</string>
+    <string name="chat_history_messages">pesan</string>
+    <string name="chat_history_for">Proyek</string>
     <string name="chat_delete">Hapus obrolan</string>
 </resources>

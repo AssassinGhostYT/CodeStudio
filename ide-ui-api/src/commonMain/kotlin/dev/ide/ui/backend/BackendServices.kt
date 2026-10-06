@@ -1211,6 +1211,18 @@ interface AgentService {
         retry()
     }
 
+    /**
+     * Saved conversations of the current project, newest first. Empty until the project has had one: sessions
+     * live under the project folder, so this never lists another project's chats.
+     */
+    fun sessions(): List<UiAgentSessionSummary> = emptyList()
+
+    /** Reopen a saved conversation of this project, transcript and model context both. */
+    fun resumeSession(id: String) {}
+
+    /** Delete a saved conversation. */
+    fun deleteSession(id: String) {}
+
     /** Re-run the last turn after a failure (rate limit, network). No-op if there's nothing to retry. */
     fun retry()
 

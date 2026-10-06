@@ -40,7 +40,7 @@
     <string name="chat_cancel">取消</string>
     <string name="chat_history">历史记录</string>
     <string name="chat_history_empty">此项目还没有保存的对话。</string>
-    <string name="chat_history_messages">%1$d 条消息</string>
-    <string name="chat_history_for">在 %1$s 中</string>
+    <string name="chat_history_messages">条消息</string>
+    <string name="chat_history_for">项目</string>
     <string name="chat_delete">删除对话</string>
 </resources>

@@ -40,7 +40,7 @@
     <string name="chat_cancel">Отмена</string>
     <string name="chat_history">История</string>
     <string name="chat_history_empty">В этом проекте пока нет сохранённых чатов.</string>
-    <string name="chat_history_messages">%1$d сообщений</string>
-    <string name="chat_history_for">В %1$s</string>
+    <string name="chat_history_messages">сообщений</string>
+    <string name="chat_history_for">Проект</string>
     <string name="chat_delete">Удалить чат</string>
 </resources>

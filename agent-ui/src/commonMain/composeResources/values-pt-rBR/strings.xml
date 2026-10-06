@@ -40,7 +40,7 @@
     <string name="chat_cancel">Cancelar</string>
     <string name="chat_history">Histórico</string>
     <string name="chat_history_empty">Este projeto ainda não tem conversas salvas.</string>
-    <string name="chat_history_messages">%1$d mensagens</string>
-    <string name="chat_history_for">Em %1$s</string>
+    <string name="chat_history_messages">mensagens</string>
+    <string name="chat_history_for">Projeto</string>
     <string name="chat_delete">Excluir conversa</string>
 </resources>

@@ -40,7 +40,7 @@
     <string name="chat_cancel">إلغاء</string>
     <string name="chat_history">السجل</string>
     <string name="chat_history_empty">لا توجد محادثات محفوظة في هذا المشروع بعد.</string>
-    <string name="chat_history_messages">%1$d رسالة</string>
-    <string name="chat_history_for">في %1$s</string>
+    <string name="chat_history_messages">رسالة</string>
+    <string name="chat_history_for">المشروع</string>
     <string name="chat_delete">حذف المحادثة</string>
 </resources>

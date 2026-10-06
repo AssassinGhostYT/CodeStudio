@@ -710,7 +710,12 @@ data class UiAgentMessage(
 data class UiAgentChatState(
     val messages: List<UiAgentMessage> = emptyList(),
     val busy: Boolean = false,
+    /** The saved conversation this chat belongs to; assigned on the first user turn. */
+    val sessionId: String? = null,
 )
+
+/** A saved conversation of the current project, as listed in the chat's history sheet. */
+data class UiAgentSessionSummary(val id: String, val title: String, val updatedAtMs: Long, val messageCount: Int)
 
 data class UiAgentModel(val id: String, val displayName: String)
 data class UiAgentProvider(
