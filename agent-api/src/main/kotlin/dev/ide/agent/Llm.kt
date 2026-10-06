@@ -106,7 +106,26 @@ data class LlmModelInfo(val id: String, val displayName: String, val supportsThi
  * (e.g. GigaChat's "Russian Trusted Root CA"). It is trusted IN ADDITION to the system CAs; the certificate
  * chain is still fully validated, so this is not an insecure "trust all" bypass.
  */
-data class ProviderConfig(val apiKey: String, val baseUrl: String? = null, val caCertificatePem: String? = null)
+data class ProviderConfig(
+    val apiKey: String,
+    val baseUrl: String? = null,
+    val caCertificatePem: String? = null,
+    /**
+     * Supplies a live credential on every request instead of the static [apiKey]. Providers that accept a
+     * subscription login (e.g. Anthropic's Claude Code OAuth) consult this first so an expired access token is
+     * refreshed transparently mid-conversation; null keeps plain bring-your-own-key behaviour.
+     */
+    val tokenSource: TokenSource? = null,
+)
+
+/**
+ * Resolves the credential to send on a single request. Called per request (an agent turn makes many), so an
+ * implementation may cache until near expiry and refresh on demand. Returns null to fall back to
+ * [ProviderConfig.apiKey].
+ */
+fun interface TokenSource {
+    suspend fun token(): String?
+}
 
 /** A named LLM provider. Implement this and register it to add a provider. */
 interface LlmProvider {

@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import dev.ide.ui.backend.IdeBackend
 import dev.ide.ui.backend.UiProjectTemplate
 import dev.ide.ui.backend.UiTemplateParam
+import dev.ide.ui.components.Chip
 import dev.ide.ui.components.PrimaryButton
 import dev.ide.ui.components.entranceSlideUp
 import dev.ide.ui.components.pressScale
@@ -49,6 +50,7 @@ import dev.ide.ui.generated.resources.back
 import dev.ide.ui.generated.resources.toggle_off
 import dev.ide.ui.generated.resources.toggle_on
 import dev.ide.ui.generated.resources.choose_start_point
+import dev.ide.ui.generated.resources.coming_soon
 import dev.ide.ui.generated.resources.create_project
 import dev.ide.ui.generated.resources.creating
 import dev.ide.ui.generated.resources.new_project
@@ -133,6 +135,7 @@ private fun ColumnScope.Gallery(templates: List<UiProjectTemplate>, onBack: () -
 @Composable
 private fun TemplateCard(template: UiProjectTemplate, delayMillis: Int, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
+    val comingSoon = template.comingSoon
     Row(
         Modifier
             .entranceSlideUp(delayMillis)
@@ -140,17 +143,30 @@ private fun TemplateCard(template: UiProjectTemplate, delayMillis: Int, onClick:
             .pressScale(interaction)
             .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(Ca.radius.lg))
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(Ca.radius.lg))
-            .clickable(interaction, indication = null, onClick = onClick)
+            // A template whose toolchain has not landed is announced but not selectable.
+            .clickable(interaction, indication = null, onClick = { if (!comingSoon) onClick() })
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         TemplateGlyph(template.iconId)
         Column(Modifier.weight(1f)) {
-            Text(template.displayName, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium)
+            Text(
+                template.displayName,
+                color = if (comingSoon) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleMedium,
+            )
             Text(template.description, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
         }
-        Icon(CaIcons.chevronRight, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.outline)
+        if (comingSoon) {
+            Chip(
+                stringResource(Res.string.coming_soon),
+                fill = MaterialTheme.colorScheme.surfaceContainerHighest,
+                textColor = MaterialTheme.colorScheme.primary,
+            )
+        } else {
+            Icon(CaIcons.chevronRight, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.outline)
+        }
     }
 }
 

@@ -157,6 +157,8 @@ data class UiProjectTemplate(
     /** Icon id resolved by `TreeIcons` (e.g. `module.android`, `java`). */
     val iconId: String,
     val parameters: List<UiTemplateParam>,
+    /** Listed in the gallery but not yet creatable: the card shows a "coming soon" badge and won't open. */
+    val comingSoon: Boolean = false,
 )
 
 /** One configurable input of a template, neutral to the model layer that produced it. */

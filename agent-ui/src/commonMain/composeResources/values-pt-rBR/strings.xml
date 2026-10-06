@@ -43,4 +43,10 @@
     <string name="chat_history_messages">mensagens</string>
     <string name="chat_history_for">Projeto</string>
     <string name="chat_delete">Excluir conversa</string>
+    <string name="chat_sign_in_title">Entrar</string>
+    <string name="chat_sign_in_open">Entre com sua assinatura</string>
+    <string name="chat_sign_in_hint">A página do Claude abre no navegador. Copie o código exibido e cole aqui.</string>
+    <string name="chat_sign_in_code">Código de autorização</string>
+    <string name="chat_sign_in_connect">Conectar</string>
+    <string name="chat_sign_in_signout">Sair</string>
 </resources>

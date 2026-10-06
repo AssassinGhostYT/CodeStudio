@@ -391,6 +391,7 @@ internal class ProjectBackend(private val ctx: BackendContext) : ProjectService 
         category = t.category.displayName,
         iconId = t.iconId,
         parameters = t.parameters().map(::toUiParam),
+        comingSoon = t.comingSoon,
     )
 
     private fun toUiParam(p: TemplateParameter): UiTemplateParam = when (p) {

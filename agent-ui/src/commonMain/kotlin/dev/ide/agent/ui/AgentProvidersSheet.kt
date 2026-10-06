@@ -27,11 +27,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -53,9 +55,16 @@ import dev.ide.agent.ui.generated.resources.chat_model
 import dev.ide.agent.ui.generated.resources.chat_providers_subtitle
 import dev.ide.agent.ui.generated.resources.chat_providers_title
 import dev.ide.agent.ui.generated.resources.chat_show
+import dev.ide.agent.ui.generated.resources.chat_sign_in_code
+import dev.ide.agent.ui.generated.resources.chat_sign_in_connect
+import dev.ide.agent.ui.generated.resources.chat_sign_in_hint
+import dev.ide.agent.ui.generated.resources.chat_sign_in_open
+import dev.ide.agent.ui.generated.resources.chat_sign_in_signout
+import dev.ide.agent.ui.generated.resources.chat_sign_in_title
 import dev.ide.ui.icons.CaIcons
 import dev.ide.ui.theme.Ca
 import org.jetbrains.compose.resources.stringResource
+import kotlinx.coroutines.launch
 
 /**
  * The AI provider / key manager. A glass dialog listing each provider (plus a first-class "Custom gateway"
@@ -66,6 +75,10 @@ import org.jetbrains.compose.resources.stringResource
 @Composable
 internal fun AgentProvidersSheet(backend: IdeBackend, onClose: () -> Unit) {
     var cfg by remember { mutableStateOf(backend.agent.config()) }
+    val scope = rememberCoroutineScope()
+    val uriHandler = LocalUriHandler.current
+    /** Non-null while the browser is open for a subscription sign-in: which provider is waiting for a code. */
+    var signInFor by remember { mutableStateOf<String?>(null) }
     CenteredDialog(visible = true, onDismiss = onClose) {
         Column(
             Modifier.widthIn(max = 460.dp)
@@ -102,10 +115,85 @@ internal fun AgentProvidersSheet(backend: IdeBackend, onClose: () -> Unit) {
                         onSelect = { backend.agent.selectProvider(provider.id); cfg = backend.agent.config() },
                         onSetKey = { backend.agent.setProviderKey(provider.id, it) },
                         onSetGateway = { url, model, ca -> backend.agent.setGateway(url, model, ca) },
+                        signInSupported = backend.agent.providerSignInSupported(provider.id),
+                        signedIn = backend.agent.providerSignedIn(provider.id),
+                        onSignIn = {
+                            // A fresh PKCE attempt per click; the code page is what brings the session back.
+                            backend.agent.providerSignInUrl(provider.id)?.let { url ->
+                                signInFor = provider.id
+                                runCatching { uriHandler.openUri(url) }
+                                    .onFailure { signInFor = null }
+                            }
+                        },
+                        onSignOut = { backend.agent.providerSignOut(provider.id); cfg = backend.agent.config() },
                     )
                 }
             }
             PrimaryButton(stringResource(Res.string.chat_done), onClose, Modifier.fillMaxWidth())
+        }
+    }
+
+    signInFor?.let { providerId ->
+        SignInCodeDialog(
+            onConnect = { code ->
+                val error = backend.agent.providerSignIn(providerId, code)
+                if (error == null) cfg = backend.agent.config()
+                error
+            },
+            onDismiss = { signInFor = null },
+        )
+    }
+}
+
+/**
+ * Step two of a subscription sign-in: the browser is already open on the consent page, and the user brings
+ * the authorization code it displays back here. The exchange runs on the scope and surfaces the backend's
+ * message inline — an expired code, a mistyped paste, and a rejected token are all one retry away.
+ */
+@Composable
+private fun SignInCodeDialog(onConnect: suspend (String) -> String?, onDismiss: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var code by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    CenteredDialog(visible = true, onDismiss = onDismiss) {
+        Column(
+            Modifier.widthIn(max = 460.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(Ca.radius.xl))
+                .background(Ca.colors.glassThick)
+                .border(1.dp, Ca.colors.glassEdge, RoundedCornerShape(Ca.radius.xl))
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(CaIcons.key, null, Modifier.size(18.dp), tint = Ca.colors.accent)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    stringResource(Res.string.chat_sign_in_title),
+                    color = Ca.colors.textPrimary, style = Ca.type.title3, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButtonCa(CaIcons.close, stringResource(Res.string.chat_close), onDismiss, iconSize = 16, boxSize = 30)
+            }
+            Text(stringResource(Res.string.chat_sign_in_hint), color = Ca.colors.textTertiary, style = Ca.type.caption)
+            PlainField(code, stringResource(Res.string.chat_sign_in_code)) {
+                code = it; if (error != null) error = null
+            }
+            error?.let { Text(it, color = Ca.colors.error, style = Ca.type.caption) }
+            PrimaryButton(
+                stringResource(Res.string.chat_sign_in_connect),
+                {
+                    if (!busy && code.isNotBlank()) {
+                        busy = true
+                        scope.launch {
+                            error = onConnect(code)
+                            busy = false
+                        }
+                    }
+                },
+                Modifier.fillMaxWidth(),
+            )
         }
     }
 }
@@ -120,6 +208,12 @@ private fun ProviderCard(
     onSelect: () -> Unit,
     onSetKey: (String) -> Unit,
     onSetGateway: (String, String, String) -> Unit,
+    /** Whether this provider offers a subscription sign-in in place of pasting an API key. */
+    signInSupported: Boolean = false,
+    /** True when the stored credential came from that sign-in rather than a key. */
+    signedIn: Boolean = false,
+    onSignIn: () -> Unit = {},
+    onSignOut: () -> Unit = {},
 ) {
     val isGateway = provider.id == "gateway"
     var key by remember(provider.id) { mutableStateOf(provider.apiKey) }
@@ -153,7 +247,24 @@ private fun ProviderCard(
             }
         }
         if (selected) {
-            SecretField(key, stringResource(Res.string.chat_api_key)) { key = it; onSetKey(it) }
+            when {
+                // A subscription session is not a key the user can type: it is started, then only signed out.
+                signInSupported && signedIn -> Text(
+                    stringResource(Res.string.chat_sign_in_signout),
+                    color = Ca.colors.textTertiary, style = Ca.type.caption,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(Ca.radius.pill))
+                        .clickable(onClick = onSignOut)
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+
+                else -> {
+                    if (signInSupported) {
+                        PrimaryButton(stringResource(Res.string.chat_sign_in_open), onSignIn, Modifier.fillMaxWidth())
+                    }
+                    SecretField(key, stringResource(Res.string.chat_api_key)) { key = it; onSetKey(it) }
+                }
+            }
             if (isGateway) {
                 PlainField(baseUrl, stringResource(Res.string.chat_base_url)) { baseUrl = it; onSetGateway(it, model, caCert) }
                 PlainField(model, stringResource(Res.string.chat_model)) { model = it; onSetGateway(baseUrl, it, caCert) }

@@ -45,6 +45,13 @@ interface ProjectTemplate {
     val scaffoldsGradle: Boolean get() = false
 
     /**
+     * True when the template is shown in the gallery but not yet creatable — its backing toolchain (NDK,
+     * a language backend, …) has not landed yet. The gallery renders a "coming soon" badge and refuses the
+     * pick, so a template can be announced without promising a build that would fail.
+     */
+    val comingSoon: Boolean get() = false
+
+    /**
      * Maven dependencies the generated project needs (e.g. a Material You app declares
      * `com.google.android.material:material`). The host resolves and attaches each one *after* [generate]
      * (resolution is a `suspend`/network step the synchronous scaffold can't do), reusing the same Maven
@@ -75,6 +82,7 @@ enum class TemplateCategory(val displayName: String) {
     ANDROID("Android"),
     JAVA("Java"),
     KOTLIN("Kotlin"),
+    CPP("C/C++"),
     PLUGIN("Plugins"),
     OTHER("Other"),
 }

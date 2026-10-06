@@ -13,6 +13,8 @@ import dev.ide.agent.ToolExecutionResult
 import dev.ide.agent.ToolSpec
 import dev.ide.agent.WriteRequest
 import dev.ide.agent.impl.AgentLoop
+import dev.ide.agent.impl.ClaudeOAuth
+import dev.ide.agent.impl.ClaudeTokenSource
 import dev.ide.agent.LlmMessage
 import dev.ide.agent.impl.AgentProviders
 import dev.ide.agent.impl.LlmErrorKind
@@ -23,6 +25,7 @@ import dev.ide.agent.mcp.CodeStudioMcpServer
 import dev.ide.agent.mcp.FtpServer
 import dev.ide.agent.mcp.HttpMcpServer
 import dev.ide.agent.toolSchema
+import dev.ide.agent.TokenSource
 import dev.ide.platform.log.Log
 import dev.ide.ui.backend.AgentService
 import dev.ide.ui.backend.UiAgentChatState
@@ -265,6 +268,90 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
     }
 
     /**
+     * Live credential for [providerId], present only where a subscription login exists. Anthropic is the one
+     * provider with a sign-in: the stored "key" is then an `sk-ant-oat…` access token that must be refreshed
+     * before it expires, which [ClaudeTokenSource] does transparently on every request.
+     */
+    private fun tokenSourceFor(providerId: String): TokenSource? {
+        if (providerId != "anthropic") return null
+        return ClaudeTokenSource(
+            read = { key -> pref(key) },
+            write = { key, value -> ctx.manager?.setPreference("settings.$AI_PAGE.$key", value) },
+            transport = transport,
+        )
+    }
+
+    /** [ProviderConfig] for a resolved credential, wired to the provider's live token source when it has one. */
+    private fun providerConfig(providerId: String, apiKey: String, baseUrl: String?, caCert: String?) =
+        ProviderConfig(
+            apiKey = apiKey,
+            baseUrl = baseUrl,
+            caCertificatePem = caCert,
+            tokenSource = tokenSourceFor(providerId),
+        )
+
+    // --- subscription sign-in (Claude Code OAuth, copy/paste code flow) ---
+
+    /** Only Anthropic exposes a sign-in today; other providers stay bring-your-own-key. */
+    override fun providerSignInSupported(providerId: String): Boolean = providerId == "anthropic"
+
+    override fun providerSignInUrl(providerId: String): String? {
+        if (!providerSignInSupported(providerId)) return null
+        val pending = ClaudeOAuth.begin()
+        ctx.manager?.setPreference("settings.$AI_PAGE.$SIGNIN_VERIFIER", pending.verifier)
+        ctx.manager?.setPreference("settings.$AI_PAGE.$SIGNIN_STATE", pending.state)
+        ctx.manager?.setPreference("settings.$AI_PAGE.$SIGNIN_AT", System.currentTimeMillis().toString())
+        return ClaudeOAuth.authorizeUrl(pending)
+    }
+
+    override suspend fun providerSignIn(providerId: String, code: String): String? {
+        if (!providerSignInSupported(providerId)) return null
+        if (code.isBlank()) return "Pega el código que te dio la página de Claude."
+        val verifier = pref(SIGNIN_VERIFIER)
+        val state = pref(SIGNIN_STATE)
+        val issuedAt = pref(SIGNIN_AT)?.toLongOrNull() ?: 0L
+        if (verifier.isNullOrBlank() || state.isNullOrBlank()) {
+            return "La sesión de inicio de sesión expiró. Vuelve a iniciarla."
+        }
+        if (issuedAt == 0L || System.currentTimeMillis() - issuedAt > ClaudeOAuth.Pending.AUTH_CODE_TTL_MS) {
+            clearSignInPending()
+            return "La sesión de inicio de sesión expiró (10 minutos). Vuelve a iniciarla."
+        }
+        val pending = ClaudeOAuth.Pending(verifier = verifier, state = state, issuedAtMs = issuedAt)
+        val tokens = runCatching { ClaudeOAuth.exchange(transport, pending, code) }
+            .getOrElse { e -> return e.message ?: "No se pudo intercambiar el código." }
+
+        // The access token lives in the normal key slot so every existing "connected" affordance keeps working.
+        ctx.manager?.setPreference("settings.$AI_PAGE.anthropicKey", tokens.accessToken)
+        tokens.refreshToken?.let { ctx.manager?.setPreference("settings.$AI_PAGE.$REFRESH_PREF", it) }
+        ctx.manager?.setPreference("settings.$AI_PAGE.$EXPIRY_PREF", tokens.expiresAtMs.toString())
+        clearSignInPending()
+        resetLoop()
+        refreshModels()
+        return null
+    }
+
+    override fun providerSignOut(providerId: String) {
+        if (!providerSignInSupported(providerId)) return
+        ctx.manager?.setPreference("settings.$AI_PAGE.anthropicKey", "")
+        ctx.manager?.setPreference("settings.$AI_PAGE.$REFRESH_PREF", "")
+        ctx.manager?.setPreference("settings.$AI_PAGE.$EXPIRY_PREF", "")
+        clearSignInPending()
+        resetLoop()
+        refreshModels()
+    }
+
+    /** True when the stored Anthropic credential came from a subscription sign-in (vs a console API key). */
+    override fun providerSignedIn(providerId: String): Boolean =
+        providerSignInSupported(providerId) && ClaudeOAuth.isAccessToken(pref(keyField(providerId)).orEmpty())
+
+    private fun clearSignInPending() {
+        ctx.manager?.setPreference("settings.$AI_PAGE.$SIGNIN_VERIFIER", "")
+        ctx.manager?.setPreference("settings.$AI_PAGE.$SIGNIN_STATE", "")
+        ctx.manager?.setPreference("settings.$AI_PAGE.$SIGNIN_AT", "")
+    }
+
+    /**
      * Forces the loop to be rebuilt on the next send. The loop itself is kept so the rebuild carries its
      * history over: nulling it here is what made picking a model in the chat silently drop the conversation.
      */
@@ -337,7 +424,7 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
             return
         }
         scope.launch {
-            val fetched = runCatching { provider.listModels(ProviderConfig(key, cfg.baseUrl, cfg.caCertificatePem)) }
+            val fetched = runCatching { provider.listModels(providerConfig(cfg.selectedId, key, cfg.baseUrl, cfg.caCertificatePem)) }
                 .getOrDefault(provider.models)
             provider.preferredModel(fetched)?.let { preferredModels[cfg.selectedId] = it }
             _models.value = fetched.map { UiAgentModel(it.id, it.displayName) }
@@ -447,7 +534,7 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
             // Carry the transcript across the rebuild: the old loop's history, else the visible messages.
             val carried = pendingHistory ?: loop?.snapshot().orEmpty()
             pendingHistory = null
-            val client = provider.client(ProviderConfig(cfg.apiKey ?: "", cfg.baseUrl, cfg.caCertificatePem))
+            val client = provider.client(providerConfig(cfg.clientProviderId, cfg.apiKey ?: "", cfg.baseUrl, cfg.caCertificatePem))
             val rebuilt = AgentLoop(
                 client, model, tools, gate, ::systemPrompt,
                 maxTokens = maxTokens,
@@ -657,6 +744,15 @@ internal class AgentBackend(private val ctx: BackendContext) : AgentService {
 
         /** The `settings.ai.*` pref backing the FTP asset server toggle (`ftpServer`). */
         const val FTP_PREF = "ftpServer"
+
+        /** Prefs backing one in-flight Claude Code sign-in (see [providerSignInUrl] / [providerSignIn]). */
+        const val SIGNIN_VERIFIER = "anthropicSigninVerifier"
+        const val SIGNIN_STATE = "anthropicSigninState"
+        const val SIGNIN_AT = "anthropicSigninAt"
+
+        /** Prefs backing a subscription login's token lifecycle. */
+        const val REFRESH_PREF = "anthropicRefresh"
+        const val EXPIRY_PREF = "anthropicExpiresAt"
 
         /** The port the in-app MCP server listens on (see the "MCP server" AI setting). */
         const val MCP_PORT = CodeStudioMcpServer.DEFAULT_HTTP_PORT

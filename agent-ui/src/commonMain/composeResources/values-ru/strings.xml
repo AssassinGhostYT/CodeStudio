@@ -43,4 +43,10 @@
     <string name="chat_history_messages">сообщений</string>
     <string name="chat_history_for">Проект</string>
     <string name="chat_delete">Удалить чат</string>
+    <string name="chat_sign_in_title">Войти</string>
+    <string name="chat_sign_in_open">Войти по подписке</string>
+    <string name="chat_sign_in_hint">Страница Claude откроется в браузере. Скопируйте показанный код и вставьте его сюда.</string>
+    <string name="chat_sign_in_code">Код авторизации</string>
+    <string name="chat_sign_in_connect">Подключить</string>
+    <string name="chat_sign_in_signout">Выйти</string>
 </resources>

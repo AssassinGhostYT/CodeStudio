@@ -43,4 +43,10 @@
     <string name="chat_history_messages">رسالة</string>
     <string name="chat_history_for">المشروع</string>
     <string name="chat_delete">حذف المحادثة</string>
+    <string name="chat_sign_in_title">تسجيل الدخول</string>
+    <string name="chat_sign_in_open">سجّل الدخول باشتراكك</string>
+    <string name="chat_sign_in_hint">ستُفتح صفحة Claude في المتصفح. انسخ الرمز المعروض والصقه هنا.</string>
+    <string name="chat_sign_in_code">رمز التفويض</string>
+    <string name="chat_sign_in_connect">ربط</string>
+    <string name="chat_sign_in_signout">تسجيل الخروج</string>
 </resources>

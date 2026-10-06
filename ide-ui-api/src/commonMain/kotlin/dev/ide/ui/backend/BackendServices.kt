@@ -1202,6 +1202,27 @@ interface AgentService {
      *  certificate PEM to trust for an endpoint behind a private/regional CA — blank = system trust only). */
     fun setGateway(baseUrl: String, model: String, caCert: String)
 
+    /** Whether [providerId] lets the user sign in with a paid subscription account instead of pasting an API key. */
+    fun providerSignInSupported(providerId: String): Boolean = false
+
+    /**
+     * The URL to open in the browser to start a subscription sign-in, or null when [providerId] does not offer
+     * one. Each call begins a fresh attempt (a new PKCE challenge), so the previous one is abandoned.
+     */
+    fun providerSignInUrl(providerId: String): String? = null
+
+    /**
+     * Finishes a subscription sign-in by exchanging the authorization code the sign-in page showed the user.
+     * Returns null on success, or a user-facing message explaining what went wrong.
+     */
+    suspend fun providerSignIn(providerId: String, code: String): String? = null
+
+    /** Drops a subscription login: clears the stored credential for [providerId] (API key or session alike). */
+    fun providerSignOut(providerId: String) {}
+
+    /** True when [providerId]'s stored credential came from a subscription sign-in rather than an API key. */
+    fun providerSignedIn(providerId: String): Boolean = false
+
     /** Send a user message; streams the agent's response into [chatState]. */
     fun send(text: String)
 

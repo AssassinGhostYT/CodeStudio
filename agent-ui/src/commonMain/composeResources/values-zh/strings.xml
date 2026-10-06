@@ -43,4 +43,10 @@
     <string name="chat_history_messages">条消息</string>
     <string name="chat_history_for">项目</string>
     <string name="chat_delete">删除对话</string>
+    <string name="chat_sign_in_title">登录</string>
+    <string name="chat_sign_in_open">使用订阅账户登录</string>
+    <string name="chat_sign_in_hint">将在浏览器中打开 Claude 页面。复制页面显示的验证码并粘贴到这里。</string>
+    <string name="chat_sign_in_code">授权码</string>
+    <string name="chat_sign_in_connect">连接</string>
+    <string name="chat_sign_in_signout">退出登录</string>
 </resources>

@@ -13,6 +13,7 @@ import dev.ide.agent.StopReason
 import dev.ide.agent.TokenUsage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -38,29 +39,61 @@ class AnthropicProvider(private val transport: LlmTransport) : LlmProvider {
 
     override fun client(config: ProviderConfig): LlmClient = LlmClient { request ->
         val base = config.baseUrl?.trimEnd('/') ?: DEFAULT_BASE
-        val sse = SseRequest(
-            url = "$base/v1/messages",
-            headers = buildMap {
-                put("x-api-key", config.apiKey)
-                put("anthropic-version", ANTHROPIC_VERSION)
-                put("content-type", "application/json")
-                // Let the model keep reasoning across tool calls within a turn (reasons about tool results,
-                // not only up front) — the agentic-loop quality lever.
-                if (request.thinking && modelSupportsThinking(request.model)) {
-                    put("anthropic-beta", INTERLEAVED_THINKING_BETA)
-                }
-            },
-            jsonBody = buildBody(request),
-            caCertificatePem = config.caCertificatePem,
-        )
-        stream(sse)
+        // The credential is resolved inside the flow: a subscription session may need a token refresh, which
+        // only a suspending context can do. Headers are therefore per-request, not captured once at client().
+        flow {
+            val credential = resolveCredential(config)
+            val sse = SseRequest(
+                url = "$base/v1/messages",
+                headers = authHeaders(credential) +
+                    betaHeaders(credential, request.model, request.thinking) +
+                    mapOf(
+                        "anthropic-version" to ANTHROPIC_VERSION,
+                        "content-type" to "application/json",
+                    ),
+                jsonBody = buildBody(request),
+                caCertificatePem = config.caCertificatePem,
+            )
+            emitAll(stream(sse))
+        }
+    }
+
+    /** The live credential for one request: a refreshed OAuth token when the user signed in with a
+     *  subscription, otherwise the configured API key. */
+    private suspend fun resolveCredential(config: ProviderConfig): String =
+        config.tokenSource?.token()?.takeIf { it.isNotBlank() } ?: config.apiKey
+
+    /**
+     * Auth differs by credential kind. A `sk-ant-oat…` subscription token authenticates as a Bearer session
+     * (Claude Code's flow); a `sk-ant-api…` console key keeps the classic `x-api-key` header.
+     */
+    private fun authHeaders(credential: String): Map<String, String> =
+        if (ClaudeOAuth.isAccessToken(credential)) {
+            mapOf("authorization" to "Bearer $credential")
+        } else {
+            mapOf("x-api-key" to credential)
+        }
+
+    /**
+     * OAuth requests are gated server-side behind the `oauth-2025-04-20` beta: without it the API answers
+     * 401 "OAuth authentication is currently not supported". The other Claude Code betas ride along so a
+     * subscription session behaves exactly like it does in Claude Code. Interleaved thinking is appended for
+     * turns that ask for it, never replacing the OAuth flags.
+     */
+    private fun betaHeaders(credential: String, model: String, thinking: Boolean): Map<String, String> {
+        val betas = ArrayList<String>(3)
+        if (ClaudeOAuth.isAccessToken(credential)) betas += OAUTH_BETAS
+        if (thinking && modelSupportsThinking(model)) betas += INTERLEAVED_THINKING_BETA
+        if (betas.isEmpty()) return emptyMap()
+        return mapOf("anthropic-beta" to betas.distinct().joinToString(","))
     }
 
     override suspend fun listModels(config: ProviderConfig): List<LlmModelInfo> = runCatching {
         val base = config.baseUrl?.trimEnd('/') ?: DEFAULT_BASE
+        val credential = resolveCredential(config)
         val body = transport.get(
             "$base/v1/models?limit=1000",
-            mapOf("x-api-key" to config.apiKey, "anthropic-version" to ANTHROPIC_VERSION),
+            authHeaders(credential) + betaHeaders(credential, model = "", thinking = false) + mapOf("anthropic-version" to ANTHROPIC_VERSION),
             config.caCertificatePem,
         )
         val data = AgentJson.parseToJsonElement(body).asObj()?.get("data").asArr() ?: return@runCatching models
@@ -227,6 +260,13 @@ class AnthropicProvider(private val transport: LlmTransport) : LlmProvider {
         const val DEFAULT_BASE = "https://api.anthropic.com"
         const val ANTHROPIC_VERSION = "2023-06-01"
         const val INTERLEAVED_THINKING_BETA = "interleaved-thinking-2025-05-14"
+
+        /**
+         * Claude Code's beta set. `oauth-2025-04-20` is the one that matters: it is the gate that lets a
+         * subscription token authenticate at all — without it the API answers 401
+         * "OAuth authentication is currently not supported".
+         */
+        const val OAUTH_BETAS = "oauth-2025-04-20,claude-code-20250219,fine-grained-tool-streaming-2025-05-14"
 
         /** Anthropic's server-side web-search tool (GA; no beta header required). */
         const val WEB_SEARCH_TOOL = "web_search_20250305"

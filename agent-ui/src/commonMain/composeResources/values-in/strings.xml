@@ -43,4 +43,10 @@
     <string name="chat_history_messages">pesan</string>
     <string name="chat_history_for">Proyek</string>
     <string name="chat_delete">Hapus obrolan</string>
+    <string name="chat_sign_in_title">Masuk</string>
+    <string name="chat_sign_in_open">Masuk dengan langganan Anda</string>
+    <string name="chat_sign_in_hint">Halaman Claude terbuka di peramban. Salin kode yang ditampilkan lalu tempel di sini.</string>
+    <string name="chat_sign_in_code">Kode otorisasi</string>
+    <string name="chat_sign_in_connect">Hubungkan</string>
+    <string name="chat_sign_in_signout">Keluar</string>
 </resources>

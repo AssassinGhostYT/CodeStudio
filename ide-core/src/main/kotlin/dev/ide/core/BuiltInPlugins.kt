@@ -34,6 +34,8 @@ import dev.ide.core.services.SearchService
 import dev.ide.core.services.SigningService
 import dev.ide.core.sync.ProjectSyncService
 import dev.ide.core.templates.CalculatorSampleTemplate
+import dev.ide.core.templates.CppConsoleAppTemplate
+import dev.ide.core.templates.CppLibraryTemplate
 import dev.ide.core.templates.JavaConsoleAppTemplate
 import dev.ide.core.templates.JavaLibraryTemplate
 import dev.ide.core.templates.SwingAppTemplate
@@ -152,6 +154,7 @@ object BuiltInPlugins {
         BuiltInPlugin(KotlinLanguagePlugin()),
         BuiltInPlugin(DartLanguagePlugin()),
         BuiltInPlugin(JavaSupportPlugin()),
+        BuiltInPlugin(CppSupportPlugin()),
         BuiltInPlugin(KotlinSupportPlugin()),
         BuiltInPlugin(KspSupportPlugin(env)),
         BuiltInPlugin(GradleSupportPlugin()),
@@ -312,6 +315,25 @@ private class JavaSupportPlugin : Plugin {
             templates.register(JavaLibraryTemplate, pid)
             templates.register(SwingAppTemplate, pid)
             templates.register(SwingCanvasTemplate, pid)
+        }
+    }
+}
+
+/**
+ * C/C++ Create-Project templates. They are declared so the gallery can announce them, but each is flagged
+ * `comingSoon`: the NDK toolchain they need has not shipped yet, so the card shows the "coming soon" badge
+ * and the pick is refused instead of producing a project nothing can build.
+ */
+private class CppSupportPlugin : Plugin {
+    override val manifest = PluginManifest(
+        id = "cpp-support", name = "C/C++ Support",
+        description = "C/C++ Create-Project templates (currently marked as coming soon).",
+    )
+    override fun register(reg: PluginRegistration) {
+        reg.contributeVia { ext, pid ->
+            val templates = ProjectTemplateRegistry(ext)
+            templates.register(CppConsoleAppTemplate, pid)
+            templates.register(CppLibraryTemplate, pid)
         }
     }
 }

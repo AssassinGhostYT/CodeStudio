@@ -45,4 +45,10 @@
     <string name="chat_history_messages">messages</string>
     <string name="chat_history_for">Project</string>
     <string name="chat_delete">Delete chat</string>
+    <string name="chat_sign_in_title">Sign in</string>
+    <string name="chat_sign_in_open">Sign in with your subscription</string>
+    <string name="chat_sign_in_hint">The Claude page opens in your browser. Copy the code it shows and paste it here.</string>
+    <string name="chat_sign_in_code">Authorization code</string>
+    <string name="chat_sign_in_connect">Connect</string>
+    <string name="chat_sign_in_signout">Sign out</string>
 </resources>
