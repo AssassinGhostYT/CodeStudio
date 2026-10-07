@@ -18,7 +18,7 @@ internal object CppTemplateSupport {
         val cleaned = raw.split(Regex("[^A-Za-z0-9]+")).filter { it.isNotEmpty() }
             .joinToString("") { it.replaceFirstChar(Char::uppercaseChar) }
         val candidate = cleaned.ifEmpty { "App" }
-        return if (candidate.first().isdigit()) "App$candidate" else candidate
+        return if (candidate.first().isDigit()) "App$candidate" else candidate
     }
 
     /**
