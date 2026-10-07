@@ -69,13 +69,13 @@ object Bench {
         val bean = allocBean ?: run { var s = 0L; repeat(ops) { s += op() }; sink += s; return 0 }
         var s = 0L
         repeat(warmup) { s += op() }
-        val tid = Thread.currentThread().threadId()
+        val tid = Thread.currentThread().id
         val before = bean.getThreadAllocatedBytes(tid)
         var i = 0
         while (i < ops) { s += op(); i++ }
         val after = bean.getThreadAllocatedBytes(tid)
         sink += s
-        return ((after - before) / ops).coerceAtLeast(0)
+        return ((after - before) / ops).coerceAtLeast(0L)
     }
 
     // ---- human-readable formatting (shared by every printed table) ----
