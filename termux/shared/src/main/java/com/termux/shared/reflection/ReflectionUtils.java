@@ -21,12 +21,35 @@ public class ReflectionUtils {
     private static final String LOG_TAG = "ReflectionUtils";
 
     /**
+     * Whether {@code org.lsposed.hiddenapibypass.HiddenApiBypass} is on the runtime classpath. The
+     * dependency is {@code compileOnly} in this module (packaged only in debug builds), so in release
+     * / profile builds the class is absent; probe once and skip the call instead of triggering a
+     * NoClassDefFoundError that gets logged with a full stack trace on every app start.
+     */
+    private static final boolean HIDDEN_API_BYPASS_CLASS_PRESENT = classPresent("org.lsposed.hiddenapibypass.HiddenApiBypass");
+
+    private static boolean classPresent(String className) {
+        try {
+            Class.forName(className, false, ReflectionUtils.class.getClassLoader());
+            return true;
+        } catch (ClassNotFoundException | NoClassDefFoundError e) {
+            return false;
+        }
+    }
+
+    /**
      * Bypass android hidden API reflection restrictions.
      * https://github.com/LSPosed/AndroidHiddenApiBypass
      * https://developer.android.com/guide/app-compatibility/restrictions-non-sdk-interfaces
      */
     public static void bypassHiddenAPIReflectionRestrictions() {
         if (!HIDDEN_API_REFLECTION_RESTRICTIONS_BYPASSED && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            if (!HIDDEN_API_BYPASS_CLASS_PRESENT) {
+                // Expected in release/profile builds: SDK is compileOnly by design (Play policy).
+                Logger.logDebug(LOG_TAG, "HiddenApiBypass not packaged in this build; skipping hidden API bypass");
+                HIDDEN_API_REFLECTION_RESTRICTIONS_BYPASSED = true;
+                return;
+            }
             Logger.logDebug(LOG_TAG, "Bypassing android hidden api reflection restrictions");
             try {
                 HiddenApiBypass.addHiddenApiExemptions("");
