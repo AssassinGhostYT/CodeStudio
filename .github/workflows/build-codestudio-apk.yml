@@ -43,6 +43,24 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
+      # Sign with the Play upload key (same identity as the release AAB) so the APK testers download
+      # carries the published signature. Restores the same secrets the Release AAB workflow uses.
+      - name: Restore release keystore from secrets
+        run: |
+          mkdir -p keystore
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore/codestudio-upload.jks
+          chmod 600 keystore/codestudio-upload.jks
+
+      - name: Write signing config
+        run: |
+          cat > keystore.properties <<EOF
+          storeFile=keystore/codestudio-upload.jks
+          storePassword=${{ secrets.KEYSTORE_STORE_PASSWORD }}
+          keyAlias=${{ secrets.KEYSTORE_KEY_ALIAS }}
+          keyPassword=${{ secrets.KEYSTORE_KEY_PASSWORD }}
+          EOF
+          chmod 600 keystore.properties
+
       # Disable Kotlin incremental compilation for CI. One-shot CI builds gain nothing from it, and a
       # restored incremental-compilation cache can produce phantom "unresolved reference" errors after the
       # classpath changes (a clean build of the same commit compiles fine). Full compilation is robust.
