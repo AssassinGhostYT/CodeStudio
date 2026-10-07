@@ -25,7 +25,18 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: "platform-tools platforms;android-36 platforms;android-36.1 build-tools;36.0.0 ndk;27.1.12297006"
+          packages: "platform-tools platforms;android-36 platforms;android-36.1 build-tools;36.0.0"
+
+      - name: Install NDK (retry on corrupted download)
+        run: |
+          for i in 1 2 3; do
+            sdkmanager "ndk;27.1.12297006" && exit 0
+            echo "NDK download failed (attempt $i), cleaning up and retrying in 30s..."
+            rm -rf "$ANDROID_HOME/ndk/27.1.12297006" "$ANDROID_SDK_ROOT/.temp"
+            sleep 30
+          done
+          echo "NDK download failed after 3 attempts"
+          exit 1
 
       - name: Rebuild native libraries for 16 KB pages
         run: ./.github/scripts/rebuild-16k-native.sh
