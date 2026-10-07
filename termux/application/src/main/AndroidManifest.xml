@@ -44,7 +44,7 @@
 
     <activity
       android:documentLaunchMode="intoExisting"
-      android:theme="@style/Theme.AppCompat.DayNight"
+      android:theme="@style/Theme.AppCompat.DayNight.NoActionBar"
       android:name=".shared.activities.ReportActivity" />
 
     <activity

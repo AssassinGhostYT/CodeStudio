@@ -218,7 +218,7 @@ object ClaudeOAuth {
  * fire a stampede of refreshes, and a failed refresh falls through to the last known token so the request at
  * least reports the API's own error instead of a local one.
  */
-internal class ClaudeTokenSource(
+class ClaudeTokenSource(
     private val read: (String) -> String?,
     private val write: (String, String) -> Unit,
     private val transport: LlmTransport,
