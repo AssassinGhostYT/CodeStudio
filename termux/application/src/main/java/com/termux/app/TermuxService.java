@@ -113,6 +113,9 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
     /** If the user has executed the {@link TERMUX_SERVICE#ACTION_STOP_SERVICE} intent. */
     boolean mWantsToStop = false;
 
+    /** True while the service actually holds a foreground slot (denied in the background on Android 12+). */
+    private boolean mIsForeground = false;
+
     private static final String LOG_TAG = "TermuxService";
 
     @Override
@@ -212,18 +215,30 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
     private void runStartForeground() {
         setupNotificationChannel();
         
-        // For Android 14+ (API 34+), specify the foreground service type
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(TermuxConstants.TERMUX_APP_NOTIFICATION_ID, buildNotification(), 
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
-        } else {
-            startForeground(TermuxConstants.TERMUX_APP_NOTIFICATION_ID, buildNotification());
+        try {
+            // For Android 14+ (API 34+), specify the foreground service type
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(TermuxConstants.TERMUX_APP_NOTIFICATION_ID, buildNotification(), 
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
+            } else {
+                startForeground(TermuxConstants.TERMUX_APP_NOTIFICATION_ID, buildNotification());
+            }
+            mIsForeground = true;
+        } catch (Exception | Error e) {
+            // Android 12+ throws ForegroundServiceStartNotAllowedException when the service starts with
+            // the app in the background (system restart). Don't crash the terminal over a notification:
+            // the service remains usable while its activity is bound/visible.
+            mIsForeground = false;
+            Logger.logStackTraceWithMessage(LOG_TAG, "startForeground failed (app in background?)", e);
         }
     }
     
     /** Make service leave foreground mode. */
     private void runStopForeground() {
-        stopForeground(true);
+        if (mIsForeground) {
+            stopForeground(true);
+            mIsForeground = false;
+        }
     }
 
     /** Request to stop service. */

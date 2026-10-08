@@ -41,9 +41,10 @@ public final class TerminalSession extends TerminalOutput {
 
     /**
      * A queue written to from a separate thread when the process outputs, and read by main thread to process by
-     * terminal emulator.
+     * terminal emulator. Sized for a big paste/echo burst: a larger queue lets the reader thread bank output
+     * without hammering the main thread with a message per 4 KiB.
      */
-    final ByteQueue mProcessToTerminalIOQueue = new ByteQueue(4096);
+    final ByteQueue mProcessToTerminalIOQueue = new ByteQueue(64 * 1024);
     /** Direct PTY input stream owned by the serialized background input executor. */
     private FileOutputStream mTerminalInputStream;
     /** Serializes keyboard input and paste work without ever blocking the UI thread. */
@@ -141,7 +142,7 @@ public final class TerminalSession extends TerminalOutput {
             @Override
             public void run() {
                 try (InputStream termIn = new FileInputStream(terminalFileDescriptorWrapped)) {
-                    final byte[] buffer = new byte[4096];
+                    final byte[] buffer = new byte[16384];
                     while (true) {
                         int read = termIn.read(buffer);
                         if (read == -1) return;
@@ -181,7 +182,10 @@ public final class TerminalSession extends TerminalOutput {
         mInputExecutor.execute(() -> {
             if (bracketed) writeToProcess("\033[200~");
 
-            StringBuilder block = new StringBuilder(256 * 1024);
+            // One pass over a 1 MiB block: a paste with a huge transcript (thousands of compiler errors)
+            // goes to the PTY in a handful of big writes instead of dozens of small ones, so the UI never
+            // waits on the paste the way a per-line loop would.
+            StringBuilder block = new StringBuilder(1024 * 1024);
             for (int i = 0; i < text.length(); i++) {
                 char value = text.charAt(i);
                 // Match the terminal's existing paste rules without creating a second full-size String.
@@ -195,7 +199,7 @@ public final class TerminalSession extends TerminalOutput {
                 block.append(value);
 
                 // Do not split a UTF-16 surrogate pair between two UTF-8 conversions.
-                if (block.length() >= 256 * 1024 && !Character.isHighSurrogate(block.charAt(block.length() - 1))) {
+                if (block.length() >= 1024 * 1024 && !Character.isHighSurrogate(block.charAt(block.length() - 1))) {
                     writeToProcess(block.toString());
                     block.setLength(0);
                 }
@@ -386,7 +390,7 @@ public final class TerminalSession extends TerminalOutput {
     @SuppressLint("HandlerLeak")
     class MainThreadHandler extends Handler {
 
-        final byte[] mReceiveBuffer = new byte[4 * 1024];
+        final byte[] mReceiveBuffer = new byte[16 * 1024];
 
         @Override
         public void handleMessage(Message msg) {

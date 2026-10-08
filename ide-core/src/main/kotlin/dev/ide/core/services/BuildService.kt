@@ -88,6 +88,8 @@ import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -1149,6 +1151,57 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
         }
     }
 
+    /**
+     * On a failed build/run, persist the compiler errors + log to `<project>/errores/` so the AI agent
+     * working inside the project can read them directly (instead of the user screen-copying the console).
+     * Writes `errores/ultimo-error.txt` (the latest failure, for the agent to find) next to timestamped
+     * `errores/error-<timestamp>.txt` files.
+     */
+    private fun saveBuildErrorToProject(moduleName: String, state: BuildState, header: String) {
+        runCatching {
+            val module = ctx.modules().firstOrNull { it.name == moduleName }
+                ?: return
+            val projectRoot = ctx.projectOf(module)?.rootDir?.path?.let { Paths.get(it) }
+                ?: return
+            val crashDir = projectRoot.resolve("errores")
+            runCatching { Files.createDirectories(crashDir) }.getOrNull()
+                ?: return
+            val stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
+            val content = buildString {
+                appendLine("===$header=== failed")
+                appendLine("Comando: $header")
+                appendLine("Modulo: $moduleName")
+                appendLine("Fecha: $stamp")
+                appendLine()
+                val diag = state.diagnostics
+                if (diag.isNotEmpty()) {
+                    appendLine("--- Diagnostics (${diag.size}) ---")
+                    diag.forEach { d ->
+                        val loc = listOfNotNull(d.file, d.line.takeIf { it > 0 }?.let { ":$it" },
+                            d.column.takeIf { it > 0 }?.let { ":$it" }).joinToString("")
+                        append("${d.severity}: ")
+                        if (loc.isNotEmpty()) append("$loc -> ")
+                        appendLine(d.message)
+                        if (!d.detail.isNullOrBlank()) appendLine("    ${d.detail}")
+                        if (!d.source.isNullOrBlank()) appendLine("    source=${d.source}")
+                    }
+                    appendLine()
+                }
+                val errLog = state.log.filter { it.level == UiLogLevel.Error }
+                if (errLog.isEmpty()) {
+                    appendLine("--- Log (ultimas 200 lineas) ---")
+                    state.log.takeLast(200).forEach { appendLine(it.message) }
+                } else {
+                    appendLine("--- Mensajes de error desde el log (${errLog.size}) ---")
+                    errLog.forEach { appendLine(it.message) }
+                }
+            }
+            Files.writeString(crashDir.resolve("ultimo-error.txt"), content)
+            Files.writeString(crashDir.resolve("error-$stamp.txt"), content)
+            memLog.info("build error guardado en ${crashDir.resolve("ultimo-error.txt")}")
+        }.onFailure { memLog.info("build-error save skipped: ${it.message}") }
+    }
+
     /** Stream [graph] execution into [buildState] (shared by run + assemble). [onSuccess] (e.g. install +
      *  launch an APK) runs after a successful build, receiving the console log appender. [onComplete] runs
      *  when the build finishes normally (success or failure, not cancellation), with the outcome. */
@@ -1294,6 +1347,7 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
                     message = if (succeeded) null else finalState.log.lastOrNull { it.level == UiLogLevel.Error }?.message,
                 )
             )
+            if (!succeeded) saveBuildErrorToProject(moduleName, finalState, header)
             onComplete?.invoke(succeeded)
         }
     }

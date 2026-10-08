@@ -9,31 +9,53 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 
 /** Keeps the interactive shell process alive while the terminal Activity is off-screen. */
 class TerminalKeepAliveService : Service() {
+
+    private var inForeground = false
 
     override fun onCreate() {
         super.onCreate()
         createChannel()
         val notification = buildNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        // Android 12+ throws ForegroundServiceStartNotAllowedException when the service starts with the
+        // app in the background (a system START_STICKY restart, or the singleTask activity recreated from
+        // recents). Degrade instead of crashing: no foreground slot, no keep-alive.
+        if (!enterForeground(notification)) {
+            Log.w(TAG, "startForeground not allowed (app in background); stopping keep-alive")
+            stopSelf()
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_STOP) {
+        // START_NOT_STICKY unless we own a foreground slot: a sticky retry from the background would only
+        // hit the same startForeground denial and crash again.
+        if (intent?.action == ACTION_STOP || !inForeground) {
             stopSelf()
             return START_NOT_STICKY
         }
         return START_STICKY
+    }
+
+    /** Promote to a foreground service. Returns false if the system denies the promotion. */
+    private fun enterForeground(notification: Notification): Boolean {
+        return runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            inForeground = true
+        }.onFailure {
+            inForeground = false
+            Log.e(TAG, "startForeground failed", it)
+        }.isSuccess
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -77,6 +99,7 @@ class TerminalKeepAliveService : Service() {
 
     companion object {
         const val ACTION_STOP = "dev.ide.android.Terminal.STOP_KEEP_ALIVE"
+        private const val TAG = "TerminalKeepAlive"
         private const val CHANNEL_ID = "codestudio-terminal"
         private const val NOTIFICATION_ID = 4201
     }
