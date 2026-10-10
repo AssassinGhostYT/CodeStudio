@@ -406,8 +406,8 @@ android {
         targetSdk = 36
         // versionCode must exceed the last published release (the previous-codebase app reached ~29).
         // Play requires a higher code for the 16 KB native-library rebuild.
-        versionCode = 102
-        versionName = "4.1.11"
+        versionCode = 103
+        versionName = "4.1.12"
         // connectedAndroidTest harness (the on-device Kotlin-compiler discovery spike).
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -482,17 +482,16 @@ android {
 
     buildTypes {
         getByName("release") {
-            // The Play release must carry R8 metadata and obfuscated bytecode. The conservative rules
-            // keep the on-device compiler/toolchain and its reflective entry points intact while R8
-            // optimizes the rest of the app and dependencies.
-            isMinifyEnabled = true
-            // R8 must remove unused resources as well as code for the Play optimization report.
-            // AGP 9.2 enables optimized resource shrinking automatically when this is true.
-            isShrinkResources = true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules-minified.pro",
-            )
+            // R8 is DISABLED for the shipping release. The app hosts a full reflective on-device
+            // toolchain (K2, IntelliJ, D8/R8, ecj, ASM, bundletool) that R8 could not be
+            // runtime-validated against: the minified bundle booted on-device for the dev but
+            // Google Play's automated launch test reported "app doesn't open / doesn't load"
+            // (crash on cold start), while the unminified `profile` APK runs fine. Until the
+            // minified build is validated end-to-end on-device for cold start AND compile/run,
+            // the release ships unminified so the Play bundle matches the known-good profile
+            // build (only signing + ad ids differ). Re-enable R8 only with runtime validation.
+            isMinifyEnabled = false
+            isShrinkResources = false
             signingConfig = signingConfigs.findByName("release")
             // The shipped build serves real AdMob ads (falls back to test ids if none were configured).
             manifestPlaceholders["admobAppId"] = realAdmobAppId
