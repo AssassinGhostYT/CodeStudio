@@ -179,9 +179,7 @@
                 android:process=":build"
                 android:exported="false"
                 android:foregroundServiceType="specialUse">
-            <!-- Play requires a justification for specialUse FGS. Declare the use case here; you also enter
-                 it in the Play Console at submission (Google reviews specialUse case-by-case). -->
-            <property
+            <meta-data
                     android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                     android:value="Compiling and running the user's on-device software project — a long-running, user-initiated build that must continue if the user navigates away from the IDE." />
         </service>
@@ -190,7 +188,7 @@
                 android:name=".Terminal.TerminalKeepAliveService"
                 android:exported="false"
                 android:foregroundServiceType="specialUse">
-            <property
+            <meta-data
                     android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                     android:value="Keeping the user-initiated terminal shell and interactive command-line processes running while the user navigates away from CodeStudio." />
         </service>
