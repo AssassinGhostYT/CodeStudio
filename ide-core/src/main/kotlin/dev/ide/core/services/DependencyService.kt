@@ -294,11 +294,20 @@ internal class DependencyService(private val ctx: EngineContext) : Disposable {
         persistUnresolved()
     }
 
-    /** Heuristic reason for an unresolved coordinate, from one resolve's outcome: nothing resolved at all
-     *  reads as a connectivity failure; a partial resolve points at the coordinate/repository. */
-    private fun unresolvedReasonFor(anyResolved: Boolean): String =
-        if (!anyResolved) "Couldn't reach the repositories. Check your internet connection, then tap Retry."
-        else "Couldn't download from the configured repositories. Check the version/coordinate or your connection, then tap Retry."
+    /**
+     * Reason for an unresolved coordinate, from one resolve's outcome: a hard 404 across every repo
+     * ([ResolutionResult.retriable] false ⇒ the coordinates genuinely don't exist there) reads as a bad
+     * version/coordinate; a transient failure with nothing resolved at all as a connectivity failure; a
+     * transient failure alongside partial progress points at the coordinate while also hinting network.
+     */
+    private fun unresolvedReasonFor(anyResolved: Boolean, retriable: Boolean): String =
+        when {
+            !retriable -> "This version/artifact doesn't exist in the repositories (Maven Central / Google). " +
+                "Check the group, name and exactly published version — or use the search to add a real one."
+            !anyResolved -> "Couldn't reach the repositories. Check your internet connection, then tap Retry."
+            else -> "Couldn't download from the repositories (network issue), though others resolved. " +
+                "Check the version/coordinate or your connection, then tap Retry."
+        }
 
     /** Fold one module-graph resolve into [unresolvedReasons], keyed by declared library NAME. A declared
      *  coordinate is unresolved IFF the resolver itself reported it in [ResolutionResult.unresolved] (a POM
@@ -312,7 +321,7 @@ internal class DependencyService(private val ctx: EngineContext) : Disposable {
         val anyResolved = result.resolved.isNotEmpty()
         for ((name, c) in declared) {
             if ("${c.group}:${c.name}" in failedGAs) unresolvedReasons[name] =
-                unresolvedReasonFor(anyResolved)
+                unresolvedReasonFor(anyResolved, result.retriable)
             else unresolvedReasons.remove(name)
         }
         // Mirror the fresh verdict to disk so the banner survives a restart and shows before any re-resolve.
