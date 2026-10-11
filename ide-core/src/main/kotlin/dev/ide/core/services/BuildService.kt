@@ -302,7 +302,9 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
 
     private val vfsConnection: MessageBusConnection = ctx.store.bus.connect().also { conn ->
         conn.subscribe(VfsTopics.CHANGES, object : VfsListener {
-            override fun onEvents(events: List<VfsEvent>) = runCatching { onBuildFilesChanged(events) }
+            override fun onEvents(events: List<VfsEvent>) {
+                runCatching { onBuildFilesChanged(events) }
+            }
         })
     }
 
