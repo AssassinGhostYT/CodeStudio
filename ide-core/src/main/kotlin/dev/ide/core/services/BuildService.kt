@@ -68,6 +68,10 @@ import dev.ide.model.event.ProjectModelTopics
 import dev.ide.model.module
 import dev.ide.platform.Disposable
 import dev.ide.platform.MessageBusConnection
+import dev.ide.vfs.FileChanged
+import dev.ide.vfs.VfsEvent
+import dev.ide.vfs.VfsListener
+import dev.ide.vfs.VfsTopics
 import dev.ide.ui.backend.BuildDiagnosticUi
 import dev.ide.ui.backend.BuildLogLine
 import dev.ide.ui.backend.BuildState
@@ -283,6 +287,55 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
         // A throwing subscriber aborts the model commit that published the event (the bus rethrows), so this must
         // do nothing but arm a timer, and must not throw doing it.
         conn.subscribe(ProjectModelTopics.CHANGES, ProjectModelListener { runCatching { scheduleDexWarm() } })
+    }
+
+    /**
+     * Save-triggered auto-sync (the "dependency should download as soon as I save build.gradle" expectation).
+     * Saving a build/settings/version-catalog file marks the external project's model + classpath stale; we
+     * debounce and then re-sync the model from the build files and re-resolve declared dependencies in the
+     * background, so a just-added Maven dependency is downloaded on its own — no Build/Run press required.
+     * Guards: only a build FILE's change matters (never a source edit); skips while a build is running (the
+     * run-time path re-syncs instead); skips when nothing is actually stale. A slow resolver must not hold the
+     * save's bus fan-out, so all it does here is arm [buildFilesSyncJob].
+     */
+    private var buildFilesSyncJob: Job? = null
+
+    private val vfsConnection: MessageBusConnection = ctx.store.bus.connect().also { conn ->
+        conn.subscribe(VfsTopics.CHANGES, VfsListener { events -> runCatching { onBuildFilesChanged(events) } })
+    }
+
+    private fun onBuildFilesChanged(events: List<VfsEvent>) {
+        if (events.none { it is FileChanged && isBuildScriptPath(Paths.get(it.file.path)) }) return
+        // A build is running: its run-time re-sync (BuildService.runTask) handles the change and owns the model;
+        // racing a resolution against an in-flight graph could read a half-written libraries.json. Skip — the
+        // next build picks it up.
+        if (_buildState.value.status == RunStatus.Running) return
+        if (!ctx.isSyncStale()) return
+        buildFilesSyncJob?.cancel()
+        buildFilesSyncJob = buildScope.launch {
+            delay(BUILD_FILES_SYNC_DEBOUNCE_MS)
+            if (_buildState.value.status == RunStatus.Running) return@launch
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val o = ctx.syncFromBuildFiles()
+                    if (o.ok) ctx.dependencies.retryDependencyResolution()
+                }
+            }.onFailure { e ->
+                Log.logger("ide.build").warn("save-triggered dependency sync failed: ${e.message}", e)
+            }
+        }
+    }
+
+    /** A saved-file path that owns the build model (gradle scripts, the version catalog, gradle.properties,
+     *  pubspec). Matched by file name so sub-module scripts (`app/build.gradle`) are caught too. */
+    private fun isBuildScriptPath(path: Path): Boolean {
+        val name = path.fileName?.toString() ?: return false
+        if (name == "build.gradle" || name == "build.gradle.kts" ||
+            name == "settings.gradle" || name == "settings.gradle.kts" ||
+            name == "gradle.properties" || name == "libs.versions.toml" ||
+            name == "pubspec.yaml" || name == "pubspec.lock" || name == "pubspec.yml"
+        ) return true
+        return false
     }
 
     init {
@@ -773,6 +826,50 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
         }
         ctx.flushOpenDocuments() // save unsaved editor buffers so the compiler sees the latest source
         runCatching { ctx.ensureKotlinStdlib() } // a newly-added .kt module needs the stdlib dep before it builds/runs
+        if (!ctx.isSyncStale()) {
+            startTask(id)
+            return
+        }
+        // A manually-edited build file (build.gradle/build.gradle.kts, settings.gradle, …) isn't reflected in
+        // the live model until a sync, and the build reads the model's compiled classpath — so a dependency
+        // the user just added to build.gradle would be silently ignored (its imports fail as "unresolved
+        // reference", nothing is ever downloaded). Re-sync the model from the build files and re-resolve
+        // declared dependencies (which downloads genuinely-new artifacts) BEFORE constructing the build
+        // graph. Cheap when things are unchanged/cached; the console shows a "syncing" phase so the wait is
+        // explained. A sync failure (unreadable build file) fails the build with the importer's message.
+        _buildState.value = BuildState(
+            RunStatus.Running,
+            "",
+            emptyList(),
+            listOf(logLine("Build files changed — syncing and resolving dependencies…")),
+            elapsedMs = 0
+        )
+        publishBuild(BuildEvent.Started("", emptyList()))
+        buildScope.launch {
+            val outcome = runCatching {
+                withContext(Dispatchers.IO) {
+                    val o = ctx.syncFromBuildFiles()
+                    if (o.ok) ctx.dependencies.retryDependencyResolution()
+                    o
+                }
+            }.getOrElse { e ->
+                fail("Couldn't re-sync the build files: ${e.message ?: e.javaClass.simpleName}")
+                return@launch
+            }
+            if (!outcome.ok) {
+                fail(outcome.message ?: "Couldn't re-sync the build files.")
+                return@launch
+            }
+            startTask(id)
+        }
+    }
+
+    /**
+     * The graph-construction + dispatch half of [runTask] — shared by the direct path (build files current)
+     * and the post-sync path (build files had changed; the model now reflects them). Deliberately NOT
+     * suspend: a task-id failure surfaces as a Failed build in the console, never as a thrown exception.
+     */
+    private fun startTask(id: String) {
         // Graph construction + topological ordering run synchronously here; a misconfiguration (cyclic deps,
         // a duplicate task) must surface as a Failed build in the console, never crash the IDE.
         try {
@@ -1631,7 +1728,9 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
         currentRunIo?.input?.close()
         pendingAnswer?.offer(UiPermissionDecision.DENY)
         if (Guards.broker === permissionBroker) Guards.broker = null
+        buildFilesSyncJob?.cancel()
         runCatching { dexWarmConnection.dispose() }
+        runCatching { vfsConnection.dispose() }
         buildScope.cancel()
     }
 
@@ -1649,6 +1748,11 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
          *  commits, then the finished resolution) arms it once, and that a user who immediately hits Run gets the
          *  machine to themselves. */
         private const val DEX_WARM_DELAY_MS = 15_000L
+
+        /** Debounce for the save-triggered auto-sync: a multi-file save or a quick bracket-fix regenerate fires
+         *  several build-file change events; the re-sync/resolve starts 1.5 s after the LAST one (and skips if a
+         *  build already picked the change up). */
+        private const val BUILD_FILES_SYNC_DEBOUNCE_MS = 1_500L
 
         /** Coalesce console output into chunks up to this size; cap the retained transcript so an interactive
          *  program's output is otherwise unbounded. */

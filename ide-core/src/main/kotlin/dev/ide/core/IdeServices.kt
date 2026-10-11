@@ -645,6 +645,8 @@ class IdeServices private constructor(
         override val apkInstaller get() = this@IdeServices.apkInstaller
         override val appLogChannel get() = this@IdeServices.appLogChannel
         override fun modules() = this@IdeServices.modules()
+        override fun isSyncStale() = this@IdeServices.isSyncStale()
+        override suspend fun syncFromBuildFiles() = this@IdeServices.syncFromBuildFiles()
         override fun projectOf(module: Module) = this@IdeServices.projectOf(module)
         override fun moduleRoot(module: Module) = this@IdeServices.moduleRoot(module)
         override fun moduleBuildClosure(module: Module) =

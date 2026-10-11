@@ -4,6 +4,7 @@ import dev.ide.android.support.resources.ResourceRepository
 import dev.ide.android.support.tools.KeystoreRegistry
 import dev.ide.build.engine.ProgramInterpreter
 import dev.ide.core.services.DependencyService
+import dev.ide.core.sync.ProjectSyncOutcome
 import dev.ide.index.IndexService
 import dev.ide.lang.LanguageId
 import dev.ide.lang.SourceAnalyzer
@@ -88,6 +89,18 @@ internal interface EngineContext {
 
     /** Every module across the workspace's projects. */
     fun modules(): List<Module>
+
+    /** True when the workspace is an external (Gradle/Flutter) project whose build files changed since the
+     *  last sync — a manually-edited `build.gradle` dependency isn't reflected in the live model yet, and a
+     *  build would silently ignore it (its imports compile as "unresolved reference"). The build's entry
+     *  point calls [syncFromBuildFiles] when this is true so a just-added dependency is picked up + downloaded
+     *  before the build graph is constructed. False for native projects (their model owns itself). */
+    fun isSyncStale(): Boolean
+
+    /** Re-read the workspace's build files into the open model (external projects only), so a manually-added
+     *  dependency/module changes take effect. Returns the importer's outcome; the caller is responsible for
+     *  re-resolving declared dependencies and re-indexing after a successful sync. */
+    suspend fun syncFromBuildFiles(): ProjectSyncOutcome
 
     /** The project that owns [module], or null. */
     fun projectOf(module: Module): Project?
