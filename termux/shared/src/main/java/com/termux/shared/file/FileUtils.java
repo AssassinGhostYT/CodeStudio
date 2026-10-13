@@ -1312,8 +1312,27 @@ public class FileUtils {
             Logger.logVerbose(LOG_TAG, "Deleting " + label + "file at path \"" + filePath + "\"");
             PathsKt.deleteRecursively(file.toPath());
 
-            // If file still exists after deleting it
+            // A racing counterpart (another process both trying to own this path) or a filesystem that
+            // defers the unlink can leave the file after the polymorphic delete returned. Retry with a
+            // raw deleteIfExists() (which THROWS the real cause rather than silently returning false) a
+            // few times to ride the race out before declaring failure. See ERRNO_FILE_STILL_EXISTS_AFTER_DELETING.
             fileType = getFileType(filePath, false);
+            for (int retry = 0; retry < 3 && fileType != FileType.NO_EXIST; retry++) {
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+                try {
+                    java.nio.file.Files.deleteIfExists(file.toPath());
+                } catch (Exception e) {
+                    Logger.logError("Failed to delete \"" + filePath + "\": " + e.getMessage());
+                }
+                fileType = getFileType(filePath, false);
+            }
+
+            // If file still exists after deleting it
             if (fileType != FileType.NO_EXIST)
                 return FileUtilsErrno.ERRNO_FILE_STILL_EXISTS_AFTER_DELETING.getError(label + "file meant to be deleted", filePath);
         }

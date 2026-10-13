@@ -49,8 +49,17 @@ public class TermuxApplication extends BaseApplication {
                 return;
             }
 
-            // Setup termux-am-socket server
-            TermuxAmSocketServer.setupTermuxAmSocketServer(context);
+            // Setup termux-am-socket server. This app runs several DEDICATED PROCESSES (the :build / daemon
+            // android:process services) whose Application.onCreate runs side by side; every one of them used to
+            // create the termux-am server socket at the same filesystem path, racing each other's delete-then-
+            // bind and surfacing "Socket Server Error (303) FileUtils Error: ... still exists after deleting".
+            // Only the MAIN process (processName == packageName) may own the socket; daemon processes must not.
+            String mainProcessName = context.getApplicationInfo().processName;
+            if (mainProcessName == null || mainProcessName.equals(context.getPackageName())) {
+                TermuxAmSocketServer.setupTermuxAmSocketServer(context);
+            } else {
+                Logger.logDebug(LOG_TAG, "Skipping termux-am socket server setup in non-main process \"" + mainProcessName + "\"");
+            }
         } else {
             Logger.logErrorExtended(LOG_TAG, "Termux files directory is not accessible\n" + error);
         }
