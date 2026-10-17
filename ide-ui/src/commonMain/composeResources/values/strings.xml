@@ -279,6 +279,7 @@ Nunca recopilamos su código, nombres de archivos o proyectos, qué funciones us
     <string name="buildc_logcat_connected">Conectado</string>
     <string name="buildc_logcat_waiting">Esperando la app…</string>
     <string name="buildc_logcat_idle">Ninguna app en ejecución</string>
+    <string name="buildc_logcat_copy_selection">Copiar %1$d líneas</string>
     <string name="buildc_general">General</string>
     <string name="buildc_no_steps">Aún no hay pasos de compilación.</string>
     <string name="buildc_indexing">Indexando…</string>

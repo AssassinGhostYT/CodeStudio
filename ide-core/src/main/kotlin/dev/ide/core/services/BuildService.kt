@@ -97,6 +97,7 @@ import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -363,6 +364,37 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
     /** Clear the app-log buffer (the Logcat tab's Clear action). */
     fun clearAppLog() {
         ctx.appLogChannel?.clear()
+    }
+
+    // Watch the running app's logcat and, when NEW error-level records land, drop the whole buffer into
+    // <project>/logcat/ for the AI agent. A short debounce coalesces a crash's burst (the FATAL EXCEPTION record
+    // plus its stack-trace records arrive separately), and a 30s rate limit stops a noisy app that logs errors
+    // continuously from spamming timestamped files (ultimo-logcat.txt is always refreshed).
+    init {
+        runCatching { armLogcatErrorDump() }
+    }
+
+    private fun armLogcatErrorDump() {
+        val channel = ctx.appLogChannel ?: return
+        buildScope.launch {
+            var seen = channel.logs.value.totalAppended
+            var lastStampMs = 0L
+            channel.logs.collect { snap ->
+                // totalAppended resets on clear()/a new session; restart the window so old entries don't look new.
+                if (snap.totalAppended < seen) seen = 0L
+                val firstIndex = snap.totalAppended - snap.entries.size
+                val hasFreshError = snap.entries.withIndex().any { (i, e) ->
+                    firstIndex + i >= seen && e.level == AppLogLevel.ERROR
+                }
+                seen = snap.totalAppended
+                if (!hasFreshError) return@collect
+                delay(2_500) // let the burst settle; StateFlow conflation hands us the latest snapshot when we resume
+                val root = currentProjectRoot() ?: return@collect
+                val now = System.currentTimeMillis()
+                saveLogcatToProject(root, "runtime error", writeStampFile = now - lastStampMs > 30_000)
+                lastStampMs = now
+            }
+        }
     }
 
     @Volatile
@@ -1300,8 +1332,50 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
             Files.writeString(crashDir.resolve("ultimo-error.txt"), content)
             Files.writeString(crashDir.resolve("error-$stamp.txt"), content)
             memLog.info("build error guardado en ${crashDir.resolve("ultimo-error.txt")}")
+            // The running app's logcat, if any, goes to its own folder so the agent can find it fast.
+            saveLogcatToProject(projectRoot, "build $header failed")
         }.onFailure { memLog.info("build-error save skipped: ${it.message}") }
     }
+
+    /**
+     * Persist the running app's LOGCAT to `<project>/logcat/` on any error, so the AI agent working in the
+     * project can jump straight to it (the logcat sibling of `<project>/errores/ultimo-error.txt`; warnings
+     * included). Writes `logcat/ultimo-logcat.txt` (the latest, for the agent) next to timestamped
+     * `logcat/logcat-<timestamp>.txt` files. No-op when the logcat buffer is empty (nothing has run), so a
+     * build-only failure never leaves an empty file behind. [writeStampFile] lets the runtime watcher rate-limit
+     * the timestamped copies while always refreshing `ultimo-logcat.txt`.
+     */
+    private fun saveLogcatToProject(projectRoot: Path, reason: String, writeStampFile: Boolean = true) {
+        runCatching {
+            val snap = ctx.appLogChannel?.logs?.value ?: return
+            if (snap.entries.isEmpty()) return
+            val logDir = projectRoot.resolve("logcat")
+            runCatching { Files.createDirectories(logDir) }.getOrNull() ?: return
+            val stamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"))
+            val content = buildString {
+                appendLine("===LOGCAT=== ($reason)")
+                appendLine("Fecha: $stamp")
+                appendLine("Paquete: ${snap.packageName ?: "-"}  Conectado: ${snap.connected}  Lineas: ${snap.entries.size}")
+                appendLine()
+                appendLine("--- logcat (todos los niveles) (${snap.entries.size}) ---")
+                snap.entries.forEach { e ->
+                    val t = LocalDateTime.ofInstant(
+                        java.time.Instant.ofEpochMilli(e.timestampMs), java.time.ZoneId.systemDefault(),
+                    ).format(DateTimeFormatter.ofPattern("HH:mm:ss.SSS"))
+                    append("$t ${e.pid}-${e.tid} ${e.level.letter} ")
+                    if (e.tag.isNotEmpty()) { append(e.tag); append(' ') }
+                    appendLine(e.message)
+                }
+            }
+            Files.writeString(logDir.resolve("ultimo-logcat.txt"), content)
+            if (writeStampFile) Files.writeString(logDir.resolve("logcat-$stamp.txt"), content)
+            memLog.info("logcat guardado en ${logDir.resolve("ultimo-logcat.txt")}")
+        }.onFailure { memLog.info("logcat save skipped: ${it.message}") }
+    }
+
+    /** The open project's root, for the runtime logcat dump (the workspace hosts a single open project). */
+    private fun currentProjectRoot(): Path? =
+        ctx.modules().firstNotNullOfOrNull { m -> ctx.projectOf(m)?.rootDir?.path?.let { Paths.get(it) } }
 
     /** Stream [graph] execution into [buildState] (shared by run + assemble). [onSuccess] (e.g. install +
      *  launch an APK) runs after a successful build, receiving the console log appender. [onComplete] runs

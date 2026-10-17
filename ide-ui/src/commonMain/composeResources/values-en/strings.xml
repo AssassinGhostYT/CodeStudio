@@ -279,6 +279,7 @@ We never collect your code, file or project names, which features you use, or an
     <string name="buildc_logcat_connected">Connected</string>
     <string name="buildc_logcat_waiting">Waiting for app…</string>
     <string name="buildc_logcat_idle">No app running</string>
+    <string name="buildc_logcat_copy_selection">Copy %1$d lines</string>
     <string name="buildc_general">General</string>
     <string name="buildc_no_steps">No build steps yet.</string>
     <string name="buildc_indexing">Indexing…</string>

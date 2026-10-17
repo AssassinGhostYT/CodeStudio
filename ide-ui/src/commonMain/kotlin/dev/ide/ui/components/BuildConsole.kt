@@ -11,6 +11,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -56,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.platform.ClipEntry
@@ -109,6 +113,7 @@ import dev.ide.ui.generated.resources.buildc_logcat_empty
 import dev.ide.ui.generated.resources.buildc_logcat_connected
 import dev.ide.ui.generated.resources.buildc_logcat_waiting
 import dev.ide.ui.generated.resources.buildc_logcat_idle
+import dev.ide.ui.generated.resources.buildc_logcat_copy_selection
 import dev.ide.ui.generated.resources.buildc_filter_all
 import dev.ide.ui.generated.resources.buildc_filter_errors
 import dev.ide.ui.generated.resources.buildc_filter_warnings
@@ -181,6 +186,10 @@ fun BuildConsole(
     var problemFilter by remember { mutableStateOf(ProblemFilter.All) }
     var logLevel by remember { mutableStateOf(LogLevelFilter.All) }
     var logQuery by remember { mutableStateOf("") }
+    // The Logcat level+search live here too, so its header Copy button copies exactly the level the tab shows
+    // (Errors → only errors, Warnings → warnings+errors, All → the whole logcat).
+    var logcatLevel by remember { mutableStateOf(LogLevelFilter.All) }
+    var logcatQuery by remember { mutableStateOf("") }
     // Pull the errors front-and-center the moment a build fails (but never override the user otherwise).
     LaunchedEffect(buildState.status) {
         if (buildState.status == RunStatus.Failed && (errors > 0 || warnings > 0)) {
@@ -199,7 +208,7 @@ fun BuildConsole(
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Header(
             buildState, errors, warnings, tab, activePluginTab != null,
-            problemFilter, logLevel, logQuery,
+            problemFilter, logLevel, logQuery, appLog, logcatLevel, logcatQuery,
             onRun, onStop, onCollapse,
         )
         if (indexStatus.building) IndexingSection(indexStatus)
@@ -237,7 +246,13 @@ fun BuildConsole(
                     running,
                 )
                 BuildTab.Steps -> StepsTab(buildState.steps)
-                BuildTab.Logcat -> LogcatTab(appLog) { backend?.build?.clearAppLog() }
+                BuildTab.Logcat -> LogcatTab(
+                    appLog,
+                    logcatLevel,
+                    { logcatLevel = it },
+                    logcatQuery,
+                    { logcatQuery = it },
+                ) { backend?.build?.clearAppLog() }
             }
         }
         // A compact native ad in the console footer, only while nothing is building — a natural pause, never
@@ -267,6 +282,9 @@ private fun Header(
     problemFilter: ProblemFilter,
     logLevel: LogLevelFilter,
     logQuery: String,
+    appLog: AppLogUi,
+    logcatLevel: LogLevelFilter,
+    logcatQuery: String,
     onRun: () -> Unit,
     onStop: () -> Unit,
     onCollapse: () -> Unit,
@@ -305,7 +323,9 @@ private fun Header(
             )
         }
         StatusPill(state.status)
-        val (copyTab, copyProvide) = copyForTab(state, tab, pluginActive, problemFilter, logLevel, logQuery)
+        val (copyTab, copyProvide) = copyForTab(
+            state, tab, pluginActive, problemFilter, logLevel, logQuery, appLog, logcatLevel, logcatQuery,
+        )
         if (copyProvide != null) CopyButton(copyTab, copyProvide)
         if (running) IconButtonCa(
             CaIcons.stop,
@@ -367,6 +387,9 @@ private fun copyForTab(
     problemFilter: ProblemFilter,
     logLevel: LogLevelFilter,
     logQuery: String,
+    appLog: AppLogUi,
+    logcatLevel: LogLevelFilter,
+    logcatQuery: String,
 ): Pair<BuildTab, (() -> String)?> {
     if (pluginActive) return tab to null
     return when (tab) {
@@ -387,9 +410,16 @@ private fun copyForTab(
         BuildTab.Steps -> tab to (
             if (state.steps.isEmpty()) null
             else fun(): String = renderStepsForCopy(state.steps))
-        // The Logcat tab has its own live buffer (not in BuildState) and is selectable in place, so no
-        // header copy-all button — return no provider (which hides it).
-        BuildTab.Logcat -> tab to null
+        // The Logcat tab copies its live buffer, honoring the tab's own level filter + search — so the same
+        // Copies-as-shown rule applies: "Errors" copies only errors, "Warnings" warnings+errors, "All" the
+        // whole logcat (its buffer lives outside BuildState, so it is passed in).
+        BuildTab.Logcat -> {
+            val q = logcatQuery.trim()
+            val shown = appLog.lines.filter {
+                logcatLevel.keep(it.level) && (q.isEmpty() || it.message.contains(q, true) || it.tag.contains(q, true))
+            }
+            tab to (if (shown.isEmpty()) null else fun(): String = shown.joinToString("\n", transform = ::renderLogcatForCopy))
+        }
     }
 }
 
@@ -440,6 +470,16 @@ internal fun clipForClipboard(text: String): String {
     val dropped = text.length - MAX_CLIPBOARD_CHARS
     return "[... $dropped earlier characters truncated to fit the clipboard ...]\n" +
         text.substring(text.length - MAX_CLIPBOARD_CHARS)
+}
+
+/** Renders one logcat record the way its row reads: `time  PID-TID  L  tag  message` (a crash record keeps its
+ *  embedded newlines, so the whole stack trace copies as one block), omitting any empty field. */
+private fun renderLogcatForCopy(l: AppLogLineUi): String = buildString {
+    if (l.timeLabel.isNotEmpty()) { append(l.timeLabel); append(' ') }
+    if (l.pid > 0) { append(l.pid); append('-'); append(l.tid); append(' ') }
+    append(logLevelLetter(l.level)); append(' ')
+    if (l.tag.isNotEmpty()) { append(l.tag); append(' ') }
+    append(l.message)
 }
 
 private fun renderLogForCopy(l: BuildLogLine): String = buildString {
@@ -1076,14 +1116,19 @@ private fun shortTask(task: String): String = task.substringAfterLast(':').ifEmp
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun LogcatTab(appLog: AppLogUi, onClear: () -> Unit) {
-    // Filter/search + full-screen state are hoisted so the inline view and the full-screen overlay share them
-    // (same active filter, same query, same live buffer) — toggling full-screen never loses the user's context.
-    var level by remember { mutableStateOf(LogLevelFilter.All) }
-    var query by remember { mutableStateOf("") }
+private fun LogcatTab(
+    appLog: AppLogUi,
+    level: LogLevelFilter,
+    onLevel: (LogLevelFilter) -> Unit,
+    query: String,
+    onQuery: (String) -> Unit,
+    onClear: () -> Unit,
+) {
+    // The level/search state (hoisted to the console, so the header Copy follows it) is shared by the inline
+    // view and the full-screen overlay; only full-screen is local — toggling it never loses the user's context.
     var fullScreen by remember { mutableStateOf(false) }
 
-    LogcatBody(appLog, level, { level = it }, query, { query = it }, onClear, fullScreen) { fullScreen = !fullScreen }
+    LogcatBody(appLog, level, onLevel, query, onQuery, onClear, fullScreen) { fullScreen = !fullScreen }
 
     // Full-screen overlay: the same live Logcat filling the whole window. Back / scrim tap dismisses.
     if (fullScreen) {
@@ -1093,7 +1138,7 @@ private fun LogcatTab(appLog: AppLogUi, onClear: () -> Unit) {
         ) {
             Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
                 Box(Modifier.fillMaxSize().padding(14.dp)) {
-                    LogcatBody(appLog, level, { level = it }, query, { query = it }, onClear, fullScreen = true) { fullScreen = false }
+                    LogcatBody(appLog, level, onLevel, query, onQuery, onClear, fullScreen = true) { fullScreen = false }
                 }
             }
         }
@@ -1183,16 +1228,126 @@ private fun LogcatStatus(appLog: AppLogUi) {
 private fun LogcatList(lines: List<AppLogLineUi>, connected: Boolean) {
     val listState = rememberLazyListState()
     val hScroll = rememberScrollState()
-    // Tail while an app is connected; once it disconnects, leave the scroll where the user put it.
-    LaunchedEffect(lines.size, connected) {
-        if (connected && lines.isNotEmpty()) runCatching { listState.animateScrollToItem(lines.lastIndex) }
+    val scope = rememberCoroutineScope()
+
+    // Press-and-drag multi-line selection: long-press ANCHORS a row, dragging DOWN (or up) EXTENDS the range over
+    // more rows — errors and warnings alike — and releasing keeps it; a plain tap clears it. We own this state
+    // instead of wrapping the list in one SelectionContainer, whose SelectionManager throws NoSuchElement once
+    // auto-tail scrolling (or the ring buffer trimming old lines) disposes a selected row — the reason rows used
+    // to be individually selectable (a single line at a time) with no cross-row drag.
+    var anchor by remember { mutableStateOf(-1) }
+    var selection by remember { mutableStateOf<IntRange?>(null) }
+
+    // Tail while an app is connected — but NOT while the user is selecting, so the rows don't slide out from
+    // under the finger mid-selection. Once it disconnects, leave the scroll where the user put it.
+    LaunchedEffect(lines.size, connected, selection != null) {
+        if (connected && lines.isNotEmpty() && selection == null)
+            runCatching { listState.animateScrollToItem(lines.lastIndex) }
     }
-    // Android-Studio Logcat behavior: soft-wrap OFF. Each entry stays on ONE line; a long line extends to the
-    // right and the whole list scrolls horizontally (swipe sideways) instead of wrapping onto extra rows.
-    // Per-row selection (see LogColumn): auto-tailing disposes selected rows, so an outer SelectionContainer
-    // would throw NoSuchElement from a stale selectable id. Whole-log copy is the tab's Copy button.
-    LazyColumn(state = listState, modifier = Modifier.fillMaxSize().horizontalScroll(hScroll)) {
-        items(lines) { SelectionContainer { LogcatRow(it) } }
+
+    Box(Modifier.fillMaxSize()) {
+        // Android-Studio Logcat behavior: soft-wrap OFF. Each entry stays on ONE line; a long line extends to
+        // the right and the whole list scrolls horizontally (swipe sideways) instead of wrapping onto extra rows.
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize().horizontalScroll(hScroll)
+                // Tap (no long-press) clears a selection; scrolling still works because neither detector acts
+                // until its gesture is recognized.
+                .pointerInput(Unit) { detectTapGestures { anchor = -1; selection = null } }
+                .pointerInput(Unit) {
+                    // The row index under a viewport-y, clamped to the visible range so a drag past an edge still
+                    // resolves to the end row (which the edge nudge then replaces as new rows scroll in).
+                    fun indexAt(y: Float): Int? {
+                        val vis = listState.layoutInfo.visibleItemsInfo
+                        if (vis.isEmpty()) return null
+                        val first = vis.first()
+                        val last = vis.last()
+                        if (y < first.offset) return first.index
+                        if (y >= last.offset + last.size) return last.index
+                        return vis.firstOrNull { y >= it.offset && y < it.offset + it.size }?.index ?: last.index
+                    }
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = { pos ->
+                            val i = indexAt(pos.y)
+                            if (i != null) { anchor = i; selection = i..i }
+                        },
+                        // Keep the selection on release/cancel — the user then taps Copy, or taps to clear.
+                        onDragEnd = {},
+                        onDragCancel = {},
+                        onDrag = { change, _ ->
+                            change.consume()
+                            val y = change.position.y
+                            val viewport = (listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset).toFloat()
+                            val edge = 48f
+                            // Nudge the list when the finger hugs an edge so a long error can be selected past
+                            // the visible range; the range then follows whichever rows slide under the finger.
+                            val over = when {
+                                y > viewport - edge -> y - (viewport - edge)
+                                y < edge -> y - edge
+                                else -> 0f
+                            }
+                            if (over != 0f) scope.launch { runCatching { listState.scrollBy(over * 0.35f) } }
+                            val t = indexAt(y)
+                            if (anchor >= 0 && t != null) selection = minOf(anchor, t)..maxOf(anchor, t)
+                        },
+                    )
+                },
+        ) {
+            itemsIndexed(lines) { i, line ->
+                LogcatRow(line, selected = selection?.let { i in it } == true)
+            }
+        }
+        selection?.let { sel ->
+            LogcatSelectionBar(
+                count = sel.last - sel.first + 1,
+                provide = { lines.subList(sel.first, sel.last + 1).joinToString("\n", transform = ::renderLogcatForCopy) },
+                onClear = { anchor = -1; selection = null },
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
+        }
+    }
+}
+
+/** The floating bar shown while a multi-line logcat selection is active: a Copy button (the selected rows as
+ *  pasteable text) and a dismiss. Mirrors the header's [CopyButton] confirmation flip. */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun LogcatSelectionBar(count: Int, provide: () -> String, onClear: () -> Unit, modifier: Modifier = Modifier) {
+    val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) { delay(1500.milliseconds); copied = false }
+    }
+    val shape = RoundedCornerShape(Ca.radius.pill)
+    Row(
+        modifier.padding(8.dp)
+            .background(MaterialTheme.colorScheme.secondaryContainer, shape)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        IconButtonCa(
+            if (copied) CaIcons.check else CaIcons.copy,
+            stringResource(Res.string.buildc_logcat_copy_selection, count),
+            onClick = {
+                scope.launch { clipboard.setText(AnnotatedString(clipForClipboard(provide()))) }
+                copied = true
+            },
+            boxSize = 30, iconSize = 16,
+            tint = if (copied) Ide.colors.run else MaterialTheme.colorScheme.onSecondaryContainer,
+        )
+        Text(
+            stringResource(Res.string.buildc_logcat_copy_selection, count),
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 1,
+        )
+        IconButtonCa(
+            CaIcons.close, stringResource(Res.string.clear), onClick = onClear,
+            boxSize = 30, iconSize = 16, tint = MaterialTheme.colorScheme.onSecondaryContainer,
+        )
     }
 }
 
@@ -1204,9 +1359,11 @@ private fun LogcatList(lines: List<AppLogLineUi>, connected: Boolean) {
  * first one. A normal single-line record is unchanged.
  */
 @Composable
-private fun LogcatRow(line: AppLogLineUi) {
+private fun LogcatRow(line: AppLogLineUi, selected: Boolean = false) {
     Row(
-        Modifier.padding(start = 14.dp, top = 1.dp, bottom = 1.dp),
+        Modifier.fillMaxWidth()
+            .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Color.Transparent)
+            .padding(start = 14.dp, top = 1.dp, bottom = 1.dp),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
