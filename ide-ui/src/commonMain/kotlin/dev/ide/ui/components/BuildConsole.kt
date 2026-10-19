@@ -55,11 +55,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.platform.ClipEntry
@@ -1224,11 +1227,16 @@ private fun LogcatStatus(appLog: AppLogUi) {
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun LogcatList(lines: List<AppLogLineUi>, connected: Boolean) {
     val listState = rememberLazyListState()
     val hScroll = rememberScrollState()
+    // The clipboard write runs on THIS scope (not the selection bar's), so it still completes even if the bar
+    // is disposed mid-tap — e.g. a tap that clears the selection would otherwise cancel a bar-owned coroutine
+    // before it reaches setText, leaving the clipboard empty (the "toco copiar y no copia nada" bug).
     val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboardManager.current
 
     // Press-and-drag multi-line selection: long-press ANCHORS a row, dragging DOWN (or up) EXTENDS the range over
     // more rows — errors and warnings alike — and releasing keeps it; a plain tap clears it. We own this state
@@ -1237,6 +1245,9 @@ private fun LogcatList(lines: List<AppLogLineUi>, connected: Boolean) {
     // to be individually selectable (a single line at a time) with no cross-row drag.
     var anchor by remember { mutableStateOf(-1) }
     var selection by remember { mutableStateOf<IntRange?>(null) }
+    // The selection bar's bounds, so a tap that lands ON the bar isn't mistaken for a tap on the list (which
+    // would clear the selection and dismiss the bar out from under the copy button).
+    var barBounds by remember { mutableStateOf<Rect?>(null) }
 
     // Tail while an app is connected — but NOT while the user is selecting, so the rows don't slide out from
     // under the finger mid-selection. Once it disconnects, leave the scroll where the user put it.
@@ -1251,9 +1262,13 @@ private fun LogcatList(lines: List<AppLogLineUi>, connected: Boolean) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize().horizontalScroll(hScroll)
-                // Tap (no long-press) clears a selection; scrolling still works because neither detector acts
-                // until its gesture is recognized.
-                .pointerInput(Unit) { detectTapGestures { anchor = -1; selection = null } }
+                // Tap (no long-press) clears a selection — unless it lands on the selection bar, which overlaps
+                // the list; the coordinates match because both share the Box origin (the list is fillMaxSize).
+                .pointerInput(Unit) {
+                    detectTapGestures { pos ->
+                        if (barBounds?.contains(pos) != true) { anchor = -1; selection = null }
+                    }
+                }
                 .pointerInput(Unit) {
                     // The row index under a viewport-y, clamped to the visible range so a drag past an edge still
                     // resolves to the end row (which the edge nudge then replaces as new rows scroll in).
@@ -1300,21 +1315,33 @@ private fun LogcatList(lines: List<AppLogLineUi>, connected: Boolean) {
         selection?.let { sel ->
             LogcatSelectionBar(
                 count = sel.last - sel.first + 1,
-                provide = { lines.subList(sel.first, sel.last + 1).joinToString("\n", transform = ::renderLogcatForCopy) },
+                // Clamp against the CURRENT list: the ring buffer may have trimmed old lines since the range was
+                // picked, which would otherwise make subList throw out of range.
+                provide = {
+                    val from = sel.first.coerceIn(0, lines.size)
+                    val to = (sel.last + 1).coerceIn(0, lines.size)
+                    if (from >= to) "" else lines.subList(from, to).joinToString("\n", transform = ::renderLogcatForCopy)
+                },
+                onCopy = { text -> scope.launch { clipboard.setText(AnnotatedString(clipForClipboard(text))) } },
                 onClear = { anchor = -1; selection = null },
-                modifier = Modifier.align(Alignment.BottomCenter),
+                modifier = Modifier.align(Alignment.BottomCenter)
+                    .onGloballyPositioned { barBounds = it.boundsInParent() },
             )
         }
     }
 }
 
 /** The floating bar shown while a multi-line logcat selection is active: a Copy button (the selected rows as
- *  pasteable text) and a dismiss. Mirrors the header's [CopyButton] confirmation flip. */
-@OptIn(ExperimentalComposeUiApi::class)
+ *  pasteable text) and a dismiss. [onCopy] receives the rendered text and writes it to the clipboard on the
+ *  caller's (list-lifetime) scope, so the copy survives this bar being dismissed. */
 @Composable
-private fun LogcatSelectionBar(count: Int, provide: () -> String, onClear: () -> Unit, modifier: Modifier = Modifier) {
-    val clipboard = LocalClipboardManager.current
-    val scope = rememberCoroutineScope()
+private fun LogcatSelectionBar(
+    count: Int,
+    provide: () -> String,
+    onCopy: (String) -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     var copied by remember { mutableStateOf(false) }
     LaunchedEffect(copied) {
         if (copied) { delay(1500.milliseconds); copied = false }
@@ -1331,10 +1358,7 @@ private fun LogcatSelectionBar(count: Int, provide: () -> String, onClear: () ->
         IconButtonCa(
             if (copied) CaIcons.check else CaIcons.copy,
             stringResource(Res.string.buildc_logcat_copy_selection, count),
-            onClick = {
-                scope.launch { clipboard.setText(AnnotatedString(clipForClipboard(provide()))) }
-                copied = true
-            },
+            onClick = { onCopy(provide()); copied = true },
             boxSize = 30, iconSize = 16,
             tint = if (copied) Ide.colors.run else MaterialTheme.colorScheme.onSecondaryContainer,
         )
