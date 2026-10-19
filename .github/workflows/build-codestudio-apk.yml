@@ -10,6 +10,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Needed to publish the built APK to GitHub Releases (create/update the per-version release).
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -101,3 +104,22 @@ jobs:
           path: ide-android/build/apk/CodeStudio.apk
           if-no-files-found: error
           compression-level: 0
+
+      # Publish the same APK to GitHub Releases so people can download it without signing in (the Actions
+      # artifact requires a login). Tagged by the current versionName, idempotent: the first build of a version
+      # creates the release, later rebuilds of the same version just refresh the asset in place.
+      - name: Publish APK to GitHub Releases
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          version=$(grep -oP 'versionName\s*=\s*"\K[^"]+' ide-android/build.gradle.kts | head -1)
+          tag="v${version}"
+          apk=ide-android/build/apk/CodeStudio.apk
+          echo "Publishing $apk as release $tag"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$apk" --clobber
+          else
+            gh release create "$tag" "$apk" --title "CodeStudio ${version}" --generate-notes
+          fi
