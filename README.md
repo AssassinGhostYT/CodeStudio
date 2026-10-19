@@ -217,6 +217,10 @@ El archivo `.apk` compilado estará disponible en la ruta:
 - [x] **Logcat integrado** con filtros y niveles, **selección multilínea** (pulsar y arrastrar), **copia según el filtro** activo (Errores/Advertencias/Todo) y **volcado a `<proyecto>/logcat/`** ante errores (para el agente de IA).
 - [x] Consola de compilación con pestañas **Problems / Log / Steps / Logcat** y copia del transcript.
 - [x] **Publicación en Google Play** (AAB firmado, release sin ofuscación R8) y **APK de prueba publicado en GitHub Releases**.
+- [x] **Quick Documentation** (documentación inline) y **Parameter Info** (Signature Help al escribir argumentos).
+- [x] **Postfix completion** (plantillas tipo `.if`, `.var`) además de live templates.
+- [x] **Múltiples pestañas de editor** y paleta de comandos/archivos.
+- [x] **Generación de assets de app** (App Icon Studio: iconos adaptativos, foreground/background).
 - [ ] 🔄 **Autocompletado contextual** (símbolos, miembros, auto-import) — ~50%.
 - [ ] 🔄 **Completado con resolución semántica real** (tipos inferidos) — ~40%.
 - [ ] 🟡 Auto-import de clases no importadas.
@@ -266,15 +270,13 @@ El archivo `.apk` compilado estará disponible en la ruta:
 - [ ] Soporte NDK (C/C++ con completado y debug).
 - [ ] Soporte Flutter/Dart en dispositivo.
 
-**Editor y edición avanzada (paridad Android Studio):**
+**Editor y edición avanzada:**
 
-- [ ] 🟡 Quick Documentation (documentación inline) y documentación externa.
-- [ ] 🟡 Parameter Info (firma del método al escribir argumentos).
-- [ ] 🟡 Postfix completion completo (`.if`, `.var`, `.for`…).
+- [ ] 🟡 Documentación externa (abrir javadoc/KDoc en el navegador).
 - [ ] 🟡 Surround With (envolver con plantilla).
-- [ ] 🟡 Duplicar / mover / unir / comentar líneas por atajos.
+- [ ] 🟡 Duplicar / mover / unir líneas por atajos.
 - [ ] 🟡 Historial de portapapeles.
-- [ ] 🟡 Split editor y múltiples pestañas de editor.
+- [ ] 🟡 Split editor de dos paneles de código (hoy solo editor + preview).
 - [ ] 🟡 Structural Search & Replace (SSR) y búsqueda por regex con reemplazo.
 - [ ] 🟡 Code cleanup automático y optimización de imports a nivel proyecto.
 - [ ] 🟡 Guías de indentación, reglas verticales y ligaduras de fuente.
@@ -309,7 +311,6 @@ El archivo `.apk` compilado estará disponible en la ruta:
 
 **Herramientas y ecosistema:**
 
-- [ ] Vector/Image Asset Studio por capas (iconos adaptativos, foreground/background).
 - [ ] Historial local (Local History) de cambios por archivo.
 - [ ] Archivos scratch (notas/código temporales).
 - [ ] App Quality Insights / Crashlytics (crashes de la app en producción).
