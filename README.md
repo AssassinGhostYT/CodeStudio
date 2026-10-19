@@ -59,8 +59,10 @@ Diseñado de forma nativa para la plataforma Android, aprovechando el rendimient
   - Soporte completo para navegación por código (*Go to Definition*, *Find Usages*).
 - 📦 **Motor de Compilación e Inspección Nativo:**
   - Orquestación interna del ciclo de construcción Gradle.
-  - Generación de APKs ejecutables directamente desde la aplicación.
-  - Consola de logs interactiva y detallada en tiempo real.
+  - Generación de APKs y AABs ejecutables directamente desde la aplicación.
+  - Resolución y **descarga automática de dependencias** añadidas a mano a `build.gradle` (al guardar y antes de compilar).
+  - Consola de compilación por pestañas (Problems / Log / Steps) y **Logcat integrado** con filtros, copia multilínea y volcado a `<proyecto>/logcat/` ante errores.
+  - Publicación firmada en **Google Play** (AAB) y **APK de prueba en GitHub Releases**.
 - 🌿 **Integración Total con Control de Versiones (Git VCS):**
   - Clonado de repositorios remotos por HTTPS.
   - Gestión de ramas (*checkout*, *branch creation*, *merge*).
@@ -177,9 +179,9 @@ El archivo `.apk` compilado estará disponible en la ruta:
 
 ## 🗺️ Hoja de Ruta (Roadmap)
 
-> **Estado global frente al objetivo de "IDE de escritorio completo en el móvil": ~55%.** El núcleo
-> (editar, analizar, completar, compilar, dependencias y Git) está sólidamente implementado, y el
-> editor/IDE ya cubre una fracción grande del día a día. Lo más lejano sigue siendo el depurador,
+> **Estado global frente al objetivo de "IDE de escritorio completo en el móvil": ~57%.** El núcleo
+> (editar, analizar, completar, compilar, dependencias, Git y **Logcat**) está sólidamente implementado,
+> y el editor/IDE ya cubre una fracción grande del día a día. Lo más lejano sigue siendo el depurador,
 > profilers, emulador y testing. Esta hoja de ruta compara **todas** las capacidades del IDE de
 > escritorio estándar contra el estado real de CodeStudio. Los porcentajes son estimaciones honestas
 > de madurez relativa.
@@ -211,6 +213,10 @@ El archivo `.apk` compilado estará disponible en la ruta:
 - [x] Vista previa de recursos (drawables, vectores, colores, selectores).
 - [x] Gestión de SDK (instalación de fuentes de plataforma y `src.zip` de JDK).
 - [x] Plantillas de proyecto/actividad/módulos (Android, Dart, Flutter) y tienda de proyectos.
+- [x] **Descarga automática de dependencias** añadidas a mano en `build.gradle`/`.kts` (sincronización al guardar y antes de compilar/ejecutar).
+- [x] **Logcat integrado** con filtros y niveles, **selección multilínea** (pulsar y arrastrar), **copia según el filtro** activo (Errores/Advertencias/Todo) y **volcado a `<proyecto>/logcat/`** ante errores (para el agente de IA).
+- [x] Consola de compilación con pestañas **Problems / Log / Steps / Logcat** y copia del transcript.
+- [x] **Publicación en Google Play** (AAB firmado, release sin ofuscación R8) y **APK de prueba publicado en GitHub Releases**.
 - [ ] 🔄 **Autocompletado contextual** (símbolos, miembros, auto-import) — ~50%.
 - [ ] 🔄 **Completado con resolución semántica real** (tipos inferidos) — ~40%.
 - [ ] 🟡 Auto-import de clases no importadas.
@@ -220,7 +226,7 @@ El archivo `.apk` compilado estará disponible en la ruta:
 - [ ] 🔄 Historia de commits y diff de archivo (unificado; falta side-by-side y blame).
 - [ ] 🔄 **Terminal integrada** (proot + bash) — ~55%.
 - [ ] 🔄 **Sistema de plugins** (SPI interno + PluginManager; sin instalación externa aislada) — ~30%.
-- [ ] 🔄 Logcat integrado con filtros y niveles.
+- [ ] 🔄 **Asistente de IA** para edición de código (agente integrado; sin tool-window dedicada) — ~40%.
 - [ ] 🔄 Editor visual de layouts (preview live + edición de atributos; sin paleta drag-drop, bloque solo Java).
 - [ ] 🔄 Soporte Flutter/Dart (Dart SDK gestionado + build por CLI de flutter; sin runtime en dispositivo).
 - [ ] 🟡 Minimapa (folding y breadcrumbs listos).
@@ -259,6 +265,58 @@ El archivo `.apk` compilado estará disponible en la ruta:
 - [ ] Sincronización de configuración del IDE.
 - [ ] Soporte NDK (C/C++ con completado y debug).
 - [ ] Soporte Flutter/Dart en dispositivo.
+
+**Editor y edición avanzada (paridad Android Studio):**
+
+- [ ] 🟡 Quick Documentation (documentación inline) y documentación externa.
+- [ ] 🟡 Parameter Info (firma del método al escribir argumentos).
+- [ ] 🟡 Postfix completion completo (`.if`, `.var`, `.for`…).
+- [ ] 🟡 Surround With (envolver con plantilla).
+- [ ] 🟡 Duplicar / mover / unir / comentar líneas por atajos.
+- [ ] 🟡 Historial de portapapeles.
+- [ ] 🟡 Split editor y múltiples pestañas de editor.
+- [ ] 🟡 Structural Search & Replace (SSR) y búsqueda por regex con reemplazo.
+- [ ] 🟡 Code cleanup automático y optimización de imports a nivel proyecto.
+- [ ] 🟡 Guías de indentación, reglas verticales y ligaduras de fuente.
+- [ ] 🟡 Codificación de archivos y fin de línea (LF/CRLF) configurables.
+- [ ] 🟡 Keymap/atajos personalizables.
+
+**Navegación y estructura:**
+
+- [ ] Archivos recientes y navegación atrás/adelante (historial del editor).
+- [ ] Marcadores (bookmarks) y favoritos.
+- [ ] Ventana TODO / tareas pendientes.
+
+**Refactorización avanzada:**
+
+- [ ] Refactor This / Safe Delete / Encapsulate Fields / Pull Up / Push Down.
+- [ ] Introduce Field/Constant/Parameter/Variable.
+
+**Build y Gradle:**
+
+- [ ] Editor de configuración ProGuard/R8 y reglas del shrinker.
+- [ ] Build Analyzer (desglose de tiempos y grafo de tareas).
+- [ ] Procesamiento de anotaciones (kapt/KSP) con fuentes generadas visibles.
+- [ ] Compilador de Compose / desugaring / MultiDex configurables.
+- [ ] Módulos de feature dinámica (dynamic features) e Instant Apps.
+- [ ] Gestión de `buildSrc` y plugins de Gradle del proyecto.
+
+**Plataformas y lenguajes:**
+
+- [ ] Módulos Wear OS / TV / Automotive / XR.
+- [ ] Kotlin Multiplatform / Compose Multiplatform.
+- [ ] Soporte Gradle completo para C++ (JNI/CMake).
+
+**Herramientas y ecosistema:**
+
+- [ ] Vector/Image Asset Studio por capas (iconos adaptativos, foreground/background).
+- [ ] Historial local (Local History) de cambios por archivo.
+- [ ] Archivos scratch (notas/código temporales).
+- [ ] App Quality Insights / Crashlytics (crashes de la app en producción).
+- [ ] Asistente de Firebase y App Links (deep links).
+- [ ] Changelists / shelf de cambios.
+- [ ] Soporte de otros VCS (Subversion, Mercurial).
+- [ ] Integración directa con Play Console (subida de AAB, tracks).
 
 ---
 
