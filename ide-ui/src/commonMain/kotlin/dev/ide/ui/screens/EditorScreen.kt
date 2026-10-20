@@ -64,7 +64,7 @@ fun EditorScreen(
     /** Open the community plugin manager (Explore + installed creator plugins) from the Files panel header. */
     onOpenPlugins: () -> Unit = {},
     /** Open Local History for the active file (snapshots taken on every save). */
-    onOpenLocalHistory: () -> Unit = {},
+    onOpenLocalHistory: (filePath: String) -> Unit = {},
     onOpenModuleConfig: (String?) -> Unit = {},
     onCloseProject: () -> Unit = {},
     onOpenRun: () -> Unit = {},

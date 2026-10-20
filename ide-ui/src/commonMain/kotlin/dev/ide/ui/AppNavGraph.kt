@@ -130,7 +130,7 @@ internal fun AppNavGraph(
                 onOpenHub = { app.openHub(Screen.Editor) },
                 onOpenIconManager = { app.openIconManager(Screen.Editor) },
                 onOpenPlugins = { app.openPlugins(Screen.Editor, PluginsScope.InstalledOnly) },
-                onOpenLocalHistory = { state.active?.let { app.openLocalHistory(it.path) } },
+                onOpenLocalHistory = { path -> state.active?.let { app.openLocalHistory(it.path) } ?: app.openLocalHistory(path) },
                 onOpenModuleConfig = { module -> app.openModuleConfig(module, ModulesTab.Settings) },
                 onCloseProject = { app.navigateTo(Screen.Projects) },
                 onOpenRun = { app.navigateTo(Screen.Run) },
