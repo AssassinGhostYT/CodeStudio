@@ -321,7 +321,13 @@ internal fun ExpandedLayout(
                 Column(Modifier.fillMaxSize()) {
                     Row(Modifier.weight(1f).fillMaxWidth()) {
                         SidebarPane(leftPanels, state.selectedLeftPanel, RailSide.Left, paneWidth = LeftPaneWidth)
-                        EditorCenter(state, indexStatus, compact = false, Modifier.weight(1f).fillMaxHeight(), onOpenLocalHistory = onOpenLocalHistory)
+                        EditorCenter(
+                            state, indexStatus, compact = false, Modifier.weight(1f).fillMaxHeight(),
+                            onOpenLocalHistory = {
+                                val activePath = state.active?.path
+                                if (activePath != null) onOpenLocalHistory(activePath)
+                            },
+                        )
                         // Right-edge tool-window pane. Fully plugin-derived: nothing lays down when no plugin
                         // contributes a RIGHT tool window (the AI chat is one such plugin).
                         SidebarPane(rightPanels, state.selectedRightPanel, RailSide.Right, paneWidth = RightPaneWidth)
@@ -468,7 +474,10 @@ internal fun CompactLayout(
                     EditorCenter(
                         state, indexStatus, compact = true, Modifier.weight(1f).fillMaxWidth(),
                         navFraction = { navProgress },
-                        onOpenLocalHistory = onOpenLocalHistory,
+                        onOpenLocalHistory = {
+                            val activePath = state.active?.path
+                            if (activePath != null) onOpenLocalHistory(activePath)
+                        },
                     )
                     // While the keyboard is up: a coding-symbol accessory bar sits directly above it. Off-keyboard,
                     // the dock's collapsed bar takes the slot instead.
