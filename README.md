@@ -179,7 +179,7 @@ El archivo `.apk` compilado estará disponible en la ruta:
 
 ## 🗺️ Hoja de Ruta (Roadmap)
 
-> **Estado global frente al objetivo de "IDE de escritorio completo en el móvil": ~57%.** El núcleo
+> **Estado global frente al objetivo de "IDE de escritorio completo en el móvil": ~61%.** El núcleo
 > (editar, analizar, completar, compilar, dependencias, Git y **Logcat**) está sólidamente implementado,
 > y el editor/IDE ya cubre una fracción grande del día a día. Lo más lejano sigue siendo el depurador,
 > profilers, emulador y testing. Esta hoja de ruta compara **todas** las capacidades del IDE de
@@ -221,23 +221,23 @@ El archivo `.apk` compilado estará disponible en la ruta:
 - [x] **Postfix completion** (plantillas tipo `.if`, `.var`) además de live templates.
 - [x] **Múltiples pestañas de editor** y paleta de comandos/archivos.
 - [x] **Generación de assets de app** (App Icon Studio: iconos adaptativos, foreground/background).
+- [x] **Terminal integrada** (pestañas en la consola, runtimes Termux y Ubuntu/proot, servicio de mantenimiento en segundo plano).
+- [x] **Sistema de plugins** (SPI, `ActionManager`, extension points, `PluginManager` y **carga de plugins externos**).
+- [x] **Asistente de IA** con **tool-window** propio (Chat Drawer, 5 proveedores, MCP y agente con herramientas).
+- [x] **Soporte Flutter/Dart** completo (SDK gestionado, `build`/`run` por CLI y **ejecución en dispositivo** vía host Compose).
 - [ ] 🔄 **Autocompletado contextual** (símbolos, miembros, auto-import) — ~50%.
 - [ ] 🔄 **Completado con resolución semántica real** (tipos inferidos) — ~40%.
 - [ ] 🟡 Auto-import de clases no importadas.
 - [ ] 🔄 Completado de recursos Android (`@drawable/`, `@string/`).
 - [ ] 🔄 **Generación de código** (override stubs y postfix listos; falta menú Generate de constructores/getters) — ~40%.
-- [ ] 🔄 Soporte Gradle-KTS / version catalogs completos.
-- [ ] 🔄 Historia de commits y diff de archivo (unificado; falta side-by-side y blame).
-- [ ] 🔄 **Terminal integrada** (proot + bash) — ~55%.
-- [ ] 🔄 **Sistema de plugins** (SPI interno + PluginManager; sin instalación externa aislada) — ~30%.
-- [ ] 🔄 **Asistente de IA** para edición de código (agente integrado; sin tool-window dedicada) — ~40%.
+- [ ] 🟡 Soporte Gradle-KTS / version catalogs completos (se generan e importan; falta edición dedicada del catálogo).
+- [ ] 🟡 Diff de archivo unificado y último commit (faltan historial completo, side-by-side y blame).
 - [ ] 🔄 Editor visual de layouts (preview live + edición de atributos; sin paleta drag-drop, bloque solo Java).
-- [ ] 🔄 Soporte Flutter/Dart (Dart SDK gestionado + build por CLI de flutter; sin runtime en dispositivo).
 - [ ] 🟡 Minimapa (folding y breadcrumbs listos).
 - [ ] 🟡 Vista previa de traducciones (resources OK, traducciones no).
 - [ ] Multi-cursor, edición columnar, selección en cascada.
-- [ ] Inspecciones tipo Android Lint (resources huérfanos, hardcoded strings…).
-- [ ] Build cache persistente + análisis de tiempos de build.
+- [ ] 🟡 Inspecciones tipo Android Lint (análisis de XML/atributos + quick-fixes; faltan reglas de recursos huérfanos y strings hardcodeados).
+- [ ] 🟡 Build cache persistente (**fingerprints por tarea en disco**) + análisis de tiempos de build (falta el desglose).
 - [ ] Gradle daemon independiente / sync por cambios externos.
 - [ ] Protocolo DAP (breakpoints de línea/condicionales/logpoints).
 - [ ] Step over / into / out, frames del stack de llamadas.
@@ -258,17 +258,16 @@ El archivo `.apk` compilado estará disponible en la ruta:
 - [ ] Runner de tests unitarios (JUnit) con resultados.
 - [ ] Tests instrumentados / conectados en dispositivo.
 - [ ] Cobertura de código y reportes.
-- [ ] Rename de símbolos a nivel proyecto con resolución completa.
-- [ ] Extract method / variable / constante / campo.
-- [ ] Inline, Change Signature, Move.
-- [ ] Merge 3-way con resolución visual de conflictos.
-- [ ] Stash, cherry-pick, rebase interactivo.
-- [ ] Integración con GitHub (PRs, issues, revisión).
+- [ ] 🟡 Rename de símbolos (resolución en Java; falta renombrado multi-lenguaje a nivel de proyecto).
+- [ ] 🟡 Extract (variable en Java; faltan extract method/constante/campo).
+- [ ] 🟡 Refactors puntuales (faltan Inline, Change Signature y Move).
+- [ ] 🟡 Merge de ramas (CLI) — falta la resolución visual de conflictos a 3 vías.
+- [ ] 🟡 Stash (guardar, listar, restaurar, borrar) — faltan cherry-pick y rebase.
+- [ ] 🟡 Integración con GitHub (OAuth por dispositivo, listar/crear repos, publicar) — faltan PRs e issues.
 - [ ] Base de datos: inspector de Room/SQLite, ejecutar queries.
 - [ ] APK Analyzer (tamaño por dex/recurso/archivo).
 - [ ] Sincronización de configuración del IDE.
 - [ ] Soporte NDK (C/C++ con completado y debug).
-- [ ] Soporte Flutter/Dart en dispositivo.
 
 **Editor y edición avanzada:**
 
@@ -296,7 +295,7 @@ El archivo `.apk` compilado estará disponible en la ruta:
 
 **Build y Gradle:**
 
-- [ ] Editor de configuración ProGuard/R8 y reglas del shrinker.
+- [ ] 🟡 Editor de reglas ProGuard/R8 (resaltado de `.pro`, creación del fichero y avisos de `proguardFiles`) — sin formulario completo del shrinker.
 - [ ] Build Analyzer (desglose de tiempos y grafo de tareas).
 - [ ] Procesamiento de anotaciones (kapt/KSP) con fuentes generadas visibles.
 - [ ] Compilador de Compose / desugaring / MultiDex configurables.
