@@ -120,10 +120,10 @@ fun ApkAnalyzerScreen(
                 "Archivos (${r.entries.size})",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = androidx.compose.foundation.layout.padding(bottom = 4.dp),
+                modifier = Modifier.padding(bottom = 4.dp),
             )
             LazyColumn(Modifier.fillMaxSize()) {
-                items(r.entries, key = { it.path }) { entry ->
+                items(r.entries) { entry ->
                     EntryRow(entry)
                 }
             }
