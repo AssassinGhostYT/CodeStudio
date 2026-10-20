@@ -89,6 +89,7 @@ import dev.ide.ui.generated.resources.filetree_import_from_file_manager
 import dev.ide.ui.generated.resources.filetree_export
 import dev.ide.ui.generated.resources.filetree_reveal_in_file_manager
 import dev.ide.ui.generated.resources.filetree_rename
+import dev.ide.ui.generated.resources.local_history_menu
 import dev.ide.ui.generated.resources.filetree_move
 import dev.ide.ui.generated.resources.filetree_copy
 import dev.ide.ui.generated.resources.filetree_delete
@@ -157,6 +158,10 @@ fun FileNavigator(
     onDelete: (TreeNode) -> Unit = {},
     canReveal: Boolean = false,
     onReveal: (TreeNode) -> Unit = {},
+    /** Open Local History for a file node (snapshots taken on every save); shown in the row context menu. */
+    onOpenLocalHistory: (filePath: String) -> Unit = {},
+    /** Whether Local History is enabled (Settings ▸ Editor ▸ Local history). When false the entry is hidden. */
+    localHistoryEnabled: Boolean = true,
     /** Plugin-contributed context-menu items for a tree node (the `fileContext` place). Resolved when a row's
      *  menu opens; empty by default. Rendered under a divider below the built-in file ops. */
     contextMenuFor: (TreeNode) -> UiMenuGroup = { UiMenuGroup() },
@@ -189,7 +194,9 @@ fun FileNavigator(
         contextMenuFor,
         onContextAction,
         canExport,
-        onExport
+        onExport,
+        onOpenLocalHistory,
+        localHistoryEnabled
     )
     Column(modifier) {
         // header — project identity + the IntelliJ-style scope dropdown, with import + an overflow ⋮ menu.
@@ -375,6 +382,8 @@ private class FileRowActions(
     val onContextAction: (String, TreeNode) -> Unit = { _, _ -> },
     val canExport: Boolean = false,
     val onExport: (TreeNode) -> Unit = {},
+    val onOpenLocalHistory: (filePath: String) -> Unit = {},
+    val localHistoryEnabled: Boolean = true,
 )
 
 /** The label shown in the scope dropdown for a view mode. */
@@ -754,6 +763,13 @@ private fun TreeRowContent(
                 FileActionItem(CaIcons.copy, stringResource(Res.string.filetree_copy)) { menuOpen = false; ctx.onCopy(node) }
                 FileActionItem(CaIcons.close, stringResource(Res.string.filetree_delete), danger = true) {
                     menuOpen = false; ctx.onDelete(node)
+                }
+            }
+            // Local History for this file (snapshots are taken on every save) — the tree reaches the same
+            // screen as the editor's ⋯ menu, for files the user never opened in an editor.
+            if (ctx.localHistoryEnabled && node.kind == NodeKind.File) node.filePath?.let { historyPath ->
+                FileActionItem(CaIcons.clock, stringResource(Res.string.local_history_menu)) {
+                    menuOpen = false; ctx.onOpenLocalHistory(historyPath)
                 }
             }
             // Plugin-contributed file actions (the `fileContext` place). Resolved lazily when the menu

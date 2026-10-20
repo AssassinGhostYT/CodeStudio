@@ -38,6 +38,7 @@ import dev.ide.core.backend.IconBackend
 import dev.ide.core.backend.ModuleBackend
 import dev.ide.core.backend.PreviewBackend
 import dev.ide.core.backend.LearnBackend
+import dev.ide.core.backend.LocalHistoryBackend
 import dev.ide.core.backend.ProjectBackend
 import dev.ide.core.backend.PluginStoreBackend
 import dev.ide.core.backend.StoreBackend
@@ -332,6 +333,9 @@ class IdeServicesBackend(
     override val sdk: SdkService = SdkBackend(this)
     override val settings: SettingsService = SettingsBackend(this)
     override val customize: dev.ide.ui.backend.CustomizationService = CustomizationBackend(this)
+    // Held as the concrete type (like [learnBackend]) so close() can cancel its recording scope.
+    private val localHistoryBackend = LocalHistoryBackend(this)
+    override val localHistory: dev.ide.ui.backend.LocalHistoryService = localHistoryBackend
     override val icons: IconService = IconBackend(this)
     override val actions: ActionService = ActionBackend(this)
     // The AI agent is a disablable, non-essential plugin ([AgentPlugin.ID]). When the user turns it off in
@@ -597,6 +601,7 @@ class IdeServicesBackend(
         runCatching { Log.removeSink(errorDialogSink) }
         runCatching { analyticsScope.cancel() }
         runCatching { engineScope.cancel() }
+        runCatching { localHistoryBackend.close() }
         runCatching { perf.flushAll() } // drain partial latency windows so the last session's samples ship
         runCatching { analytics.flush() }
         runCatching { analytics.close() }

@@ -64,6 +64,8 @@ internal fun EditorCenter(
     /** Live navigator-open fraction from the compact layout's push drawer (gesture-accurate); null on
      *  layouts without one — the top-bar icon then eases 0↔1 off [IdeUiState.leftOpen] instead. */
     navFraction: (() -> Float)? = null,
+    /** Opens Local History for the active file (top-bar ⋯ menu). */
+    onOpenLocalHistory: () -> Unit = {},
 ) {
     val project = state.backend.project
     val depsState by state.backend.deps.depsState.collectAsState()
@@ -139,6 +141,8 @@ internal fun EditorCenter(
                 onFind = { if (active != null) findEpoch++ },
                 onReformat = { if (active != null) formatEpoch++ },
                 onOptimizeImports = { if (active != null) optimizeImportsEpoch++ },
+                onOpenLocalHistory = onOpenLocalHistory,
+                localHistoryEnabled = state.backend.localHistory.isSupported(),
                 onToggleConsole = { state.consoleOpen = !state.consoleOpen },
                 consoleOpen = state.consoleOpen,
                 // The toolbar's Terminal button always shows. On Android the host replaces

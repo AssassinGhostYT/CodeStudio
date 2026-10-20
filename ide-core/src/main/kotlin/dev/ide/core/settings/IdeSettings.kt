@@ -76,6 +76,13 @@ data class IdeSettings(
     // toggle is app-global here.
     /** Reformat the file automatically when it is saved. */
     val formatOnSave: Boolean = false,
+
+    // ---- local history ----
+    /** Remember previous versions of a file on every save (Local History). On by default: the editor's undo
+     *  stack dies with the tab, and on a phone that is exactly when work gets lost. */
+    val localHistoryEnabled: Boolean = true,
+    /** How many days a snapshot is kept before it is dropped, however many are left. */
+    val localHistoryRetentionDays: Int = 7,
 ) {
     companion object {
         const val THEME_LIGHT = "light"
@@ -99,5 +106,7 @@ data class IdeSettings(
         const val MAX_COMPLETION_MAX_ITEMS = 500
         const val MIN_REPARSE_DELAY_MS = 0
         const val MAX_REPARSE_DELAY_MS = 2000
+        const val MIN_LOCAL_HISTORY_DAYS = 1
+        const val MAX_LOCAL_HISTORY_DAYS = 30
     }
 }

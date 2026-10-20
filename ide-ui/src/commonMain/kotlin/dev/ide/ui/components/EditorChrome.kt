@@ -119,6 +119,7 @@ import dev.ide.ui.generated.resources.retry
 import dev.ide.ui.generated.resources.run
 import dev.ide.ui.generated.resources.save
 import dev.ide.ui.generated.resources.tab_close_all
+import dev.ide.ui.generated.resources.local_history_menu
 import dev.ide.ui.generated.resources.tab_close_others
 import dev.ide.ui.generated.resources.tab_close_to_the_left
 import dev.ide.ui.generated.resources.tab_close_to_the_right
@@ -171,6 +172,10 @@ fun EditorTopBar(
     onFind: () -> Unit = {},
     onReformat: () -> Unit = {},
     onOptimizeImports: () -> Unit = {},
+    /** Opens Local History for the active file (the compact layout's ⋯ menu entry). */
+    onOpenLocalHistory: () -> Unit = {},
+    /** Whether Local History is recorded at all; when false the ⋯ entry is hidden. */
+    localHistoryEnabled: Boolean = true,
     onToggleConsole: () -> Unit = {},
     consoleOpen: Boolean = false,
     /** Compact (phone) top bar only: a single button opening the RIGHT tool-window drawer — the phone has no
@@ -244,6 +249,8 @@ fun EditorTopBar(
                     onFind = onFind,
                     onReformat = onReformat,
                     onOptimizeImports = onOptimizeImports,
+                    onOpenLocalHistory = onOpenLocalHistory,
+                    localHistoryEnabled = localHistoryEnabled,
                     inlayHintsOn = inlayHintsOn,
                     onToggleInlayHints = onToggleInlayHints,
                     consoleOpen = consoleOpen,
@@ -404,6 +411,10 @@ private fun EditorOverflowMenu(
     onFind: () -> Unit,
     onReformat: () -> Unit,
     onOptimizeImports: () -> Unit,
+    /** Opens Local History for the active file (snapshots taken on every save). */
+    onOpenLocalHistory: () -> Unit,
+    /** Whether Local History is recorded at all; when false the entry is hidden. */
+    localHistoryEnabled: Boolean,
     inlayHintsOn: Boolean,
     onToggleInlayHints: () -> Unit,
     consoleOpen: Boolean,
@@ -437,6 +448,9 @@ private fun EditorOverflowMenu(
                 OverflowItem(CaIcons.search, stringResource(Res.string.edchrome_find_replace)) { open = false; onFind() }
                 OverflowItem(CaIcons.braces, stringResource(Res.string.edchrome_reformat_code)) { open = false; onReformat() }
                 OverflowItem(CaIcons.layers, stringResource(Res.string.edchrome_optimize_imports)) { open = false; onOptimizeImports() }
+                if (localHistoryEnabled) {
+                    OverflowItem(CaIcons.clock, stringResource(Res.string.local_history_menu)) { open = false; onOpenLocalHistory() }
+                }
             }
             OverflowItem(CaIcons.command, stringResource(Res.string.edchrome_command_palette)) { open = false; onOpenPalette() }
             // The AI assistant panel — a toggle, its on-state accented like the other tool windows.

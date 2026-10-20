@@ -1121,6 +1121,47 @@ interface CustomizationService {
 }
 
 // ---------------------------------------------------------------------------
+// Local history (snapshots of a file's contents, taken on save)
+// ---------------------------------------------------------------------------
+
+/** One remembered version of a file: [id] is opaque, [timestampMs] is when it was saved, [bytes] its UTF-8 size.
+ *  [current] marks the snapshot that matches what is on disk right now. */
+data class UiLocalHistoryEntry(
+    val id: String,
+    val timestampMs: Long,
+    val bytes: Long,
+    val current: Boolean = false,
+)
+
+/**
+ * Per-file snapshots of saved contents, kept under `<project>/.platform/local-history/`. The point is that the
+ * editor's undo stack dies with the tab — close the app mid-edit and the previous version of the file is gone —
+ * while these survive, and let the user look at an old version and put it back.
+ *
+ * Recording is fire-and-forget from the save path: [record] must never block, throw, or fail the save. Optional —
+ * a backend that wires no store inherits [Unsupported] (the menu entries simply don't appear).
+ */
+interface LocalHistoryService {
+    /** Remember [text] as the current contents of [path]. Cheap and asynchronous; safe to call on every save. */
+    fun record(path: String, text: String) {}
+
+    /** The snapshots of [path], newest first, the on-disk content flagged as [UiLocalHistoryEntry.current]. */
+    fun entries(path: String): List<UiLocalHistoryEntry> = emptyList()
+
+    /** The stored text of snapshot [id], or null when it is missing. */
+    fun read(id: String): String? = null
+
+    /** Whether history is recorded at all (Settings ▸ Editor ▸ Local history). Off ⇒ the UI hides the entries. */
+    fun isSupported(): Boolean = false
+
+    /** Forget every snapshot of [path]. */
+    fun clear(path: String) {}
+
+    /** No-op service for a backend that wires no history store. */
+    object Unsupported : LocalHistoryService
+}
+
+// ---------------------------------------------------------------------------
 // UI actions (toolbar / menus / command palette)
 // ---------------------------------------------------------------------------
 

@@ -179,7 +179,7 @@ El archivo `.apk` compilado estará disponible en la ruta:
 
 ## 🗺️ Hoja de Ruta (Roadmap)
 
-> **Estado global frente al objetivo de "IDE de escritorio completo en el móvil": ~61%.** El núcleo
+> **Estado global frente al objetivo de "IDE de escritorio completo en el móvil": ~62%.** El núcleo
 > (editar, analizar, completar, compilar, dependencias, Git y **Logcat**) está sólidamente implementado,
 > y el editor/IDE ya cubre una fracción grande del día a día. Lo más lejano sigue siendo el depurador,
 > profilers, emulador y testing. Esta hoja de ruta compara **todas** las capacidades del IDE de
@@ -225,6 +225,7 @@ El archivo `.apk` compilado estará disponible en la ruta:
 - [x] **Sistema de plugins** (SPI, `ActionManager`, extension points, `PluginManager` y **carga de plugins externos**).
 - [x] **Asistente de IA** con **tool-window** propio (Chat Drawer, 5 proveedores, MCP y agente con herramientas).
 - [x] **Soporte Flutter/Dart** completo (SDK gestionado, `build`/`run` por CLI y **ejecución en dispositivo** vía host Compose).
+- [x] **Historial local (Local History)** de cambios por archivo (instantáneas al guardar, retención configurable, diff y restauración al buffer).
 - [ ] 🔄 **Autocompletado contextual** (símbolos, miembros, auto-import) — ~50%.
 - [ ] 🔄 **Completado con resolución semántica real** (tipos inferidos) — ~40%.
 - [ ] 🟡 Auto-import de clases no importadas.
@@ -310,7 +311,6 @@ El archivo `.apk` compilado estará disponible en la ruta:
 
 **Herramientas y ecosistema:**
 
-- [ ] Historial local (Local History) de cambios por archivo.
 - [ ] Archivos scratch (notas/código temporales).
 - [ ] App Quality Insights / Crashlytics (crashes de la app en producción).
 - [ ] Asistente de Firebase y App Links (deep links).

@@ -48,7 +48,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * Top-level screens, ordered by depth so the transition helper can infer direction: a move to a
  * higher-ordinal screen animates "forward" (deeper), a lower one "back".
  */
-enum class Screen { Projects, CreateProject, ImportProject, ExportProject, Editor, Hub, Run, ModuleConfig, SdkManager, KeystoreManager, KeystoreCreate, KeystoreImport, Settings, CodeStyle, EditorSymbols, IconManager, AppIconStudio, Plugins, Storage, LessonTrack, LessonPlayer, StoreItem }
+enum class Screen { Projects, CreateProject, ImportProject, ExportProject, Editor, Hub, Run, ModuleConfig, SdkManager, KeystoreManager, KeystoreCreate, KeystoreImport, Settings, CodeStyle, EditorSymbols, IconManager, AppIconStudio, LocalHistory, Plugins, Storage, LessonTrack, LessonPlayer, StoreItem }
 
 /**
  * The home screen's bottom-navigation destinations (the landing surface shown on [Screen.Projects]): the
@@ -618,6 +618,18 @@ class IdeUiState(
         }
     }
 
+    /** Load a Local History snapshot into [path]'s buffer, opening the tab if it isn't already. The edit goes
+     *  through the session like any other, so it is undoable and the file on disk is untouched until the user
+     *  saves — an accidental restore is one Cmd/Ctrl-Z away rather than a lost file. */
+    fun restoreFromLocalHistory(path: String, text: String) {
+        scope.launch {
+            openSuspend(path, path.substringAfterLast('/').substringAfterLast('\\'))
+            val tab = active ?: return@launch
+            if (tab.path != path) return@launch
+            applyEdits(listOf(UiTextEdit(0, tab.session.doc.length, text)))
+        }
+    }
+
     /**
      * Open a compiled LIBRARY class in a read-only tab. [libPath] is `library://<fqn>[#member]`; the content
      * (attached source, else a decompiled view) is fetched from the backend off the main thread against the
@@ -728,6 +740,9 @@ class IdeUiState(
         val text = file.text // one lazy materialization, on save (not per keystroke)
         backend.editor.saveFile(file.path, text)
         file.onSaved(text)
+        // Local History records AFTER the write, so the newest snapshot always matches disk. Fire-and-forget:
+        // a failure here must never turn a successful save into an error.
+        runCatching { backend.localHistory.record(file.path, text) }
     }
 
     /** Reformat [file]'s live buffer in place (whole-document) before a save. Works with or without a mounted

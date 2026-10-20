@@ -49,6 +49,9 @@ class SettingsStore(
             reparseDelayMs = int("analysis.reparseDelayMs", d.reparseDelayMs).coerceIn(MIN_REPARSE_DELAY_MS, MAX_REPARSE_DELAY_MS),
             analysisPerfLogging = bool("analysis.perfLogging", d.analysisPerfLogging),
             formatOnSave = bool("codeStyle.formatOnSave", d.formatOnSave),
+            localHistoryEnabled = bool("editor.localHistory", d.localHistoryEnabled),
+            localHistoryRetentionDays = int("editor.localHistoryDays", d.localHistoryRetentionDays)
+                .coerceIn(IdeSettings.MIN_LOCAL_HISTORY_DAYS, IdeSettings.MAX_LOCAL_HISTORY_DAYS),
         )
     }
 
@@ -149,6 +152,8 @@ class SettingsStore(
         put("analysis.reparseDelayMs", s.reparseDelayMs.toString())
         put("analysis.perfLogging", s.analysisPerfLogging.toString())
         put("codeStyle.formatOnSave", s.formatOnSave.toString())
+        put("editor.localHistory", s.localHistoryEnabled.toString())
+        put("editor.localHistoryDays", s.localHistoryRetentionDays.toString())
     }
 
     private fun key(k: String) = "$KEY_PREFIX$k"

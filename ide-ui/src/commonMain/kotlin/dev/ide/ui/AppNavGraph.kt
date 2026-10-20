@@ -18,6 +18,7 @@ import dev.ide.ui.screens.CodeStyleScreen
 import dev.ide.ui.screens.CreateProjectScreen
 import dev.ide.ui.screens.EditorScreen
 import dev.ide.ui.screens.ExportProjectScreen
+import dev.ide.ui.screens.LocalHistoryScreen
 import dev.ide.ui.screens.HomeScreen
 import dev.ide.ui.screens.ImportPreviewScreen
 import dev.ide.ui.screens.IconManagerScreen
@@ -129,6 +130,7 @@ internal fun AppNavGraph(
                 onOpenHub = { app.openHub(Screen.Editor) },
                 onOpenIconManager = { app.openIconManager(Screen.Editor) },
                 onOpenPlugins = { app.openPlugins(Screen.Editor, PluginsScope.InstalledOnly) },
+                onOpenLocalHistory = { state.active?.let { app.openLocalHistory(it.path) } },
                 onOpenModuleConfig = { module -> app.openModuleConfig(module, ModulesTab.Settings) },
                 onCloseProject = { app.navigateTo(Screen.Projects) },
                 onOpenRun = { app.navigateTo(Screen.Run) },
@@ -175,6 +177,28 @@ internal fun AppNavGraph(
                 seedIconName = app.appIconSeedName,
                 fileActions = fileActions,
             )
+
+            Screen.LocalHistory -> {
+                val path = app.localHistoryPath.orEmpty()
+                val tab = state.active
+                // Diff against the live buffer when the file is open (it may hold unsaved work the user wants
+                // to compare), else against what is on disk.
+                val current = if (tab?.path == path) {
+                    tab.session.doc.text
+                } else {
+                    runCatching { state.backend.files.readFile(path) }.getOrDefault("")
+                }
+                LocalHistoryScreen(
+                    backend = state.backend,
+                    path = path,
+                    currentText = current,
+                    onBack = { app.navigateTo(Screen.Editor) },
+                    onRestore = { text ->
+                        state.restoreFromLocalHistory(path, text)
+                        app.navigateTo(Screen.Editor)
+                    },
+                )
+            }
 
             Screen.Run -> RunScreen(
                 backend = state.backend,

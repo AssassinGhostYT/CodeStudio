@@ -82,6 +82,10 @@ interface IdeBackend {
      *  Optional — a backend that wires no store inherits [CustomizationService.Unsupported]. */
     val customize: CustomizationService get() = CustomizationService.Unsupported
 
+    /** Per-file snapshots of saved contents (Local History). Optional — a backend that wires no store inherits
+     *  [LocalHistoryService.Unsupported], which hides the "Historial local" entries. */
+    val localHistory: LocalHistoryService get() = LocalHistoryService.Unsupported
+
     /** The bundled Material-icon catalog (for the Canvas Icon Manager). Optional — a backend that ships no
      *  icon bundle inherits [IconService.Unsupported] (the picker shows an empty state). */
     val icons: IconService get() = IconService.Unsupported

@@ -1307,4 +1307,12 @@ Nunca recopilamos su código, nombres de archivos o proyectos, qué funciones us
     <string name="appicon_applied">Icono de la app actualizado</string>
     <string name="appicon_no_module">Este proyecto no tiene módulo de aplicación Android.</string>
     <string name="appicon_module">Módulo</string>
+    <string name="local_history_title">Historial local</string>
+    <string name="local_history_menu">Historial local</string>
+    <string name="local_history_empty">Todavía no hay versiones anteriores de este archivo. Se guardan solas cada vez que guardas.</string>
+    <string name="local_history_current">Actual</string>
+    <string name="local_history_restore">Restaurar</string>
+    <string name="local_history_restore_title">¿Restaurar esta versión?</string>
+    <string name="local_history_restore_body">El contenido del editor se reemplazará por esta versión. El archivo en disco no cambia hasta que guardes.</string>
+    <string name="local_history_size">%1$s · %2$d KB</string>
 </resources>

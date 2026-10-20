@@ -167,6 +167,8 @@ object BuiltInSettingsPages {
             SettingControl.Toggle("twoAxisScroll", "Desplazamiento en dos ejes", "Arrastrar en cualquier dirección para desplazar ambos ejes a la vez (táctil)", default = d.twoAxisScroll, group = "Gestos"),
             SettingControl.Toggle("pinchZoom", "Pellizcar para hacer zoom", "Pellizca con dos dedos para cambiar el tamaño de la fuente", default = d.pinchZoom, group = "Gestos"),
             SettingControl.Toggle("softKeyboardSuggestions", "Sugerencias del teclado", "Deja que el teclado autocorrija, sugiera y añada espacios (un teclado normal). Desactívalo para escribir código tal cual, para que un '.' escrito no reciba un espacio añadido automáticamente, a costa de la franja de sugerencias.", default = d.softKeyboardSuggestions, group = "Teclado"),
+            SettingControl.Toggle("localHistory", "Historial local", "Recuerda versiones anteriores de cada archivo al guardar, por si cierras la app o borras algo sin querer. Se guarda dentro del proyecto.", default = d.localHistoryEnabled, group = "Historial local"),
+            SettingControl.IntSlider("localHistoryDays", "Conservar historial", "Cuántos días se guarda cada versión antes de borrarla sola. El límite superior evita que el historial crezca sin control en el teléfono.", default = d.localHistoryRetentionDays, min = IdeSettings.MIN_LOCAL_HISTORY_DAYS, max = IdeSettings.MAX_LOCAL_HISTORY_DAYS, step = 1, unit = " días", group = "Historial local"),
         )
     }
 

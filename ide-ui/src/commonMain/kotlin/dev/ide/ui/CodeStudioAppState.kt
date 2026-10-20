@@ -95,6 +95,10 @@ class CodeStudioAppState(
     var iconManagerReturn: Screen by mutableStateOf(Screen.Editor)
         private set
 
+    /** The file whose Local History is being viewed (from the editor's ⋯ menu or a long-press in the tree). */
+    var localHistoryPath: String? by mutableStateOf(null)
+        private set
+
     /** Where the Plugins screen returns on Back: the editor when opened from the file tree's panel header, or
      *  the landing picker when opened from the home tile. */
     var pluginsReturn: Screen by mutableStateOf(Screen.Editor)
@@ -319,6 +323,12 @@ class CodeStudioAppState(
         screen = Screen.IconManager
     }
 
+    /** Open Local History for [path]; Back returns to the editor. */
+    fun openLocalHistory(path: String) {
+        localHistoryPath = path
+        screen = Screen.LocalHistory
+    }
+
     /** Open the app-icon studio, optionally seeded with the icon the user picked in the Icon Manager. Back from
      *  the studio returns to the manager, so choosing a different icon is a round trip rather than a dead end. */
     fun openAppIconStudio(repoId: String? = null, iconName: String? = null) {
@@ -495,6 +505,8 @@ class CodeStudioAppState(
             // The app-icon studio steps back to the manager; the manager honours its entry origin.
             screen == Screen.AppIconStudio -> screen = Screen.IconManager
             screen == Screen.IconManager -> screen = iconManagerReturn
+            // Local History is always opened from the editor (its ⋯ menu or the file tree), so Back lands there.
+            screen == Screen.LocalHistory -> screen = Screen.Editor
             // The hub returns to wherever it was opened from (picker or editor).
             screen == Screen.Hub -> screen = hubReturn
 

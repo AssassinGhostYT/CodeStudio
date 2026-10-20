@@ -128,6 +128,8 @@ internal fun buildLeftPanels(
     onNewSource: (String, NewSourceLang, List<PackageSegment>) -> Unit,
     onFileOp: (TreeNode, FileOpKind) -> Unit,
     onOpenModuleConfig: (String?) -> Unit,
+    onOpenLocalHistory: (filePath: String) -> Unit = {},
+    localHistoryEnabled: Boolean,
     closeDrawer: () -> Unit,
     onOpenPlugins: () -> Unit = {},
 ): List<SidebarPanel> {
@@ -144,7 +146,10 @@ internal fun buildLeftPanels(
         SidebarPanel(LeftPanelId.FILES, filesTitle, CaIcons.docText, order = 10) {
             FilesPanelContent(
                 state, fileActions, onNewFile, onNewFolder, onNewResource, onNewSource,
-                onFileOp, onOpenModuleConfig, { onOpenPlugins(); closeDrawer() }, closeDrawer,
+                onFileOp, onOpenModuleConfig, { onOpenPlugins(); closeDrawer() },
+                { p -> onOpenLocalHistory(p); closeDrawer() },
+                state.backend.localHistory.isSupported(),
+                closeDrawer,
             )
         },
         SidebarPanel(LeftPanelId.SEARCH, searchTitle, CaIcons.search, order = 20) {
@@ -195,6 +200,8 @@ private fun FilesPanelContent(
     onFileOp: (TreeNode, FileOpKind) -> Unit,
     onOpenModuleConfig: (String?) -> Unit,
     onOpenPlugins: () -> Unit = {},
+    onOpenLocalHistory: (filePath: String) -> Unit = {},
+    localHistoryEnabled: Boolean,
     closeDrawer: () -> Unit,
 ) {
     val project = state.backend.project
@@ -212,6 +219,8 @@ private fun FilesPanelContent(
         onConfigureModule = { node -> closeDrawer(); onOpenModuleConfig(node.moduleConfigName ?: node.name) },
         onAddSourceRoot = { node -> closeDrawer(); state.addSourceRootModule = node.moduleConfigName ?: node.name },
         onOpenPlugins = onOpenPlugins,
+        onOpenLocalHistory = onOpenLocalHistory,
+        localHistoryEnabled = localHistoryEnabled,
         canImport = fileActions.canImport,
         onImport = { doImport(state, fileActions) },
         onImportInto = { dir -> doImportInto(state, fileActions, dir) },
@@ -254,6 +263,7 @@ internal fun ExpandedLayout(
     onOpenHub: () -> Unit,
     onOpenIconManager: () -> Unit,
     onOpenPlugins: () -> Unit,
+    onOpenLocalHistory: () -> Unit,
     indexStatus: IndexUiStatus,
     buildState: BuildState,
     onNewFile: (String, List<PackageSegment>) -> Unit,
@@ -270,6 +280,8 @@ internal fun ExpandedLayout(
         state, fileActions, indexStatus.building,
         onNewFile, onNewFolder, onNewResource, onNewSource, onFileOp, onOpenModuleConfig,
         onOpenPlugins = onOpenPlugins,
+        onOpenLocalHistory = onOpenLocalHistory,
+        localHistoryEnabled = state.backend.localHistory.isSupported(),
         closeDrawer = {}, // desktop panes are persistent — never auto-collapse
     )
     val rightPanels = pluginPanels(ToolWindowAnchor.RIGHT, state.backend, state.active?.path)
@@ -309,7 +321,7 @@ internal fun ExpandedLayout(
                 Column(Modifier.fillMaxSize()) {
                     Row(Modifier.weight(1f).fillMaxWidth()) {
                         SidebarPane(leftPanels, state.selectedLeftPanel, RailSide.Left, paneWidth = LeftPaneWidth)
-                        EditorCenter(state, indexStatus, compact = false, Modifier.weight(1f).fillMaxHeight())
+                        EditorCenter(state, indexStatus, compact = false, Modifier.weight(1f).fillMaxHeight(), onOpenLocalHistory = onOpenLocalHistory)
                         // Right-edge tool-window pane. Fully plugin-derived: nothing lays down when no plugin
                         // contributes a RIGHT tool window (the AI chat is one such plugin).
                         SidebarPane(rightPanels, state.selectedRightPanel, RailSide.Right, paneWidth = RightPaneWidth)
@@ -380,6 +392,7 @@ internal fun CompactLayout(
     onOpenHub: () -> Unit,
     onOpenIconManager: () -> Unit,
     onOpenPlugins: () -> Unit,
+    onOpenLocalHistory: () -> Unit,
     indexStatus: IndexUiStatus,
     buildState: BuildState,
     onNewFile: (String, List<PackageSegment>) -> Unit,
@@ -410,6 +423,8 @@ internal fun CompactLayout(
         state, fileActions, indexStatus.building,
         onNewFile, onNewFolder, onNewResource, onNewSource, onFileOp, onOpenModuleConfig,
         onOpenPlugins = onOpenPlugins,
+        onOpenLocalHistory = onOpenLocalHistory,
+        localHistoryEnabled = state.backend.localHistory.isSupported(),
         closeDrawer = { state.selectedLeftPanel = null }, // a navigating action closes the drawer on phone
     )
     Box(Modifier.fillMaxSize()) {
@@ -453,6 +468,7 @@ internal fun CompactLayout(
                     EditorCenter(
                         state, indexStatus, compact = true, Modifier.weight(1f).fillMaxWidth(),
                         navFraction = { navProgress },
+                        onOpenLocalHistory = onOpenLocalHistory,
                     )
                     // While the keyboard is up: a coding-symbol accessory bar sits directly above it. Off-keyboard,
                     // the dock's collapsed bar takes the slot instead.
