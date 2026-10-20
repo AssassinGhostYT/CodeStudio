@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.sp
 import dev.ide.ui.backend.ApkAnalyzerEntry
 import dev.ide.ui.backend.ApkAnalyzerResult
 import dev.ide.ui.backend.ApkAnalyzerService
+import dev.ide.ui.backend.ApkAnalyzerSummary
 import dev.ide.ui.backend.IdeBackend
 import dev.ide.ui.generated.resources.Res
 import dev.ide.ui.generated.resources.apk_analyzer_title
