@@ -232,8 +232,8 @@ internal object SampleIcons {
 /** Snake — a Canvas-drawn Snake game with swipe controls, a growing body, food, and a live score. */
 object SnakeSampleTemplate : ProjectTemplate {
     override val id = TemplateId("sample-snake")
-    override val displayName = "Snake"
-    override val description = "The classic Snake game, drawn on a Compose Canvas with swipe controls, a live score, and a neon look."
+    override val displayName = "Serpiente"
+    override val description = "El clásico juego Serpiente, dibujado en un lienzo de Compose con controles por gestos, marcador en vivo y estética neón."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"
 
@@ -256,8 +256,8 @@ object SnakeSampleTemplate : ProjectTemplate {
 /** Tic-Tac-Toe — a two-player Material 3 board with animated marks and a highlighted winning line. */
 object TicTacToeSampleTemplate : ProjectTemplate {
     override val id = TemplateId("sample-tictactoe")
-    override val displayName = "Tic-Tac-Toe"
-    override val description = "A two-player Tic-Tac-Toe game with animated marks, a highlighted winning line, and Material 3 theming."
+    override val displayName = "Tres en raya"
+    override val description = "Un juego de tres en raya para dos jugadores, con fichas animadas, línea ganadora resaltada y tema Material 3."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"
 
@@ -280,8 +280,8 @@ object TicTacToeSampleTemplate : ProjectTemplate {
 /** Memory Match — a grid of emoji cards with a 3D flip animation, match logic, and move/timer counters. */
 object MemoryMatchSampleTemplate : ProjectTemplate {
     override val id = TemplateId("sample-memory")
-    override val displayName = "Memory Match"
-    override val description = "A memory card game with a 3D flip animation, match logic, move and timer counters, and a colorful UI."
+    override val displayName = "Memoria"
+    override val description = "Un juego de memoria con animación de volteo 3D, lógica de parejas, contadores de movimientos y tiempo, y una interfaz colorida."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"
 
@@ -305,7 +305,7 @@ object MemoryMatchSampleTemplate : ProjectTemplate {
 object Game2048SampleTemplate : ProjectTemplate {
     override val id = TemplateId("sample-2048")
     override val displayName = "2048"
-    override val description = "The 2048 tile puzzle: swipe to merge matching tiles, race to 2048, with animated tiles and score tracking."
+    override val description = "El puzle de fichas 2048: desliza para combinar fichas iguales, llega a 2048, con fichas animadas y marcador."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"
 

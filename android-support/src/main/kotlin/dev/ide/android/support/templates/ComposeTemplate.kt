@@ -18,8 +18,8 @@ import dev.ide.platform.log.Log
  */
 object JetpackComposeAppTemplate : ProjectTemplate {
     override val id = TemplateId("compose-app")
-    override val displayName = "Jetpack Compose App"
-    override val description = "An Android app with a Jetpack Compose UI and @Preview composables you can render in the editor."
+    override val displayName = "App con Jetpack Compose"
+    override val description = "Una app de Android con interfaz Jetpack Compose y composables @Preview que puedes ver en el editor."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"
     override val scaffoldsGradle: Boolean = true
@@ -128,16 +128,16 @@ object JetpackComposeAppTemplate : ProjectTemplate {
             class MainActivity : ComponentActivity() {
                 override fun onCreate(savedInstanceState: Bundle?) {
                     super.onCreate(savedInstanceState)
-                    setContent { Greeting("World") }
+                    setContent { Greeting("Mundo") }
                 }
             }
 
             @Composable
             fun Greeting(name: String) {
-                Text(text = "Hello, " + name + "!")
+                Text(text = "¡Hola, " + name + "!")
             }
 
-            // Press the Preview button in the editor toolbar to render these through the Compose interpreter.
+            // Pulsa el botón Preview de la barra del editor para dibujarlas con el intérprete de Compose.
             @Preview
             @Composable
             fun GreetingPreview() {
@@ -148,8 +148,8 @@ object JetpackComposeAppTemplate : ProjectTemplate {
             @Composable
             fun CardPreview() {
                 Column {
-                    Text("Title")
-                    Text("Body")
+                    Text("Título")
+                    Text("Texto")
                 }
             }
             """,

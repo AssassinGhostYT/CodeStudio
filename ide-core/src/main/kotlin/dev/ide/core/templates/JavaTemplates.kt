@@ -50,8 +50,8 @@ internal object JavaTemplateSupport {
  */
 object JavaConsoleAppTemplate : ProjectTemplate {
     override val id = TemplateId("java-console")
-    override val displayName = "Java Console App"
-    override val description = "A runnable command-line Java application with a main() entry point."
+    override val displayName = "App de consola Java"
+    override val description = "Una aplicación Java de línea de comandos ejecutable, con un punto de entrada main()."
     override val category = TemplateCategory.JAVA
     override val iconId = "java"
 
@@ -78,8 +78,8 @@ object JavaConsoleAppTemplate : ProjectTemplate {
 /** A plain Java library: one `lib` module (java-lib) with a sample public class, no main(). */
 object JavaLibraryTemplate : ProjectTemplate {
     override val id = TemplateId("java-library")
-    override val displayName = "Java Library"
-    override val description = "A reusable Java library module with no entry point."
+    override val displayName = "Biblioteca de Java"
+    override val description = "Un módulo de biblioteca de Java reutilizable y sin punto de entrada."
     override val category = TemplateCategory.JAVA
     override val iconId = "java"
 

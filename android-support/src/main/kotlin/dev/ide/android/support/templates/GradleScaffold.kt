@@ -64,7 +64,7 @@ internal object GradleScaffold {
         scaffold.writeText(
             "build.gradle.kts",
             """
-            // Top-level build file where you can add configuration options common to all sub-projects/modules.
+            // Archivo de construcción de nivel superior donde puedes añadir opciones de configuración comunes a todos los submódulos.
             plugins {
                 id("com.android.application") version "$AGP_VERSION" apply false
                 id("com.android.library") version "$AGP_VERSION" apply false
@@ -80,9 +80,9 @@ internal object GradleScaffold {
         scaffold.writeText(
             "gradle.properties",
             """
-            # Project-wide Gradle settings.
+            # Ajustes de Gradle para todo el proyecto.
             org.gradle.jvmargs=-Xmx512m -Dfile.encoding=UTF-8
-            # When configured, Gradle will run in incubating parallel mode.
+            # Cuando está configurado, Gradle se ejecuta en modo paralelo (en incubación).
             org.gradle.parallel=true
             android.useAndroidX=true
             android.nonTransitiveRClass=true
@@ -93,7 +93,7 @@ internal object GradleScaffold {
         scaffold.writeText(
             "gradle/wrapper/gradle-wrapper.properties",
             """
-            # Gradle wrapper configuration — the distribution the wrapper would download.
+            # Configuración del wrapper de Gradle: la distribución que el wrapper descargaría.
             distributionBase=GRADLE_USER_HOME
             distributionPath=wrapper/dists
             distributionUrl=https\\://services.gradle.org/distributions/gradle-$GRADLE_DISTRIBUTION-bin.zip

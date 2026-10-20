@@ -38,9 +38,9 @@ object FlutterGradleScaffold {
             "$androidDir/settings.gradle.kts",
             """
             pluginManagement {
-                // The Flutter SDK's Gradle plugin is built from source, so it is included as a composite build
-                // resolved from local.properties — the same contract `flutter create` writes, which is what
-                // lets the tool and this project's scripts agree on the plugin loader.
+                // El plugin de Gradle del SDK de Flutter se compila desde el código fuente, así que se
+                // incluye como compilación compuesta resuelta desde local.properties: el mismo contrato que
+                // escribe `flutter create`, y por eso la herramienta y este proyecto usan el mismo cargador.
                 val flutterSdkPath = run {
                     val properties = java.util.Properties()
                     file("local.properties").inputStream().use { properties.load(it) }
@@ -91,15 +91,15 @@ object FlutterGradleScaffold {
         scaffold.writeText(
             "$androidDir/gradle.properties",
             """
-            # The SDK's own template sets these two, and they are what keeps an AGP 9 toolchain working with
-            # the Plugin DSL. newDsl=false keeps AGP from reading only the new interface, and builtInKotlin=false
-            # keeps the Kotlin Gradle Plugin, which plugins still apply.
+            # La plantilla propia del SDK define estas dos propiedades, y son las que mantienen una cadena
+            # de herramientas AGP 9 funcionando con la Plugin DSL. newDsl=false evita que AGP lea sólo la
+            # interfaz nueva, y builtInKotlin=false conserva el plugin Kotlin Gradle, que los plugins aplican.
             android.newDsl=false
             android.builtInKotlin=false
             android.useAndroidX=true
             android.enableJetifier=false
-            # Not the SDK's -Xmx8G: this runs on a phone. GRADLE_OPTS sets the daemon's heap at build time and
-            # deliberately does not repeat it here, so this file has one owner per setting.
+            # No es el -Xmx8G del SDK: esto se ejecuta en un teléfono. GRADLE_OPTS fija la memoria del
+            # daemon al construir y no se repite aquí a propósito, para que cada ajuste tenga un único dueño.
             org.gradle.jvmargs=-Xmx2G -XX:MaxMetaspaceSize=1G
             """,
         )
@@ -134,10 +134,10 @@ object FlutterGradleScaffold {
             """
             plugins {
                 id("com.android.application")
-                // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins. Note
-                // that the app module does not apply `kotlin-android` itself: the Flutter plugin does, which is
-                // why settings.gradle.kts declares it `apply false`. Asking for it here is a build failure
-                // under AGP 9, which no longer supports applying the Kotlin Gradle Plugin at all.
+                // El plugin Gradle de Flutter se aplica después de los plugins de Android y de Kotlin. Fíjate
+                // en que el módulo de la app no aplica `kotlin-android` por sí mismo: lo aplica el plugin de
+                // Flutter, y por eso settings.gradle.kts lo declara como `apply false`. Pedirlo aquí es un
+                // fallo de construcción con AGP 9, que ya no admite aplicar el plugin Kotlin Gradle.
                 id("dev.flutter.flutter-gradle-plugin")
             }
 
@@ -161,8 +161,8 @@ object FlutterGradleScaffold {
 
                 buildTypes {
                     release {
-                        // A debug-signed release so `flutter build apk --release` produces an installable APK
-                        // before the user has set up their own signing config.
+                        // Un release firmado en modo debug para que `flutter build apk --release` produzca
+                        // un APK instalable antes de que el usuario configure su propia firma.
                         signingConfig = signingConfigs.getByName("debug")
                     }
                 }

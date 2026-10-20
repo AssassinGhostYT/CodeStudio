@@ -44,8 +44,8 @@ internal object SampleSupport {
 /** Calculator — a Java console app that parses and evaluates arithmetic expressions. */
 object CalculatorSampleTemplate : ProjectTemplate {
     override val id = TemplateId("sample-calculator")
-    override val displayName = "Calculator"
-    override val description = "An interactive command-line calculator: type expressions and it evaluates them."
+    override val displayName = "Calculadora"
+    override val description = "Una calculadora interactiva de línea de comandos: escribe expresiones y las evalúa."
     override val category = TemplateCategory.JAVA
     override val iconId = "java"
 
@@ -67,8 +67,8 @@ object CalculatorSampleTemplate : ProjectTemplate {
 /** Notes — a Kotlin console note-taking app (add/list/search/complete), model split from view. */
 object NotesSampleTemplate : ProjectTemplate {
     override val id = TemplateId("sample-notes")
-    override val displayName = "Notes"
-    override val description = "An interactive note-taking CLI: type commands to add, list, search, and complete notes."
+    override val displayName = "Notas"
+    override val description = "Una consola interactiva de notas: escribe comandos para añadir, listar, buscar y completar notas."
     override val category = TemplateCategory.KOTLIN
     override val iconId = "kotlin"
 
@@ -90,8 +90,8 @@ object NotesSampleTemplate : ProjectTemplate {
 /** Weather — a Kotlin console app that formats a multi-day forecast from bundled sample data. */
 object WeatherSampleTemplate : ProjectTemplate {
     override val id = TemplateId("sample-weather")
-    override val displayName = "Weather"
-    override val description = "An interactive weather report: type a city to see its forecast."
+    override val displayName = "Clima"
+    override val description = "Un informe interactivo del tiempo: escribe una ciudad para ver su pronóstico."
     override val category = TemplateCategory.KOTLIN
     override val iconId = "kotlin"
 

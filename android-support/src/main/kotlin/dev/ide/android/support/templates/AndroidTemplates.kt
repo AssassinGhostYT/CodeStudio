@@ -17,7 +17,7 @@ internal object AndroidTemplateSupport {
     /** The minSdk picker offered by both Android templates. */
     val minSdkParam = TemplateParameter.Choice(
         key = "minSdk",
-        label = "Minimum SDK",
+        label = "SDK mínimo",
         options = listOf(
             TemplateParameter.Choice.Option("21", "API 21 · Android 5.0"),
             TemplateParameter.Choice.Option("23", "API 23 · Android 6.0"),
@@ -31,13 +31,13 @@ internal object AndroidTemplateSupport {
             TemplateParameter.Choice.Option("36", "API 36 · Android 16"),
         ),
         defaultIndex = 2,
-        help = "Lowest Android version the app supports.",
+        help = "Versión de Android más antigua que admite la app.",
     )
 
     /** The targetSdk picker — the API level the app is tested/optimised against. Defaults to the newest. */
     val targetSdkParam = TemplateParameter.Choice(
         key = "targetSdk",
-        label = "Target SDK",
+        label = "SDK objetivo",
         options = listOf(
             TemplateParameter.Choice.Option("30", "API 30 · Android 11"),
             TemplateParameter.Choice.Option("33", "API 33 · Android 13"),
@@ -46,19 +46,19 @@ internal object AndroidTemplateSupport {
             TemplateParameter.Choice.Option("36", "API 36 · Android 16"),
         ),
         defaultIndex = 4,
-        help = "The API level the app is built and optimised against.",
+        help = "Nivel de API con el que se compila y optimiza la app.",
     )
 
     /** Source language for the generated starter code. */
     val languageParam = TemplateParameter.Choice(
         key = "language",
-        label = "Language",
+        label = "Lenguaje",
         options = listOf(
             TemplateParameter.Choice.Option("java", "Java"),
             TemplateParameter.Choice.Option("kotlin", "Kotlin"),
         ),
         defaultIndex = 0,
-        help = "Language of the starter source files.",
+        help = "Lenguaje de los archivos iniciales.",
     )
 
     const val COMPILE_SDK = 36
@@ -75,14 +75,14 @@ internal object AndroidTemplateSupport {
      * (the bundled `proguard-android-optimize.txt` carries the framework keep rules); add app-specific rules here.
      */
     val PROGUARD_RULES_PRO: String = """
-        # Add project-specific ProGuard/R8 keep rules here.
-        # These are applied on top of the bundled defaults (proguard-android-optimize.txt) when the
-        # build type has minifyEnabled = true.
+        # Añade aquí las reglas de conservación (keep rules) ProGuard/R8 del proyecto.
+        # Se aplican sobre los valores predeterminados incluidos (proguard-android-optimize.txt) cuando
+        # el tipo de build tiene minifyEnabled = true.
         #
-        # Keep a class that is referenced only by reflection / from XML, e.g.:
+        # Conserva una clase a la que sólo se hace referencia por reflexión o desde XML, p. ej.:
         # -keep class com.example.SomeClass { *; }
         #
-        # Preserve line numbers for readable crash stack traces, then hide the original file name:
+        # Conserva los números de línea para que las trazas de error sean legibles y luego oculta el nombre original del archivo:
         # -keepattributes SourceFile,LineNumberTable
         # -renamesourcefileattribute SourceFile
     """.trimIndent() + "\n"
@@ -97,8 +97,8 @@ internal object AndroidTemplateSupport {
  */
 object AndroidAppTemplate : ProjectTemplate {
     override val id = TemplateId("android-app")
-    override val displayName = "Android App"
-    override val description = "A classic Android application built with the standard Gradle build files."
+    override val displayName = "App de Android"
+    override val description = "Una aplicación de Android clásica construida con los archivos de Gradle estándar."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"
     override val scaffoldsGradle: Boolean = true
@@ -245,8 +245,8 @@ object AndroidAppTemplate : ProjectTemplate {
  */
 object MaterialYouAppTemplate : ProjectTemplate {
     override val id = TemplateId("android-material-you")
-    override val displayName = "Material You App"
-    override val description = "A Material 3 app with dynamic colour theming and a Floating Action Button."
+    override val displayName = "App Material You"
+    override val description = "Una app Material 3 con colores dinámicos y un botón de acción flotante (FAB)."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"
     override val scaffoldsGradle: Boolean = true
@@ -435,8 +435,8 @@ object MaterialYouAppTemplate : ProjectTemplate {
  */
 object AndroidLibraryTemplate : ProjectTemplate {
     override val id = TemplateId("android-library")
-    override val displayName = "Android Library"
-    override val description = "A reusable Android library module (AAR) with its own resources."
+    override val displayName = "Biblioteca de Android"
+    override val description = "Un módulo de biblioteca de Android (AAR) reutilizable con sus propios recursos."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"
 
@@ -492,7 +492,7 @@ object AndroidLibraryTemplate : ProjectTemplate {
                 """
                 package $pkg
 
-                /** Library code resolving its OWN R (merged into a consuming app's R). */
+                /** Código de la biblioteca que resuelve su PROPIO R (fusionado en el R de la app que lo consume). */
                 object LibraryText {
                     fun titleRes(): Int = R.string.lib_title
                 }
@@ -504,7 +504,7 @@ object AndroidLibraryTemplate : ProjectTemplate {
                 """
                 package $pkg;
 
-                /** Library code resolving its OWN R (merged into a consuming app's R). */
+                /** Código de la biblioteca que resuelve su PROPIO R (fusionado en el R de la app que lo consume). */
                 public final class LibraryText {
                     public static int titleRes() { return R.string.lib_title; }
                 }

@@ -69,6 +69,6 @@ sealed class AndroidModuleType(
     }
 }
 
-object AndroidAppModuleType : AndroidModuleType("android-app", "Android Application", application = true)
+object AndroidAppModuleType : AndroidModuleType("android-app", "Aplicación de Android", application = true)
 
-object AndroidLibModuleType : AndroidModuleType("android-lib", "Android Library", application = false)
+object AndroidLibModuleType : AndroidModuleType("android-lib", "Biblioteca de Android", application = false)

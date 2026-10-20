@@ -16,7 +16,7 @@ import kotlin.io.path.writeText
 /** The Java module type the demo uses (real ones ship in a `java-support` plugin). */
 object JavaLibModuleType : ModuleType {
     override val id = "java-lib"
-    override val displayName = "Java Library"
+    override val displayName = "Biblioteca de Java"
     override fun defaultSourceSets(): List<SourceSetTemplate> = emptyList()
     override fun defaultFacets(): List<FacetTemplate> = emptyList()
     override fun supportedBuildSystems(): Set<BuildSystemId> = setOf(BuildSystemId.NATIVE)

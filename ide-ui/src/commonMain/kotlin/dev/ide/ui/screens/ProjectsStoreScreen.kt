@@ -557,8 +557,8 @@ private fun categoryColor(category: String): Color = when (category.lowercase())
     "games" -> Color(0xFFE0533D)
     "compose" -> Color(0xFF3FBDD9)
     "samples" -> Color(0xFF00A8A0)
-    "community" -> Color(0xFF5865F2)
-    "other" -> Color(0xFF8E8E93)
+    "comunidad" -> Color(0xFF5865F2)
+    "otro" -> Color(0xFF8E8E93)
     else -> TILE_PALETTE[(category.hashCode() and 0x7fffffff) % TILE_PALETTE.size]
 }
 
@@ -573,7 +573,7 @@ private fun categoryIcon(category: String): ImageVector = when (category.lowerca
     "java" -> CaIcons.braces
     "games" -> CaIcons.star
     "compose" -> CaIcons.sparkle
-    "community" -> CaIcons.discord
+    "comunidad" -> CaIcons.discord
     "samples" -> CaIcons.layers
     else -> CaIcons.grid
 }

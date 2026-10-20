@@ -60,13 +60,13 @@ internal class ModuleService(private val ctx: EngineContext) {
     /** Starter body for a created `proguard-rules.pro` — comments only (the bundled defaults carry the
      *  framework keep rules); applied on top of them when the build type has `minifyEnabled = true`. */
     private val DEFAULT_PROGUARD_RULES: String = """
-        # Add project-specific ProGuard/R8 keep rules here.
-        # Applied on top of the bundled defaults (proguard-android-optimize.txt) when minifyEnabled = true.
+        # Añade aquí las reglas de conservación (keep rules) ProGuard/R8 del proyecto.
+        # Se aplican sobre los valores predeterminados incluidos (proguard-android-optimize.txt) cuando minifyEnabled = true.
         #
-        # Keep a class referenced only by reflection / from XML, e.g.:
+        # Conserva una clase a la que sólo se hace referencia por reflexión o desde XML, p. ej.:
         # -keep class com.example.SomeClass { *; }
         #
-        # Preserve line numbers for readable crash stack traces, then hide the original file name:
+        # Conserva los números de línea para que las trazas de error sean legibles y luego oculta el nombre original del archivo:
         # -keepattributes SourceFile,LineNumberTable
         # -renamesourcefileattribute SourceFile
     """.trimIndent() + "\n"

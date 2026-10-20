@@ -17,7 +17,7 @@ import dev.ide.model.template.TemplateParameter
 /** Dart Console Module Type */
 object DartConsoleModuleType : ModuleType {
     override val id = "dart-console"
-    override val displayName = "Dart Console App"
+    override val displayName = "App de consola Dart"
     override fun defaultSourceSets(): List<SourceSetTemplate> = listOf(
         SourceSetTemplate(
             "main",
@@ -36,7 +36,7 @@ object DartConsoleModuleType : ModuleType {
 /** Flutter App Module Type */
 object FlutterAppModuleType : ModuleType {
     override val id = "flutter-app"
-    override val displayName = "Flutter Application"
+    override val displayName = "Aplicación Flutter"
     override fun defaultSourceSets(): List<SourceSetTemplate> = listOf(
         SourceSetTemplate(
             "main",
@@ -58,8 +58,8 @@ object FlutterAppModuleType : ModuleType {
 /** Dart Console App Starter Template */
 object DartConsoleAppTemplate : ProjectTemplate {
     override val id = TemplateId("dart-console")
-    override val displayName = "Dart Console App"
-    override val description = "A runnable command-line Dart application with a main() entry point."
+    override val displayName = "App de consola Dart"
+    override val description = "Una aplicación Dart de línea de comandos ejecutable, con un punto de entrada main()."
     override val category = TemplateCategory.DART
     override val iconId = "dart"
 
@@ -167,8 +167,8 @@ object DartConsoleAppTemplate : ProjectTemplate {
 /** Flutter App Starter Template */
 object FlutterAppTemplate : ProjectTemplate {
     override val id = TemplateId("flutter-app")
-    override val displayName = "Flutter App"
-    override val description = "A modern Flutter application with MaterialApp, Android/iOS configurations and Widget structure."
+    override val displayName = "App Flutter"
+    override val description = "Una aplicación Flutter moderna con MaterialApp, configuración de Android/iOS y estructura de widgets."
     override val category = TemplateCategory.DART
     override val iconId = "flutter"
 

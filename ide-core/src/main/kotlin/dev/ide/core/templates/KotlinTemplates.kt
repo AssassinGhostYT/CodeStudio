@@ -47,8 +47,8 @@ internal object KotlinTemplateSupport {
  */
 object KotlinConsoleAppTemplate : ProjectTemplate {
     override val id = TemplateId("kotlin-console")
-    override val displayName = "Kotlin Console App"
-    override val description = "A Kotlin app with a top-level main(). Full editor intelligence; builds and runs in the interactive console."
+    override val displayName = "App de consola Kotlin"
+    override val description = "Una app Kotlin con un main() de primer nivel. Inteligencia completa del editor; compila y se ejecuta en la consola interactiva."
     override val category = TemplateCategory.KOTLIN
     override val iconId = "kotlin"
 
@@ -73,8 +73,8 @@ object KotlinConsoleAppTemplate : ProjectTemplate {
 /** A plain Kotlin library: one `lib` module with a sample class, no entry point (nothing to run). */
 object KotlinLibraryTemplate : ProjectTemplate {
     override val id = TemplateId("kotlin-library")
-    override val displayName = "Kotlin Library"
-    override val description = "A reusable Kotlin library module. Full editor intelligence; compiles in the native build."
+    override val displayName = "Biblioteca de Kotlin"
+    override val description = "Un módulo de biblioteca de Kotlin reutilizable. Inteligencia completa del editor; compila en la construcción nativa."
     override val category = TemplateCategory.KOTLIN
     override val iconId = "kotlin"
 
