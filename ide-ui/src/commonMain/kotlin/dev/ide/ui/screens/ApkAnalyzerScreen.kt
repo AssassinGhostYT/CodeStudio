@@ -163,7 +163,7 @@ private fun CategoryRow(category: String, total: ApkAnalyzerSummary.CategoryTota
         androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(categoryDisplayName(category), style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
-            Text("${cat.value.count} archivos · ${formatBytes(cat.value.uncompressed)} (${cat.value.compressed} comprimido)",
+            Text("${total.count} archivos · ${formatBytes(total.uncompressed)} (${formatBytes(total.compressed)} comprimido)",
                 style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Text("${pct.toString().take(4)}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
