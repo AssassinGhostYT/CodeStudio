@@ -1201,6 +1201,12 @@ interface ApkAnalyzerService {
 
     /** Whether the backend can analyze APKs (always true on JVM/Android). */
     fun isSupported(): Boolean = true
+
+    /** No-op service for a backend that wires no analyzer. */
+    object Unsupported : ApkAnalyzerService {
+        override fun analyze(apkPath: String) = ApkAnalyzerResult(emptyList(), ApkAnalyzerSummary(0, 0, emptyMap()))
+        override fun isSupported() = false
+    }
 }
 
 @Serializable
@@ -1208,13 +1214,6 @@ data class ApkAnalyzerResult(
     val entries: List<ApkAnalyzerEntry>,
     val summary: ApkAnalyzerSummary,
 )
-
-object ApkAnalyzerService {
-    object Unsupported : ApkAnalyzerService {
-        override fun analyze(apkPath: String) = ApkAnalyzerResult(emptyList(), ApkAnalyzerSummary(0, 0, emptyMap()))
-        override fun isSupported() = false
-    }
-}
 
 // ---------------------------------------------------------------------------
 // UI actions (toolbar / menus / command palette)
