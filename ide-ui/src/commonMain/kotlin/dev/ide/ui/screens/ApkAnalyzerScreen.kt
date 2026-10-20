@@ -14,25 +14,28 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.ide.ui.backend.ApkAnalyzerEntry
 import dev.ide.ui.backend.ApkAnalyzerResult
-import dev.ide.ui.backend.ApkAnalyzerService
 import dev.ide.ui.backend.ApkAnalyzerSummary
 import dev.ide.ui.backend.IdeBackend
 import dev.ide.ui.generated.resources.Res
-import dev.ide.ui.generated.resources.apk_analyzer_title
-import dev.ide.ui.generated.resources.apk_analyzer_empty
-import dev.ide.ui.generated.resources.apk_analyzer_summary
 import dev.ide.ui.generated.resources.apk_analyzer_category
+import dev.ide.ui.generated.resources.apk_analyzer_empty
 import dev.ide.ui.generated.resources.apk_analyzer_methods
+import dev.ide.ui.generated.resources.apk_analyzer_summary
+import dev.ide.ui.generated.resources.apk_analyzer_title
 import dev.ide.ui.generated.resources.back
 import org.jetbrains.compose.resources.stringResource
 
@@ -46,12 +49,10 @@ fun ApkAnalyzerScreen(
     apkPath: String,
     onBack: () -> Unit,
 ) {
-    val result = remember(apkPath, backend) {
-        mutableStateOf<ApkAnalyzerResult?>(null)
-    }
+    val result = remember(apkPath, backend) { mutableStateOf<ApkAnalyzerResult?>(null) }
     val loading = remember(apkPath, backend) { mutableStateOf(true) }
 
-    androidx.compose.runtime.LaunchedEffect(apkPath, backend) {
+    LaunchedEffect(apkPath, backend) {
         loading.value = true
         val r = backend.apkAnalyzer.analyze(apkPath)
         result.value = r
@@ -62,7 +63,11 @@ fun ApkAnalyzerScreen(
 
     if (loading.value) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(Res.string.apk_analyzer_empty), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(Res.string.apk_analyzer_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         return
     }
@@ -71,18 +76,16 @@ fun ApkAnalyzerScreen(
     val summary = r.summary
 
     Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
-        // Header
         TextButton(onClick = onBack) { Text("← ${stringResource(Res.string.back)}") }
         Text(
             "${stringResource(Res.string.apk_analyzer_title)} — $fileName",
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+            fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = androidx.compose.foundation.layout.padding(top = 4.dp),
+            modifier = Modifier.padding(top = 4.dp),
         )
 
-        // Summary bar
         Row(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
             SummaryChip(
                 label = stringResource(Res.string.apk_analyzer_summary),
@@ -94,13 +97,12 @@ fun ApkAnalyzerScreen(
             )
         }
 
-        // Category breakdown
         if (summary.byCategory.isNotEmpty()) {
             Text(
                 stringResource(Res.string.apk_analyzer_category, "Por categoría"),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = androidx.compose.foundation.layout.padding(top = 8.dp, bottom = 4.dp),
+                modifier = Modifier.padding(top = 8.dp, bottom = 4.dp),
             )
             LazyColumn(Modifier.fillMaxSize()) {
                 items(summary.byCategory.entries.sortedByDescending { it.value.uncompressed }) { cat ->
@@ -113,7 +115,6 @@ fun ApkAnalyzerScreen(
             }
         }
 
-        // File list
         if (r.entries.isNotEmpty()) {
             androidx.compose.foundation.layout.Spacer(Modifier.size(12.dp))
             Text(
@@ -142,7 +143,7 @@ private fun SummaryChip(label: String, value: String) {
     ) {
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+            Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -159,13 +160,15 @@ private fun CategoryRow(category: String, total: ApkAnalyzerSummary.CategoryTota
             .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f), androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
             .padding(12.dp),
     ) {
-        // Color dot
         Box(Modifier.size(12.dp).background(color, androidx.compose.foundation.shape.CircleShape))
         androidx.compose.foundation.layout.Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(categoryDisplayName(category), style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium)
-            Text("${total.count} archivos · ${formatBytes(total.uncompressed)} (${formatBytes(total.compressed)} comprimido)",
-                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(categoryDisplayName(category), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text(
+                "${total.count} archivos · ${formatBytes(total.uncompressed)} (${formatBytes(total.compressed)} comprimido)",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         Text("${pct.toString().take(4)}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
@@ -181,13 +184,20 @@ private fun EntryRow(entry: ApkAnalyzerEntry) {
             .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.3f), androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
             .padding(12.dp),
     ) {
-        // Color dot
         Box(Modifier.size(10.dp).background(color, androidx.compose.foundation.shape.CircleShape))
         androidx.compose.foundation.layout.Spacer(Modifier.width(8.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            Text(entry.path, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("${formatBytes(entry.uncompressedSize)} → ${formatBytes(entry.compressedSize)} (${(entry.ratio * 100).toString().take(4)}%)",
-                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                entry.path,
+                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "${formatBytes(entry.uncompressedSize)} → ${formatBytes(entry.compressedSize)} (${(entry.ratio * 100).toString().take(4)}%)",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             entry.methodCount?.let {
                 Text("${stringResource(Res.string.apk_analyzer_methods, it)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
             }
@@ -196,13 +206,13 @@ private fun EntryRow(entry: ApkAnalyzerEntry) {
 }
 
 private fun categoryColor(name: String): Color = when (name) {
-    "dex" -> Color(0xFF64B5F6)           // blue
-    "resources" -> Color(0xFF81C784)     // green
-    "res" -> Color(0xFFE57373)           // red
-    "assets" -> Color(0xFFFFB74D)        // orange
-    "manifest" -> Color(0xFFBA68C8)      // purple
-    "native" -> Color(0xFF4DB6AC)        // teal
-    else -> Color(0xFFB0BEC5)            // grey
+    "dex" -> Color(0xFF64B5F6)
+    "resources" -> Color(0xFF81C784)
+    "res" -> Color(0xFFE57373)
+    "assets" -> Color(0xFFFFB74D)
+    "manifest" -> Color(0xFFBA68C8)
+    "native" -> Color(0xFF4DB6AC)
+    else -> Color(0xFFB0BEC5)
 }
 
 private fun categoryDisplayName(name: String): String = when (name) {
