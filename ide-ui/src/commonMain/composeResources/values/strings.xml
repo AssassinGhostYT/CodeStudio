@@ -1315,4 +1315,11 @@ Nunca recopilamos su código, nombres de archivos o proyectos, qué funciones us
     <string name="local_history_restore_title">¿Restaurar esta versión?</string>
     <string name="local_history_restore_body">El contenido del editor se reemplazará por esta versión. El archivo en disco no cambia hasta que guardes.</string>
     <string name="local_history_size">%1$s · %2$d KB</string>
+
+    <!-- APK Analyzer -->
+    <string name="apk_analyzer_title">Analizador APK</string>
+    <string name="apk_analyzer_empty">Selecciona un archivo .apk en el árbol para ver su desglose de tamaño.</string>
+    <string name="apk_analyzer_summary">Tamaño total</string>
+    <string name="apk_analyzer_category">%1$s</string>
+    <string name="apk_analyzer_methods">%1$d métodos</string>
 </resources>

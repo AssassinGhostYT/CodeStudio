@@ -65,6 +65,8 @@ fun EditorScreen(
     onOpenPlugins: () -> Unit = {},
     /** Open Local History for the active file (snapshots taken on every save). */
     onOpenLocalHistory: (filePath: String) -> Unit = {},
+    /** Open APK Analyzer for a file (from file tree context menu on .apk). */
+    onOpenApkAnalyzer: (filePath: String) -> Unit = {},
     onOpenModuleConfig: (String?) -> Unit = {},
     onCloseProject: () -> Unit = {},
     onOpenRun: () -> Unit = {},
@@ -133,6 +135,7 @@ fun EditorScreen(
                 onOpenIconManager,
                 onOpenPlugins,
                 onOpenLocalHistory,
+                onOpenApkAnalyzer,
                 indexStatus,
                 buildState,
                 onNewFile,
@@ -151,6 +154,7 @@ fun EditorScreen(
                 onOpenIconManager,
                 onOpenPlugins,
                 onOpenLocalHistory,
+                onOpenApkAnalyzer,
                 indexStatus,
                 buildState,
                 onNewFile,

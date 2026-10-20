@@ -1162,6 +1162,60 @@ interface LocalHistoryService {
 }
 
 // ---------------------------------------------------------------------------
+// APK Analyzer (read-only size breakdown)
+// ---------------------------------------------------------------------------
+
+/** One entry in the APK size report. */
+@Serializable
+data class ApkAnalyzerEntry(
+    val path: String,           // path inside APK
+    val compressedSize: Long,   // bytes in the ZIP
+    val uncompressedSize: Long, // original bytes
+    val category: String,       // "dex" | "resources" | "assets" | "res" | "manifest" | "native" | "other"
+    val methodCount: Int? = null, // only for DEX
+) {
+    /** Compression ratio 0.0–1.0 (1 = no compression). */
+    val ratio: Double get() = if (uncompressedSize > 0) compressedSize.toDouble() / uncompressedSize else 0.0
+}
+
+/** Category totals for the summary bar. */
+@Serializable
+data class ApkAnalyzerSummary(
+    val totalCompressed: Long,
+    val totalUncompressed: Long,
+    val byCategory: Map<String, CategoryTotal>,
+) {
+    @Serializable
+    data class CategoryTotal(
+        val compressed: Long,
+        val uncompressed: Long,
+        val count: Int,
+    )
+}
+
+/** Read-only APK inspection — never modifies the file. */
+interface ApkAnalyzerService {
+    /** Analyze [apkPath] and return the full entry list + summary. */
+    fun analyze(apkPath: String): ApkAnalyzerResult
+
+    /** Whether the backend can analyze APKs (always true on JVM/Android). */
+    fun isSupported(): Boolean = true
+}
+
+@Serializable
+data class ApkAnalyzerResult(
+    val entries: List<ApkAnalyzerEntry>,
+    val summary: ApkAnalyzerSummary,
+)
+
+object ApkAnalyzerService {
+    object Unsupported : ApkAnalyzerService {
+        override fun analyze(apkPath: String) = ApkAnalyzerResult(emptyList(), ApkAnalyzerSummary(0, 0, emptyMap()))
+        override fun isSupported() = false
+    }
+}
+
+// ---------------------------------------------------------------------------
 // UI actions (toolbar / menus / command palette)
 // ---------------------------------------------------------------------------
 

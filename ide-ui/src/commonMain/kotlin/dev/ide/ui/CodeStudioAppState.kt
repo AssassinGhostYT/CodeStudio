@@ -99,6 +99,10 @@ class CodeStudioAppState(
     var localHistoryPath: String? by mutableStateOf(null)
         private set
 
+    /** The APK file being analyzed (from the file tree context menu). */
+    var apkAnalyzerPath: String? by mutableStateOf(null)
+        private set
+
     /** Where the Plugins screen returns on Back: the editor when opened from the file tree's panel header, or
      *  the landing picker when opened from the home tile. */
     var pluginsReturn: Screen by mutableStateOf(Screen.Editor)
@@ -329,6 +333,12 @@ class CodeStudioAppState(
         screen = Screen.LocalHistory
     }
 
+    /** Open APK Analyzer for [path]; Back returns to the editor. */
+    fun openApkAnalyzer(path: String) {
+        apkAnalyzerPath = path
+        screen = Screen.ApkAnalyzer
+    }
+
     /** Open the app-icon studio, optionally seeded with the icon the user picked in the Icon Manager. Back from
      *  the studio returns to the manager, so choosing a different icon is a round trip rather than a dead end. */
     fun openAppIconStudio(repoId: String? = null, iconName: String? = null) {
@@ -507,6 +517,7 @@ class CodeStudioAppState(
             screen == Screen.IconManager -> screen = iconManagerReturn
             // Local History is always opened from the editor (its ⋯ menu or the file tree), so Back lands there.
             screen == Screen.LocalHistory -> screen = Screen.Editor
+            screen == Screen.ApkAnalyzer -> screen = Screen.Editor
             // The hub returns to wherever it was opened from (picker or editor).
             screen == Screen.Hub -> screen = hubReturn
 

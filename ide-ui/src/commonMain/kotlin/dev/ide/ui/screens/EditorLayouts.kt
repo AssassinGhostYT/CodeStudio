@@ -130,6 +130,8 @@ internal fun buildLeftPanels(
     onOpenModuleConfig: (String?) -> Unit,
     onOpenLocalHistory: (filePath: String) -> Unit = {},
     localHistoryEnabled: Boolean,
+    onOpenApkAnalyzer: (filePath: String) -> Unit = {},
+    apkAnalyzerEnabled: Boolean,
     closeDrawer: () -> Unit,
     onOpenPlugins: () -> Unit = {},
 ): List<SidebarPanel> {
@@ -149,6 +151,8 @@ internal fun buildLeftPanels(
                 onFileOp, onOpenModuleConfig, { onOpenPlugins(); closeDrawer() },
                 { p -> onOpenLocalHistory(p); closeDrawer() },
                 state.backend.localHistory.isSupported(),
+                { p -> onOpenApkAnalyzer(p); closeDrawer() },
+                state.backend.apkAnalyzer.isSupported(),
                 closeDrawer,
             )
         },
@@ -202,6 +206,8 @@ private fun FilesPanelContent(
     onOpenPlugins: () -> Unit = {},
     onOpenLocalHistory: (filePath: String) -> Unit = {},
     localHistoryEnabled: Boolean,
+    onOpenApkAnalyzer: (filePath: String) -> Unit = {},
+    apkAnalyzerEnabled: Boolean,
     closeDrawer: () -> Unit,
 ) {
     val project = state.backend.project
@@ -221,6 +227,8 @@ private fun FilesPanelContent(
         onOpenPlugins = onOpenPlugins,
         onOpenLocalHistory = onOpenLocalHistory,
         localHistoryEnabled = localHistoryEnabled,
+        onOpenApkAnalyzer = onOpenApkAnalyzer,
+        apkAnalyzerEnabled = apkAnalyzerEnabled,
         canImport = fileActions.canImport,
         onImport = { doImport(state, fileActions) },
         onImportInto = { dir -> doImportInto(state, fileActions, dir) },
@@ -264,6 +272,7 @@ internal fun ExpandedLayout(
     onOpenIconManager: () -> Unit,
     onOpenPlugins: () -> Unit,
     onOpenLocalHistory: (filePath: String) -> Unit,
+    onOpenApkAnalyzer: (filePath: String) -> Unit,
     indexStatus: IndexUiStatus,
     buildState: BuildState,
     onNewFile: (String, List<PackageSegment>) -> Unit,
@@ -282,6 +291,8 @@ internal fun ExpandedLayout(
         onOpenPlugins = onOpenPlugins,
         onOpenLocalHistory = onOpenLocalHistory,
         localHistoryEnabled = state.backend.localHistory.isSupported(),
+        onOpenApkAnalyzer = onOpenApkAnalyzer,
+        apkAnalyzerEnabled = state.backend.apkAnalyzer.isSupported(),
         closeDrawer = {}, // desktop panes are persistent — never auto-collapse
     )
     val rightPanels = pluginPanels(ToolWindowAnchor.RIGHT, state.backend, state.active?.path)
@@ -399,6 +410,7 @@ internal fun CompactLayout(
     onOpenIconManager: () -> Unit,
     onOpenPlugins: () -> Unit,
     onOpenLocalHistory: (filePath: String) -> Unit,
+    onOpenApkAnalyzer: (filePath: String) -> Unit,
     indexStatus: IndexUiStatus,
     buildState: BuildState,
     onNewFile: (String, List<PackageSegment>) -> Unit,
@@ -431,6 +443,8 @@ internal fun CompactLayout(
         onOpenPlugins = onOpenPlugins,
         onOpenLocalHistory = onOpenLocalHistory,
         localHistoryEnabled = state.backend.localHistory.isSupported(),
+        onOpenApkAnalyzer = onOpenApkAnalyzer,
+        apkAnalyzerEnabled = state.backend.apkAnalyzer.isSupported(),
         closeDrawer = { state.selectedLeftPanel = null }, // a navigating action closes the drawer on phone
     )
     Box(Modifier.fillMaxSize()) {

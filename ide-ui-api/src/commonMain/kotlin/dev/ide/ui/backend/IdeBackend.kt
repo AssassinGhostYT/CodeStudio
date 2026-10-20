@@ -86,6 +86,9 @@ interface IdeBackend {
      *  [LocalHistoryService.Unsupported], which hides the "Historial local" entries. */
     val localHistory: LocalHistoryService get() = LocalHistoryService.Unsupported
 
+    /** Read-only APK size analyzer (dex/resources/assets/res/manifest/native/other). Optional. */
+    val apkAnalyzer: ApkAnalyzerService get() = ApkAnalyzerService.Unsupported
+
     /** The bundled Material-icon catalog (for the Canvas Icon Manager). Optional — a backend that ships no
      *  icon bundle inherits [IconService.Unsupported] (the picker shows an empty state). */
     val icons: IconService get() = IconService.Unsupported

@@ -13,6 +13,7 @@ import dev.ide.ui.backend.UiInsertionTarget
 import dev.ide.ui.generated.resources.Res
 import dev.ide.ui.generated.resources.settings_title
 import dev.ide.ui.navigation.ScreenHost
+import dev.ide.ui.screens.ApkAnalyzerScreen
 import dev.ide.ui.screens.AppIconStudioScreen
 import dev.ide.ui.screens.CodeStyleScreen
 import dev.ide.ui.screens.CreateProjectScreen
@@ -131,6 +132,7 @@ internal fun AppNavGraph(
                 onOpenIconManager = { app.openIconManager(Screen.Editor) },
                 onOpenPlugins = { app.openPlugins(Screen.Editor, PluginsScope.InstalledOnly) },
                 onOpenLocalHistory = { path -> state.active?.let { app.openLocalHistory(it.path) } ?: app.openLocalHistory(path) },
+                onOpenApkAnalyzer = { path -> app.openApkAnalyzer(path) },
                 onOpenModuleConfig = { module -> app.openModuleConfig(module, ModulesTab.Settings) },
                 onCloseProject = { app.navigateTo(Screen.Projects) },
                 onOpenRun = { app.navigateTo(Screen.Run) },
@@ -197,6 +199,15 @@ internal fun AppNavGraph(
                         state.restoreFromLocalHistory(path, text)
                         app.navigateTo(Screen.Editor)
                     },
+                )
+            }
+
+            Screen.ApkAnalyzer -> {
+                val path = app.apkAnalyzerPath.orEmpty()
+                ApkAnalyzerScreen(
+                    backend = state.backend,
+                    apkPath = path,
+                    onBack = { app.navigateTo(Screen.Editor) },
                 )
             }
 

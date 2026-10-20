@@ -38,6 +38,7 @@ import dev.ide.core.backend.IconBackend
 import dev.ide.core.backend.ModuleBackend
 import dev.ide.core.backend.PreviewBackend
 import dev.ide.core.backend.LearnBackend
+import dev.ide.core.backend.ApkAnalyzerBackend
 import dev.ide.core.backend.LocalHistoryBackend
 import dev.ide.core.backend.ProjectBackend
 import dev.ide.core.backend.PluginStoreBackend
@@ -336,6 +337,11 @@ class IdeServicesBackend(
     // Held as the concrete type (like [learnBackend]) so close() can cancel its recording scope.
     private val localHistoryBackend = LocalHistoryBackend(this)
     override val localHistory: dev.ide.ui.backend.LocalHistoryService = localHistoryBackend
+
+    // APK Analyzer is stateless; no close needed.
+    private val apkAnalyzerBackend = ApkAnalyzerBackend(this)
+    override val apkAnalyzer: dev.ide.ui.backend.ApkAnalyzerService = apkAnalyzerBackend
+
     override val icons: IconService = IconBackend(this)
     override val actions: ActionService = ActionBackend(this)
     // The AI agent is a disablable, non-essential plugin ([AgentPlugin.ID]). When the user turns it off in

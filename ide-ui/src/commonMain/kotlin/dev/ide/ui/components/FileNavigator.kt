@@ -162,6 +162,10 @@ fun FileNavigator(
     onOpenLocalHistory: (filePath: String) -> Unit = {},
     /** Whether Local History is enabled (Settings ▸ Editor ▸ Local history). When false the entry is hidden. */
     localHistoryEnabled: Boolean = true,
+    /** Whether APK Analyzer is supported. When false the entry is hidden. */
+    apkAnalyzerEnabled: Boolean = true,
+    /** Open APK Analyzer for a file node (.apk only); shown in the row context menu. */
+    onOpenApkAnalyzer: (filePath: String) -> Unit = {},
     /** Plugin-contributed context-menu items for a tree node (the `fileContext` place). Resolved when a row's
      *  menu opens; empty by default. Rendered under a divider below the built-in file ops. */
     contextMenuFor: (TreeNode) -> UiMenuGroup = { UiMenuGroup() },
@@ -196,7 +200,9 @@ fun FileNavigator(
         canExport,
         onExport,
         onOpenLocalHistory,
-        localHistoryEnabled
+        localHistoryEnabled,
+        onOpenApkAnalyzer,
+        apkAnalyzerEnabled
     )
     Column(modifier) {
         // header — project identity + the IntelliJ-style scope dropdown, with import + an overflow ⋮ menu.
@@ -384,6 +390,8 @@ private class FileRowActions(
     val onExport: (TreeNode) -> Unit = {},
     val onOpenLocalHistory: (filePath: String) -> Unit = {},
     val localHistoryEnabled: Boolean = true,
+    val onOpenApkAnalyzer: (filePath: String) -> Unit = {},
+    val apkAnalyzerEnabled: Boolean = true,
 )
 
 /** The label shown in the scope dropdown for a view mode. */
@@ -772,6 +780,13 @@ private fun TreeRowContent(
                     menuOpen = false; ctx.onOpenLocalHistory(historyPath)
                 }
             }
+            // APK Analyzer for .apk files — read-only size breakdown by category.
+            if (ctx.apkAnalyzerEnabled && node.kind == NodeKind.File)
+                node.filePath?.takeIf { it.lowercase().endsWith(".apk") }?.let { apkPath ->
+                    FileActionItem(CaIcons.layers, stringResource(Res.string.apk_analyzer_title)) {
+                        menuOpen = false; ctx.onOpenApkAnalyzer(apkPath)
+                    }
+                }
             // Plugin-contributed file actions (the `fileContext` place). Resolved lazily when the menu
             // opens; nothing renders until a plugin contributes.
             val pluginItems = ctx.contextMenu(node).items
