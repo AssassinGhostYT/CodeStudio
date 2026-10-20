@@ -2,6 +2,7 @@ package dev.ide.ui.backend
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.serialization.Serializable
 
 /**
  * The concern-segmented services that make up [IdeBackend]. Each groups one area of the UI/engine boundary
