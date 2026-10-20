@@ -36,7 +36,7 @@ internal object SwingTemplateSupport {
  */
 object SwingAppTemplate : ProjectTemplate {
     override val id = TemplateId("swing-app")
-    override val displayName = "App de escritorio Swing"
+    override val displayName = "Swing Desktop App"
     override val description = "Una aplicación Java con ventana: un marco con una etiqueta y un botón que responde a los clics."
     override val category = TemplateCategory.JAVA
     override val iconId = "java"
@@ -103,7 +103,7 @@ object SwingAppTemplate : ProjectTemplate {
  */
 object SwingCanvasTemplate : ProjectTemplate {
     override val id = TemplateId("swing-canvas")
-    override val displayName = "Dibujo personalizado con Swing"
+    override val displayName = "Swing Custom Painting"
     override val description = "Una ventana que dibuja sus propios gráficos: un JPanel con paintComponent y un repaint al hacer clic."
     override val category = TemplateCategory.JAVA
     override val iconId = "java"

@@ -97,7 +97,7 @@ internal object AndroidTemplateSupport {
  */
 object AndroidAppTemplate : ProjectTemplate {
     override val id = TemplateId("android-app")
-    override val displayName = "App de Android"
+    override val displayName = "Android App"
     override val description = "Una aplicación de Android clásica construida con los archivos de Gradle estándar."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"
@@ -245,7 +245,7 @@ object AndroidAppTemplate : ProjectTemplate {
  */
 object MaterialYouAppTemplate : ProjectTemplate {
     override val id = TemplateId("android-material-you")
-    override val displayName = "App Material You"
+    override val displayName = "Material You App"
     override val description = "Una app Material 3 con colores dinámicos y un botón de acción flotante (FAB)."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"
@@ -435,7 +435,7 @@ object MaterialYouAppTemplate : ProjectTemplate {
  */
 object AndroidLibraryTemplate : ProjectTemplate {
     override val id = TemplateId("android-library")
-    override val displayName = "Biblioteca de Android"
+    override val displayName = "Android Library"
     override val description = "Un módulo de biblioteca de Android (AAR) reutilizable con sus propios recursos."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"

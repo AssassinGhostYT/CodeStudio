@@ -320,11 +320,11 @@ private fun TemplateGlyph(iconId: String) {
 }
 
 internal fun defaultName(template: UiProjectTemplate): String = when {
-    template.id.contains("android-app") -> "Mi App"
-    template.id.contains("android-library") -> "Mi Biblioteca"
-    template.id.contains("console") -> "Mi App"
-    template.id.contains("library") -> "Mi Biblioteca"
-    else -> "Mi Proyecto"
+    template.id.contains("android-app") -> "My App"
+    template.id.contains("android-library") -> "My Library"
+    template.id.contains("console") -> "My App"
+    template.id.contains("library") -> "My Library"
+    else -> "My Project"
 }
 
 internal fun defaultValue(p: UiTemplateParam): String = when (p) {

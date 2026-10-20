@@ -83,8 +83,8 @@ enum class TemplateCategory(val displayName: String) {
     JAVA("Java"),
     KOTLIN("Kotlin"),
     CPP("C/C++"),
-    PLUGIN("Complementos"),
-    OTHER("Otro"),
+    PLUGIN("Plugins"),
+    OTHER("Other"),
 }
 
 // ---------------------------------------------------------------------------

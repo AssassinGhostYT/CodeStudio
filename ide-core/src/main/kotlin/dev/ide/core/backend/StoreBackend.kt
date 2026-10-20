@@ -40,9 +40,9 @@ internal class StoreBackend(private val ctx: BackendContext) : StoreService {
             add(CATEGORY_COMMUNITY)
         }
         val sections = listOf(
-            UiStoreSection("templates", "Plantillas iniciales", "Crea un proyecto nuevo a partir de un andamiaje seleccionado", starters),
-            UiStoreSection("samples", "Proyectos de ejemplo", "Apps de ejemplo completas y documentadas que puedes compilar y ejecutar", samples),
-            UiStoreSection("community", "Comunidad", "Proyectos compartidos por la comunidad", emptyList()),
+            UiStoreSection("templates", "Starter templates", "Crea un proyecto nuevo a partir de un andamiaje seleccionado", starters),
+            UiStoreSection("samples", "Sample projects", "Apps de ejemplo completas y documentadas que puedes compilar y ejecutar", samples),
+            UiStoreSection("community", "Community", "Proyectos compartidos por la comunidad", emptyList()),
         )
         UiStoreCatalog(featured = featured, categories = categories, sections = sections)
     }
@@ -108,7 +108,7 @@ internal class StoreBackend(private val ctx: BackendContext) : StoreService {
     )
 
     private companion object {
-        const val CATEGORY_COMMUNITY = "Comunidad"
+        const val CATEGORY_COMMUNITY = "Community"
 
         /** Sample template ids that ship a built-in preview screenshot ([UiStoreItem.previewKey]). */
         val PREVIEW_SAMPLES = setOf("sample-snake", "sample-tictactoe", "sample-memory", "sample-2048")
@@ -119,19 +119,19 @@ internal class StoreBackend(private val ctx: BackendContext) : StoreService {
                 highlights = listOf("Interfaz con Jetpack Compose", "Tema Material 3", "Una Activity lista para ejecutar", "Compila a un APK instalable"),
             ),
             "android-material-you" to Curation(
-                featured = true, accent = 0xFFB487F7, tags = listOf("Material You", "Vistas", "Kotlin"), installs = 6400, language = "Kotlin",
+                featured = true, accent = 0xFFB487F7, tags = listOf("Material You", "Views", "Kotlin"), installs = 6400, language = "Kotlin",
                 highlights = listOf("Material You (color dinámico)", "Plantillas XML + vistas", "Una Activity lista para ejecutar"),
             ),
             "android-app" to Curation(
-                featured = true, accent = 0xFF3DDC84, tags = listOf("Android", "Actividad", "Plantillas XML"), installs = 21500, language = "Kotlin",
+                featured = true, accent = 0xFF3DDC84, tags = listOf("Android", "Activity", "XML layouts"), installs = 21500, language = "Kotlin",
                 highlights = listOf("Una Activity + plantilla XML", "Recursos conectados", "Compila a un APK instalable"),
             ),
-            "kotlin-console" to Curation(tags = listOf("Kotlin", "Consola"), installs = 9300, language = "Kotlin", highlights = listOf("Un main() de primer nivel", "Inteligencia completa del editor", "Se ejecuta en la consola")),
-            "java-console" to Curation(tags = listOf("Java", "Consola"), installs = 8100, language = "Java", highlights = listOf("Un punto de entrada main()", "Inteligencia completa del editor", "Se ejecuta en la consola")),
+            "kotlin-console" to Curation(tags = listOf("Kotlin", "Console"), installs = 9300, language = "Kotlin", highlights = listOf("Un main() de primer nivel", "Inteligencia completa del editor", "Se ejecuta en la consola")),
+            "java-console" to Curation(tags = listOf("Java", "Console"), installs = 8100, language = "Java", highlights = listOf("Un punto de entrada main()", "Inteligencia completa del editor", "Se ejecuta en la consola")),
             "android-library" to Curation(tags = listOf("Android", "AAR"), installs = 3200, language = "Kotlin", highlights = listOf("Un módulo android-lib reutilizable", "Se publica como AAR")),
             // Sample projects (complete, runnable examples).
             "sample-calculator" to Curation(
-                accent = 0xFFF89820, tags = listOf("Java", "Analizador", "REPL"), installs = 4200, language = "Java",
+                accent = 0xFFF89820, tags = listOf("Java", "Parser", "REPL"), installs = 4200, language = "Java",
                 highlights = listOf("Un bucle interactivo leer-evaluar-imprimir", "Un analizador de expresiones descendente", "Precedencia de operadores y paréntesis", "Sin dependencias y muy documentado"),
             ),
             "sample-notes" to Curation(
@@ -139,24 +139,24 @@ internal class StoreBackend(private val ctx: BackendContext) : StoreService {
                 highlights = listOf("Un bucle de comandos: add/list/done/rm/find", "Lee la entrada línea a línea", "Modelo separado de la vista (probable)", "Sin dependencias y muy documentado"),
             ),
             "sample-weather" to Curation(
-                accent = 0xFF3FBDD9, tags = listOf("Kotlin", "CLI", "Datos"), installs = 3100, language = "Kotlin",
+                accent = 0xFF3FBDD9, tags = listOf("Kotlin", "CLI", "Data"), installs = 3100, language = "Kotlin",
                 highlights = listOf("Escribe una ciudad y obtén su pronóstico", "Lee la entrada en un bucle", "Muestra cómo cambiar a una API real", "Sin dependencias"),
             ),
             // Jetpack Compose sample games (complete, runnable Compose apps).
             "sample-snake" to Curation(
-                accent = 0xFF00E676, tags = listOf("Jetpack Compose", "Juego", "Canvas"), installs = 7400, language = "Kotlin",
+                accent = 0xFF00E676, tags = listOf("Jetpack Compose", "Game", "Canvas"), installs = 7400, language = "Kotlin",
                 highlights = listOf("Dibujo en Canvas + bucle de juego", "Controles por gestos", "Marcador en vivo y récord", "Estética Material 3 neón"),
             ),
             "sample-tictactoe" to Curation(
-                accent = 0xFF22D3EE, tags = listOf("Jetpack Compose", "Juego", "Material 3"), installs = 5200, language = "Kotlin",
+                accent = 0xFF22D3EE, tags = listOf("Jetpack Compose", "Game", "Material 3"), installs = 5200, language = "Kotlin",
                 highlights = listOf("Lógica de juego para dos jugadores", "Fichas animadas y línea ganadora resaltada", "Estado elevado correctamente", "Tema Material 3"),
             ),
             "sample-memory" to Curation(
-                accent = 0xFF7C3AED, tags = listOf("Jetpack Compose", "Juego", "Animación"), installs = 4300, language = "Kotlin",
+                accent = 0xFF7C3AED, tags = listOf("Jetpack Compose", "Game", "Animation"), installs = 4300, language = "Kotlin",
                 highlights = listOf("Animación de volteo 3D", "Lógica de parejas + contadores", "Interfaz con degradado de color", "Buena introducción a la animación con Compose"),
             ),
             "sample-2048" to Curation(
-                accent = 0xFFEDC22E, tags = listOf("Jetpack Compose", "Juego", "Puzle"), installs = 6100, language = "Kotlin",
+                accent = 0xFFEDC22E, tags = listOf("Jetpack Compose", "Game", "Puzzle"), installs = 6100, language = "Kotlin",
                 highlights = listOf("Lógica de combinación con deslizamiento", "Colores de fichas animados", "Marcador y récord", "Modelado limpio del estado de la cuadrícula"),
             ),
         )

@@ -232,7 +232,7 @@ internal object SampleIcons {
 /** Snake — a Canvas-drawn Snake game with swipe controls, a growing body, food, and a live score. */
 object SnakeSampleTemplate : ProjectTemplate {
     override val id = TemplateId("sample-snake")
-    override val displayName = "Serpiente"
+    override val displayName = "Snake"
     override val description = "El clásico juego Serpiente, dibujado en un lienzo de Compose con controles por gestos, marcador en vivo y estética neón."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"
@@ -256,7 +256,7 @@ object SnakeSampleTemplate : ProjectTemplate {
 /** Tic-Tac-Toe — a two-player Material 3 board with animated marks and a highlighted winning line. */
 object TicTacToeSampleTemplate : ProjectTemplate {
     override val id = TemplateId("sample-tictactoe")
-    override val displayName = "Tres en raya"
+    override val displayName = "Tic-Tac-Toe"
     override val description = "Un juego de tres en raya para dos jugadores, con fichas animadas, línea ganadora resaltada y tema Material 3."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"
@@ -280,7 +280,7 @@ object TicTacToeSampleTemplate : ProjectTemplate {
 /** Memory Match — a grid of emoji cards with a 3D flip animation, match logic, and move/timer counters. */
 object MemoryMatchSampleTemplate : ProjectTemplate {
     override val id = TemplateId("sample-memory")
-    override val displayName = "Memoria"
+    override val displayName = "Memory Match"
     override val description = "Un juego de memoria con animación de volteo 3D, lógica de parejas, contadores de movimientos y tiempo, y una interfaz colorida."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"

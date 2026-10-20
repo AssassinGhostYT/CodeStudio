@@ -18,7 +18,7 @@ import dev.ide.platform.log.Log
  */
 object JetpackComposeAppTemplate : ProjectTemplate {
     override val id = TemplateId("compose-app")
-    override val displayName = "App con Jetpack Compose"
+    override val displayName = "Jetpack Compose App"
     override val description = "Una app de Android con interfaz Jetpack Compose y composables @Preview que puedes ver en el editor."
     override val category = TemplateCategory.ANDROID
     override val iconId = "module.android"

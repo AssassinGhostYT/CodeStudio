@@ -76,7 +76,7 @@ internal object CppTemplateSupport {
  */
 object CppConsoleAppTemplate : ProjectTemplate {
     override val id = TemplateId("cpp-console")
-    override val displayName = "App de consola C++"
+    override val displayName = "C++ Console App"
     override val description = "Una aplicación C++ basada en CMake con un punto de entrada main()."
     override val category = TemplateCategory.CPP
     override val iconId = "cpp"
@@ -95,7 +95,7 @@ object CppConsoleAppTemplate : ProjectTemplate {
  */
 object CppLibraryTemplate : ProjectTemplate {
     override val id = TemplateId("cpp-library")
-    override val displayName = "Biblioteca C++"
+    override val displayName = "C++ Library"
     override val description = "Una biblioteca C++ con CMake reutilizable, con una cabecera y un archivo de implementación."
     override val category = TemplateCategory.CPP
     override val iconId = "cpp"
