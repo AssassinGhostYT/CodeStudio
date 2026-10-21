@@ -179,7 +179,7 @@ El archivo `.apk` compilado estará disponible en la ruta:
 
 ## 🗺️ Hoja de Ruta (Roadmap)
 
-> **Estado global frente al objetivo de "IDE de escritorio completo en el móvil": ~62%.** El núcleo
+> **Estado global frente al objetivo de "IDE de escritorio completo en el móvil": ~63%.** El núcleo
 > (editar, analizar, completar, compilar, dependencias, Git y **Logcat**) está sólidamente implementado,
 > y el editor/IDE ya cubre una fracción grande del día a día. Lo más lejano sigue siendo el depurador,
 > profilers, emulador y testing. Esta hoja de ruta compara **todas** las capacidades del IDE de
@@ -248,7 +248,7 @@ El archivo `.apk` compilado estará disponible en la ruta:
 - [ ] Consola de depuración con filtros.
 - [ ] Emulador integrado con perfiles de dispositivo y snapshots.
 - [ ] Mando ADB: dispositivos, wireless debug, screenshot/screenrecord.
-- [ ] Device File Explorer (copiar archivos entre dispositivo y proyecto).
+- [x] **Device File Explorer** (navegar el sistema de archivos del propio dispositivo y descargar archivos al proyecto; sin ADB ni root — solo rutas legibles por la app).
 - [ ] Resource Manager (values, drawables, menús, estilos).
 - [ ] Visor de manifest con merge visual.
 - [ ] CPU profiler (flame / call tree).
@@ -266,7 +266,7 @@ El archivo `.apk` compilado estará disponible en la ruta:
 - [ ] 🟡 Stash (guardar, listar, restaurar, borrar) — faltan cherry-pick y rebase.
 - [ ] 🟡 Integración con GitHub (OAuth por dispositivo, listar/crear repos, publicar) — faltan PRs e issues.
 - [ ] Base de datos: inspector de Room/SQLite, ejecutar queries.
-- [ ] APK Analyzer (tamaño por dex/recurso/archivo).
+- [x] **APK Analyzer** (tamaño por dex/recurso/archivo).
 - [ ] Sincronización de configuración del IDE.
 - [ ] Soporte NDK (C/C++ con completado y debug).
 
