@@ -22,12 +22,14 @@ import org.eclipse.jgit.api.CreateBranchCommand.SetupUpstreamMode
 import org.eclipse.jgit.api.Git
 import org.eclipse.jgit.api.ListBranchCommand.ListMode
 import org.eclipse.jgit.api.MergeResult.MergeStatus
+import org.eclipse.jgit.api.PushResult
 import org.eclipse.jgit.diff.DiffEntry
 import org.eclipse.jgit.diff.DiffFormatter
 import org.eclipse.jgit.lib.Constants
 import org.eclipse.jgit.lib.RefUpdate
 import org.eclipse.jgit.transport.RefSpec
 import org.eclipse.jgit.transport.URIish
+import org.eclipse.jgit.transport.RemoteRefUpdate
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.ByteArrayOutputStream
 import java.io.File
