@@ -221,14 +221,12 @@ internal fun AppNavGraph(
                     backend = state.backend,
                     initialPath = app.deviceFilesPath,
                     projectDir = projectDir,
+                    fileActions = fileActions,
                     onBack = { app.navigateTo(Screen.Editor) },
-                    onOpenFile = { devicePath ->
-                        // Pull into the project, then open the copy in the editor (the device copy is read-only).
-                        val dest = projectDir?.let { state.backend.deviceFiles.pullToProject(devicePath, it) }
-                        if (dest != null) {
-                            state.openAtLine(dest, 1, 1)
-                            app.navigateTo(Screen.Editor)
-                        }
+                    onOpenFile = { projectPath ->
+                        // The screen already pulled the device file into the project — open that copy.
+                        state.openAtLine(projectPath, 1, 1)
+                        app.navigateTo(Screen.Editor)
                     },
                 )
             }

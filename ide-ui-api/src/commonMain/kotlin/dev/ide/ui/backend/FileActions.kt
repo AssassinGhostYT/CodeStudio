@@ -80,6 +80,20 @@ interface FileActions {
      */
     fun reveal(path: String) = Unit
 
+    /**
+     * Whether this host can open an *arbitrary* device folder (e.g. `/sdcard/Download`) in the system file
+     * manager. Unlike [reveal] — which points at CodeStudio's own projects root — this reaches the shared
+     * storage, where the system file manager has full access even when the app is scoped. Default no-op
+     * (the affordance is hidden when [canRevealDevicePath] is false).
+     */
+    val canRevealDevicePath: Boolean get() = false
+
+    /**
+     * Open the device directory [path] in the system file manager so the user can browse it with the OS's
+     * own (unrestricted) access. Default no-op.
+     */
+    fun revealDevicePath(path: String) = Unit
+
     /** Whether this host can hand an APK to the system package installer (Android only). */
     val canInstallApk: Boolean get() = false
 

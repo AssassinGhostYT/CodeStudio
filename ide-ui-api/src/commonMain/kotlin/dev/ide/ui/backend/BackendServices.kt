@@ -1253,6 +1253,12 @@ interface DeviceFileService {
     /** The well-known roots offered as quick links (`/sdcard`, app sandbox, `/data/local/tmp`, `/`). */
     fun roots(): List<UiDeviceEntry> = emptyList()
 
+    /**
+     * The app's own storage home (where CodeStudio keeps the projects, the SDK and the caches). It is the
+     * one shared-storage location the app can always read, so the explorer opens here by default.
+     */
+    fun homePath(): String? = null
+
     /** List the children of device directory [path] (sorted: directories first, then by name). */
     fun list(path: String): UiDeviceListing = UiDeviceListing(path)
 

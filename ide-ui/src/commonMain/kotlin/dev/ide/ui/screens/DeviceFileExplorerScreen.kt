@@ -2,6 +2,7 @@ package dev.ide.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -23,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,11 +33,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.ide.ui.backend.FileActions
 import dev.ide.ui.backend.IdeBackend
 import dev.ide.ui.backend.UiDeviceEntry
 import dev.ide.ui.backend.UiDeviceListing
 import dev.ide.ui.generated.resources.Res
 import dev.ide.ui.generated.resources.back
+import dev.ide.ui.platform.ioDispatcher
+import dev.ide.ui.platform.rememberDeviceStorageAccess
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.jetbrains.compose.resources.stringResource
 
 /**
@@ -42,32 +51,63 @@ import org.jetbrains.compose.resources.stringResource
  * open project. No ADB, no root: only paths the app can already read appear. Opens from the editor's overflow
  * menu. Tapping a directory descends into it; tapping a file opens it in the editor; the download action copies
  * it into the project root.
+ *
+ * On Android 11+ the platform's scoped storage hides the *contents* of shared-storage folders from apps
+ * without "All files access", so a plain listing shows empty directories. The screen surfaces that as a
+ * banner with a one-tap grant, and falls back to the system file manager — which always has full access —
+ * for browsing those folders.
  */
 @Composable
 fun DeviceFileExplorerScreen(
     backend: IdeBackend,
     initialPath: String?,
     projectDir: String?,
+    fileActions: FileActions = FileActions.None,
     onBack: () -> Unit,
-    onOpenFile: (devicePath: String) -> Unit,
+    onOpenFile: (projectPath: String) -> Unit,
 ) {
     val service = backend.deviceFiles
-    val defaultRoot = remember(service) { runCatching { service.defaultPath() }.getOrNull() ?: "/" }
+    val storageAccess = rememberDeviceStorageAccess()
+    val scope = rememberCoroutineScope()
+    var fullAccess by remember { mutableStateOf(storageAccess.hasFullAccess()) }
+    val home = remember(service) { runCatching { service.homePath() }.getOrNull() }
+    val defaultRoot = remember(service) { runCatching { service.defaultPath() }.getOrNull() ?: home ?: "/" }
     var currentPath by remember { mutableStateOf(initialPath ?: defaultRoot) }
     var listing by remember { mutableStateOf<UiDeviceListing?>(null) }
     var loading by remember { mutableStateOf(true) }
     var status by remember { mutableStateOf<String?>(null) }
+    var reloadKey by remember { mutableStateOf(0) }
     val roots = remember(service) { runCatching { service.roots() }.getOrDefault(emptyList()) }
 
-    LaunchedEffect(currentPath, service) {
+    LaunchedEffect(currentPath, service, reloadKey) {
         loading = true
-        listing = runCatching { service.list(currentPath) }
-            .getOrDefault(UiDeviceListing(currentPath, error = "error"))
+        listing = withContext(ioDispatcher) {
+            runCatching { service.list(currentPath) }.getOrDefault(UiDeviceListing(currentPath, error = "error"))
+        }
         loading = false
     }
 
+    // The permission can only be granted out-of-band (OS settings), so poll it while the banner is up and
+    // reload as soon as it is granted — otherwise the user would have to leave and come back to see files.
+    LaunchedEffect(fullAccess) {
+        while (!fullAccess) {
+            delay(1500)
+            val granted = storageAccess.hasFullAccess()
+            if (granted != fullAccess) {
+                fullAccess = granted
+                reloadKey++
+            }
+        }
+    }
+
     Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
-        TextButton(onClick = onBack) { Text("← ${stringResource(Res.string.back)}") }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onBack) { Text("← ${stringResource(Res.string.back)}") }
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = { reloadKey++ }) {
+                Text("Refrescar", style = MaterialTheme.typography.labelMedium)
+            }
+        }
         Text(
             "Device File Explorer",
             style = MaterialTheme.typography.titleMedium,
@@ -78,7 +118,7 @@ fun DeviceFileExplorerScreen(
         // Quick roots
         if (roots.isNotEmpty()) {
             Row(
-                Modifier.fillMaxWidth().padding(top = 8.dp),
+                Modifier.fillMaxWidth().padding(top = 8.dp).horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 roots.forEach { root ->
@@ -89,6 +129,35 @@ fun DeviceFileExplorerScreen(
 
         // Breadcrumb
         Breadcrumbs(currentPath) { target -> currentPath = target }
+
+        // The scoped-storage banner: without "All files access" the shared-storage folders list but stay empty.
+        if (!fullAccess) {
+            StorageAccessBanner(
+                onGrant = {
+                    if (storageAccess.openSettings()) {
+                        status = "Concede el permiso y vuelve: la lista se actualizará sola"
+                    }
+                },
+            )
+        }
+
+        // The current folder: its own name plus the escape hatch to the system file manager, which has
+        // unrestricted access to the shared storage.
+        if (fileActions.canRevealDevicePath) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    currentPath,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = { fileActions.revealDevicePath(currentPath) }) {
+                    Text("Abrir en explorador", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
 
         status?.let {
             Text(
@@ -105,7 +174,10 @@ fun DeviceFileExplorerScreen(
 
             l == null || l.error != null -> CenterText(l?.error?.let { "No se puede abrir: $it" } ?: "No se puede abrir esta carpeta")
 
-            l.entries.isEmpty() -> CenterText("Carpeta vacía")
+            l.entries.isEmpty() -> CenterText(
+                if (fullAccess) "Carpeta vacía"
+                else "Carpeta vacía o con contenido oculto por Android (sin acceso a todos los archivos)",
+            )
 
             else -> LazyColumn(Modifier.fillMaxSize()) {
                 items(l.entries) { entry ->
@@ -114,10 +186,30 @@ fun DeviceFileExplorerScreen(
                         canPull = !entry.isDirectory && projectDir != null,
                     ) { action ->
                         when (action) {
-                            RowAction.Open -> if (entry.isDirectory) currentPath = entry.path else onOpenFile(entry.path)
+                            RowAction.Open -> if (entry.isDirectory) {
+                                currentPath = entry.path
+                            } else {
+                                // Pull the device file into the project (off the main thread), then open the copy.
+                                val dir = projectDir
+                                if (dir == null) {
+                                    status = "No hay proyecto abierto"
+                                } else {
+                                    scope.launch {
+                                        val dest = withContext(ioDispatcher) { service.pullToProject(entry.path, dir) }
+                                        if (dest != null) onOpenFile(dest) else status = "No se pudo descargar"
+                                    }
+                                }
+                            }
                             RowAction.Pull -> {
-                                val dest = projectDir?.let { service.pullToProject(entry.path, it) }
-                                status = if (dest != null) "Descargado al proyecto: $dest" else "No se pudo descargar"
+                                val dir = projectDir
+                                if (dir == null) {
+                                    status = "No hay proyecto abierto"
+                                } else {
+                                    scope.launch {
+                                        val dest = withContext(ioDispatcher) { service.pullToProject(entry.path, dir) }
+                                        status = if (dest != null) "Descargado al proyecto: $dest" else "No se pudo descargar"
+                                    }
+                                }
                             }
                         }
                     }
@@ -143,6 +235,32 @@ fun DeviceFileExplorerScreen(
 private fun CenterText(text: String) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/**
+ * Explains why the shared-storage folders look empty and offers the one-tap grant. Android only scopes the
+ * shared storage from API 30 on; below that the app can read it already and the banner never shows.
+ */
+@Composable
+private fun StorageAccessBanner(onGrant: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .background(MaterialTheme.colorScheme.tertiaryContainer, RoundedCornerShape(10.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "Android oculta el contenido del almacenamiento compartido sin el permiso «Todos los archivos».",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onGrant) {
+            Text("Activar", style = MaterialTheme.typography.labelMedium)
+        }
     }
 }
 

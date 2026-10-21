@@ -22,11 +22,25 @@ import java.util.Locale
  */
 internal class DeviceFileBackend(private val ctx: BackendContext) : DeviceFileService {
 
-    override fun defaultPath(): String? = KNOWN_ROOTS.firstOrNull { File(it).let { f -> f.isDirectory && f.canRead() } }
+    override fun defaultPath(): String? = homePath()
+        ?: KNOWN_ROOTS.firstOrNull { File(it).let { f -> f.isDirectory && f.canRead() } }
         ?: "/"
 
-    override fun roots(): List<UiDeviceEntry> =
-        KNOWN_ROOTS.filter { File(it).exists() }.map { toEntry(File(it)) }
+    /**
+     * CodeStudio's own storage home (`/storage/emulated/0/Android/data/<pkg>/files` on Android) — the
+     * projects, the SDK and the caches. It is the one place the app can always read, so the explorer opens
+     * here and the user's own sources (`MainActivity.kt`, `build.gradle.kts`, …) are right there.
+     */
+    override fun homePath(): String? = ctx.manager?.storageRoot?.toString()?.takeIf { File(it).isDirectory }
+
+    override fun roots(): List<UiDeviceEntry> {
+        val home = homePath()
+        return (listOfNotNull(home) + KNOWN_ROOTS)
+            .distinct()
+            .filter { File(it).exists() }
+            .map { toEntry(File(it)) }
+            .map { if (it.path == home) it.copy(name = "CodeStudio") else it }
+    }
 
     override fun list(path: String): UiDeviceListing {
         val dir = File(path)

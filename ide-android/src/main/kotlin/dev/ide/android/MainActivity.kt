@@ -173,6 +173,13 @@ class MainActivity : ComponentActivity() {
                     override val canReveal: Boolean = true
                     override fun reveal(path: String) = fileOps.openInFiles(path)
 
+                    override val canRevealDevicePath: Boolean = true
+                    override fun revealDevicePath(path: String) {
+                        if (!fileOps.openDevicePathInFiles(path)) {
+                            Toast.makeText(this@MainActivity, "No se puede abrir esa carpeta aquí", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+
                     override val canInstallApk: Boolean = true
                     override fun installApk(path: String) = fileOps.promptInstall(path)
                 }

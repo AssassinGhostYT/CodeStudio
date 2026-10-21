@@ -156,6 +156,39 @@ internal class AndroidFileOps(private val activity: ComponentActivity) {
         activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     }.getOrElse { Toast.makeText(activity, "No app to open links", Toast.LENGTH_SHORT).show() }
 
+    /**
+     * Open an arbitrary device directory in the system file manager, e.g. `/sdcard/Download`. The shared
+     * storage is served by the platform's own documents provider, so DocumentsUI can browse it with full
+     * access even when this app is scoped out of it — which is exactly the escape hatch the in-app device
+     * explorer needs. Paths outside the primary shared volume (`/system`, `/data`, …) have no documents
+     * provider and are refused.
+     */
+    fun openDevicePathInFiles(path: String?): Boolean {
+        val docId = path?.let { primaryDocId(it) } ?: return false
+        val uri = runCatching { DocumentsContract.buildDocumentUri(EXTERNAL_STORAGE_AUTH, docId) }.getOrNull() ?: return false
+        val view = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uri, "vnd.android.document/directory")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        if (runCatching { activity.startActivity(view); true }.getOrDefault(false)) return true
+        return runCatching {
+            activity.startActivity(Intent("android.provider.action.BROWSE", uri))
+            true
+        }.getOrDefault(false)
+    }
+
+    /** Map a primary-volume path (`/sdcard/…`, `/storage/emulated/0/…`) to its documents-provider doc id. */
+    private fun primaryDocId(path: String): String? {
+        val abs = File(path).absolutePath
+        val primary = when {
+            abs == "/sdcard" -> PRIMARY_VOLUME
+            abs.startsWith("/sdcard/") -> "$PRIMARY_VOLUME/${abs.removePrefix("/sdcard/")}"
+            else -> abs
+        }
+        if (primary != PRIMARY_VOLUME && !primary.startsWith("$PRIMARY_VOLUME/")) return null
+        val rel = primary.removePrefix(PRIMARY_VOLUME).trim('/')
+        return if (rel.isEmpty()) "primary:" else "primary:$rel"
+    }
+
     fun queryDisplayName(uri: Uri): String? = runCatching {
         if (uri.scheme == "file") return uri.lastPathSegment
         activity.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
@@ -169,5 +202,13 @@ internal class AndroidFileOps(private val activity: ComponentActivity) {
         path.endsWith(".zip") || path.endsWith(".jar") -> "application/zip"
         path.endsWith(".txt") || path.endsWith(".kt") || path.endsWith(".java") || path.endsWith(".xml") -> "text/plain"
         else -> "application/octet-stream"
+    }
+
+    private companion object {
+        /** The platform's shared-storage documents provider (serves `/sdcard` to any file manager). */
+        const val EXTERNAL_STORAGE_AUTH = "com.android.externalstorage.documents"
+
+        /** The primary shared volume's real path (`/sdcard` is its usual alias). */
+        const val PRIMARY_VOLUME = "/storage/emulated/0"
     }
 }
