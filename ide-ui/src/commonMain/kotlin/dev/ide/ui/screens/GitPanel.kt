@@ -469,43 +469,66 @@ AnimatedVisibility(
             DiffView(diffFile!!, diffText, onBack = { diffFile = null })
         } else {
             LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp)) {
-                when {
-                    session == null -> item {
-                        GitHubConnectCard(
-                            connecting = connecting,
-                            onConnect = { startGithubConnect() },
-                            onManageRemote = { dialog = GitDialog.Remote },
-                        )
+                // Always show local Git status if a repo exists (git.available).
+                // GitHub session is only required for push/pull/publish/clone.
+                if (git.available) {
+                    item {
+                        SectionCard("Acciones") {
+                            ActionsGrid(
+                                git = git,
+                                hasRemote = remotes.isNotEmpty(),
+                                busy = busy,
+                                runOp = { op, block -> runOp(op, block = block) },
+                                openDialog = { dialog = it },
+                                onPush = { dialog = GitDialog.Publish },
+                            )
+                        }
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    item {
+                        SectionCard("Cambios") {
+                            ChangesCard(
+                                files = files,
+                                onToggleStage = { f ->
+                                    scope.launch(Dispatchers.IO) {
+                                        if (f.staged) git.unstage(listOf(f.path)) else git.stage(listOf(f.path))
+                                        reload()
+                                    }
+                                },
+                                onOpenDiff = { f ->
+                                    scope.launch(Dispatchers.IO) {
+                                        val t = runCatching { git.diff(f.path, f.staged) }.getOrDefault("")
+                                        withContext(Dispatchers.Main) { diffFile = f; diffText = t }
+                                    }
+                                },
+                            )
+                        }
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    item {
+                        SectionCard("Repositorio remoto", CaIcons.github) {
+                            RemoteCardBody(
+                                remotes = remotes,
+                                currentBranch = currentBranch,
+                                busyRemove = busy == GitOp.RemoteRemove,
+                                onConnect = { dialog = GitDialog.Remote },
+                                onRemove = { name -> runOp(GitOp.RemoteRemove) { git.removeRemote(name) } },
+                                onOpenUrl = { url -> runCatching { uriHandler.openUri(url) } },
+                            )
+                        }
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    item {
+                        SectionCard("Información") {
+                            InfoCardBody(branch = currentBranch, filesCount = files.size, remotes = remotes, lastCommit = lastCommit)
+                        }
                         Spacer(Modifier.height(14.dp))
                     }
-                    session?.repoFullName == null -> {
-                        item {
-                            RepoPickerHeader(
-                                login = session?.login.orEmpty(),
-                                count = repos.size,
-                                connectingRepo = connecting,
-                                onLogout = { logoutGithub() },
-                            )
-                            Spacer(Modifier.height(10.dp))
-                            CreateRepoTile(
-                                connecting = connecting,
-                                onClick = { dialog = GitDialog.CreateRepo },
-                            )
-                            Spacer(Modifier.height(10.dp))
-                        }
-                        items(repos, key = { it.fullName }) { repo ->
-                            RepoRow(
-                                repo = repo,
-                                connecting = connecting,
-                                isCloning = pickingRepo == repo.fullName,
-                                willClone = !git.available,
-                                onPick = { pickRepo(repo) },
-                            )
-                            Spacer(Modifier.height(8.dp))
-                        }
-                        item { Spacer(Modifier.height(6.dp)) }
-                    }
-                    !git.available -> item {
+                }
+
+                // No repo yet — show init card
+                if (!git.available) {
+                    item {
                         NoRepoCard(
                             initializing = busy == GitOp.Init,
                             onInit = { runOp(GitOp.Init) { git.init() } },
@@ -513,60 +536,44 @@ AnimatedVisibility(
                         )
                         Spacer(Modifier.height(14.dp))
                     }
-                    else -> {
-                        item {
-                            SectionCard("Acciones") {
-                                ActionsGrid(
-                                    git = git,
-                                    hasRemote = remotes.isNotEmpty(),
-                                    busy = busy,
-                                    runOp = { op, block -> runOp(op, block = block) },
-                                    openDialog = { dialog = it },
-                                    onPush = { dialog = GitDialog.Publish },
-                                )
-                            }
-                            Spacer(Modifier.height(10.dp))
-                        }
-                        item {
-                            SectionCard("Repositorio remoto", CaIcons.github) {
-                                RemoteCardBody(
-                                    remotes = remotes,
-                                    currentBranch = currentBranch,
-                                    busyRemove = busy == GitOp.RemoteRemove,
-                                    onConnect = { dialog = GitDialog.Remote },
-                                    onRemove = { name -> runOp(GitOp.RemoteRemove) { git.removeRemote(name) } },
-                                    onOpenUrl = { url -> runCatching { uriHandler.openUri(url) } },
-                                )
-                            }
-                            Spacer(Modifier.height(10.dp))
-                        }
-                        item {
-                            SectionCard("Cambios") {
-                                ChangesCard(
-                                    files = files,
-                                    onToggleStage = { f ->
-                                        scope.launch(Dispatchers.IO) {
-                                            if (f.staged) git.unstage(listOf(f.path)) else git.stage(listOf(f.path))
-                                            reload()
-                                        }
-                                    },
-                                    onOpenDiff = { f ->
-                                        scope.launch(Dispatchers.IO) {
-                                            val t = runCatching { git.diff(f.path, f.staged) }.getOrDefault("")
-                                            withContext(Dispatchers.Main) { diffFile = f; diffText = t }
-                                        }
-                                    },
-                                )
-                            }
-                            Spacer(Modifier.height(10.dp))
-                        }
-                        item {
-                            SectionCard("Información") {
-                                InfoCardBody(branch = currentBranch, filesCount = files.size, remotes = remotes, lastCommit = lastCommit)
-                            }
-                            Spacer(Modifier.height(14.dp))
-                        }
+                }
+
+                // GitHub connection / repo picker — only shown when needed for remote ops
+                if (session == null) {
+                    item {
+                        GitHubConnectCard(
+                            connecting = connecting,
+                            onConnect = { startGithubConnect() },
+                            onManageRemote = { dialog = GitDialog.Remote },
+                        )
+                        Spacer(Modifier.height(14.dp))
                     }
+                } else if (session?.repoFullName == null) {
+                    item {
+                        RepoPickerHeader(
+                            login = session?.login.orEmpty(),
+                            count = repos.size,
+                            connectingRepo = connecting,
+                            onLogout = { logoutGithub() },
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        CreateRepoTile(
+                            connecting = connecting,
+                            onClick = { dialog = GitDialog.CreateRepo },
+                        )
+                        Spacer(Modifier.height(10.dp))
+                    }
+                    items(repos, key = { it.fullName }) { repo ->
+                        RepoRow(
+                            repo = repo,
+                            connecting = connecting,
+                            isCloning = pickingRepo == repo.fullName,
+                            willClone = !git.available,
+                            onPick = { pickRepo(repo) },
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    item { Spacer(Modifier.height(6.dp)) }
                 }
             }
         }

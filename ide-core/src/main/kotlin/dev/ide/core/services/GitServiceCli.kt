@@ -1526,7 +1526,7 @@ internal class GitServiceCli(
                     .call()
             }
 
-            git.push()
+            val pushResult = git.push()
                 .setRemote("origin")
                 .setRefSpecs(
                     RefSpec(
@@ -1539,12 +1539,37 @@ internal class GitServiceCli(
                         token,
                     ),
                 )
+                .setTimeout(30) // seconds
                 .call()
 
-            GitOpResult.ok(
-                "Proyecto subido a github.com/$repo " +
-                    "(rama $target).",
+            // Inspect the actual push result — JGit doesn't throw on rejection.
+            val firstResult = pushResult.firstOrNull()
+            val refUpdate = firstResult?.remoteUpdates?.firstOrNull()
+            val status = refUpdate?.status ?: return GitOpResult.ok(
+                "Proyecto subido a github.com/$repo (rama $target).",
             )
+            return when (status) {
+                RemoteRefUpdate.Status.OK,
+                RemoteRefUpdate.Status.UP_TO_DATE -> GitOpResult.ok(
+                    "Proyecto subido a github.com/$repo (rama $target).",
+                )
+                RemoteRefUpdate.Status.REJECTED_NONFASTFORWARD -> GitOpResult.fail(
+                    "Push rechazado: la rama remota tiene commits que no tienes en local. " +
+                        "Haz pull primero o fuerza el push desde la terminal.",
+                )
+                RemoteRefUpdate.Status.REJECTED_OTHER_REASON -> GitOpResult.fail(
+                    "Push rechazado por el servidor: ${refUpdate.message ?: "razón desconocida"}.",
+                )
+                RemoteRefUpdate.Status.REJECTED_NODELETE -> GitOpResult.fail(
+                    "No se puede borrar la rama remota (protegida).",
+                )
+                RemoteRefUpdate.Status.REMOTE_FAILURE -> GitOpResult.fail(
+                    "Fallo en el servidor remoto: ${refUpdate.message ?: "error desconocido"}.",
+                )
+                else -> GitOpResult.fail(
+                    "Push falló: ${status.name} — ${refUpdate.message ?: "sin detalles"}.",
+                )
+            }
         }.getOrElse { error ->
             GitOpResult.fail(
                 "No se pudo subir a GitHub: " +
@@ -1595,6 +1620,8 @@ internal class GitServiceCli(
             val connection = URL(url)
                 .openConnection() as HttpURLConnection
 
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 30_000
             connection.requestMethod = "POST"
             connection.doOutput = true
 
@@ -1652,6 +1679,8 @@ internal class GitServiceCli(
             val connection = URL(url)
                 .openConnection() as HttpURLConnection
 
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 30_000
             connection.requestMethod = "POST"
             connection.doOutput = true
 
@@ -1716,6 +1745,8 @@ internal class GitServiceCli(
             val connection = URL(url)
                 .openConnection() as HttpURLConnection
 
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 30_000
             connection.requestMethod = "GET"
 
             connection.setRequestProperty(

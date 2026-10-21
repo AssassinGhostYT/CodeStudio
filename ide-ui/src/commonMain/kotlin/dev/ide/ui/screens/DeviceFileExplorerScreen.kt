@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -77,7 +79,12 @@ fun DeviceFileExplorerScreen(
     var loading by remember { mutableStateOf(true) }
     var status by remember { mutableStateOf<String?>(null) }
     var reloadKey by remember { mutableStateOf(0) }
+    val listState = rememberLazyListState()
     val roots = remember(service) { runCatching { service.roots() }.getOrDefault(emptyList()) }
+
+    LaunchedEffect(currentPath) {
+        listState.scrollToItem(0) // reset scroll when folder changes
+    }
 
     LaunchedEffect(currentPath, service, reloadKey) {
         loading = true
@@ -179,7 +186,10 @@ fun DeviceFileExplorerScreen(
                 else "Carpeta vacía o con contenido oculto por Android (sin acceso a todos los archivos)",
             )
 
-            else -> LazyColumn(Modifier.fillMaxSize()) {
+            else -> LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+            ) {
                 items(l.entries) { entry ->
                     DeviceRow(
                         entry = entry,
