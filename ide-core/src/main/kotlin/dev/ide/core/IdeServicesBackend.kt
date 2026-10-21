@@ -39,6 +39,7 @@ import dev.ide.core.backend.ModuleBackend
 import dev.ide.core.backend.PreviewBackend
 import dev.ide.core.backend.LearnBackend
 import dev.ide.core.backend.ApkAnalyzerBackend
+import dev.ide.core.backend.DeviceFileBackend
 import dev.ide.core.backend.LocalHistoryBackend
 import dev.ide.core.backend.ProjectBackend
 import dev.ide.core.backend.PluginStoreBackend
