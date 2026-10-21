@@ -60,10 +60,10 @@ fun DeviceFileExplorerScreen(
     val roots = remember(service) { runCatching { service.roots() }.getOrDefault(emptyList()) }
 
     LaunchedEffect(currentPath, service) {
-        loading.value = true
-        listing.value = runCatching { service.list(currentPath) }
+        loading = true
+        listing = runCatching { service.list(currentPath) }
             .getOrDefault(UiDeviceListing(currentPath, error = "error"))
-        loading.value = false
+        loading = false
     }
 
     Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
@@ -101,7 +101,7 @@ fun DeviceFileExplorerScreen(
 
         val l = listing
         when {
-            loading.value -> CenterText("Cargando…")
+            loading -> CenterText("Cargando…")
 
             l == null || l.error != null -> CenterText(l?.error?.let { "No se puede abrir: $it" } ?: "No se puede abrir esta carpeta")
 
