@@ -35,7 +35,6 @@ import dev.ide.ui.generated.resources.apk_analyzer_category
 import dev.ide.ui.generated.resources.apk_analyzer_empty
 import dev.ide.ui.generated.resources.apk_analyzer_methods
 import dev.ide.ui.generated.resources.apk_analyzer_summary
-import dev.ide.ui.generated.resources.apk_analyzer_title
 import dev.ide.ui.generated.resources.back
 import org.jetbrains.compose.resources.stringResource
 
@@ -78,7 +77,7 @@ fun ApkAnalyzerScreen(
     Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
         TextButton(onClick = onBack) { Text("← ${stringResource(Res.string.back)}") }
         Text(
-            "${stringResource(Res.string.apk_analyzer_title)} — $fileName",
+            "APK Analyzer — $fileName",
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
