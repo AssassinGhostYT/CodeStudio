@@ -783,7 +783,7 @@ private fun TreeRowContent(
             // APK Analyzer for .apk files — read-only size breakdown by category.
             if (ctx.apkAnalyzerEnabled && node.kind == NodeKind.File)
                 node.filePath?.takeIf { it.lowercase().endsWith(".apk") }?.let { apkPath ->
-                    FileActionItem(CaIcons.layers, stringResource(Res.string.apk_analyzer_title)) {
+                    FileActionItem(CaIcons.layers, "APK Analyzer") {
                         menuOpen = false; ctx.onOpenApkAnalyzer(apkPath)
                     }
                 }
