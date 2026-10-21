@@ -64,7 +64,7 @@ fun DeviceFileExplorerScreen(
     projectDir: String?,
     fileActions: FileActions = FileActions.None,
     onBack: () -> Unit,
-    onOpenFile: (projectPath: String) -> Unit,
+    onOpenFile: (devicePath: String) -> Unit,
 ) {
     val service = backend.deviceFiles
     val storageAccess = rememberDeviceStorageAccess()
@@ -189,18 +189,14 @@ fun DeviceFileExplorerScreen(
                             RowAction.Open -> if (entry.isDirectory) {
                                 currentPath = entry.path
                             } else {
-                                // Pull the device file into the project (off the main thread), then open the copy.
-                                val dir = projectDir
-                                if (dir == null) {
-                                    status = "No hay proyecto abierto"
-                                } else {
-                                    scope.launch {
-                                        val dest = withContext(ioDispatcher) { service.pullToProject(entry.path, dir) }
-                                        if (dest != null) onOpenFile(dest) else status = "No se pudo descargar"
-                                    }
-                                }
+                                // Open the device file in the editor *in place*: the editor reads and saves
+                                // absolute paths, so the file is edited where it lives (the language comes
+                                // from its extension — .kt/.java/.dart/.xml). Only that one file opens; the
+                                // rest of the folder is untouched.
+                                onOpenFile(entry.path)
                             }
                             RowAction.Pull -> {
+                                // Explicit copy into the open project (the file stays where it is too).
                                 val dir = projectDir
                                 if (dir == null) {
                                     status = "No hay proyecto abierto"

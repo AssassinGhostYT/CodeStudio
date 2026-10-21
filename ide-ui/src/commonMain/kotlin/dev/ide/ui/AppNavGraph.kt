@@ -223,9 +223,10 @@ internal fun AppNavGraph(
                     projectDir = projectDir,
                     fileActions = fileActions,
                     onBack = { app.navigateTo(Screen.Editor) },
-                    onOpenFile = { projectPath ->
-                        // The screen already pulled the device file into the project — open that copy.
-                        state.openAtLine(projectPath, 1, 1)
+                    onOpenFile = { devicePath ->
+                        // The device file is opened where it lives (absolute path, read+save in place) — the
+                        // language comes from its extension. Only that file opens as a tab.
+                        state.openAtLine(devicePath, 1, 1)
                         app.navigateTo(Screen.Editor)
                     },
                 )
