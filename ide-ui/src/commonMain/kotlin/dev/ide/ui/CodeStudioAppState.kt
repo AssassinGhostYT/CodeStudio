@@ -103,6 +103,10 @@ class CodeStudioAppState(
     var apkAnalyzerPath: String? by mutableStateOf(null)
         private set
 
+    /** The device directory the Device File Explorer is browsing (null = its default root). */
+    var deviceFilesPath: String? by mutableStateOf(null)
+        private set
+
     /** Where the Plugins screen returns on Back: the editor when opened from the file tree's panel header, or
      *  the landing picker when opened from the home tile. */
     var pluginsReturn: Screen by mutableStateOf(Screen.Editor)
@@ -337,6 +341,13 @@ class CodeStudioAppState(
     fun openApkAnalyzer(path: String) {
         apkAnalyzerPath = path
         screen = Screen.ApkAnalyzer
+    }
+
+    /** Open the Device File Explorer at [path] (null = the device explorer's default root). Back returns to the
+     *  editor. */
+    fun openDeviceFiles(path: String? = null) {
+        deviceFilesPath = path
+        screen = Screen.DeviceFiles
     }
 
     /** Open the app-icon studio, optionally seeded with the icon the user picked in the Icon Manager. Back from

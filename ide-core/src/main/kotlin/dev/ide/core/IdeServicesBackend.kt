@@ -342,6 +342,10 @@ class IdeServicesBackend(
     private val apkAnalyzerBackend = ApkAnalyzerBackend(this)
     override val apkAnalyzer: dev.ide.ui.backend.ApkAnalyzerService = apkAnalyzerBackend
 
+    // Device File Explorer is stateless too (pure java.io.File); no close needed.
+    private val deviceFileBackend = DeviceFileBackend(this)
+    override val deviceFiles: dev.ide.ui.backend.DeviceFileService = deviceFileBackend
+
     override val icons: IconService = IconBackend(this)
     override val actions: ActionService = ActionBackend(this)
     // The AI agent is a disablable, non-essential plugin ([AgentPlugin.ID]). When the user turns it off in

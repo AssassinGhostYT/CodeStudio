@@ -66,6 +66,8 @@ internal fun EditorCenter(
     navFraction: (() -> Float)? = null,
     /** Opens Local History for the active file (top-bar ⋯ menu). */
     onOpenLocalHistory: () -> Unit = {},
+    /** Opens the Device File Explorer (top-bar ⋯ menu). */
+    onOpenDeviceFiles: () -> Unit = {},
 ) {
     val project = state.backend.project
     val depsState by state.backend.deps.depsState.collectAsState()
@@ -143,6 +145,8 @@ internal fun EditorCenter(
                 onOptimizeImports = { if (active != null) optimizeImportsEpoch++ },
                 onOpenLocalHistory = onOpenLocalHistory,
                 localHistoryEnabled = state.backend.localHistory.isSupported(),
+                onOpenDeviceFiles = onOpenDeviceFiles,
+                deviceFilesEnabled = state.backend.deviceFiles.isSupported(),
                 onToggleConsole = { state.consoleOpen = !state.consoleOpen },
                 consoleOpen = state.consoleOpen,
                 // The toolbar's Terminal button always shows. On Android the host replaces

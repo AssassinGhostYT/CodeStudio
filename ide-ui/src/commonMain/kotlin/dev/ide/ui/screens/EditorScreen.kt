@@ -67,6 +67,8 @@ fun EditorScreen(
     onOpenLocalHistory: (filePath: String) -> Unit = {},
     /** Open APK Analyzer for a file (from file tree context menu on .apk). */
     onOpenApkAnalyzer: (filePath: String) -> Unit = {},
+    /** Open the Device File Explorer (browse the running device / pull files into the project). */
+    onOpenDeviceFiles: () -> Unit = {},
     onOpenModuleConfig: (String?) -> Unit = {},
     onCloseProject: () -> Unit = {},
     onOpenRun: () -> Unit = {},
@@ -136,6 +138,7 @@ fun EditorScreen(
                 onOpenPlugins,
                 onOpenLocalHistory,
                 onOpenApkAnalyzer,
+                onOpenDeviceFiles,
                 indexStatus,
                 buildState,
                 onNewFile,
@@ -155,6 +158,7 @@ fun EditorScreen(
                 onOpenPlugins,
                 onOpenLocalHistory,
                 onOpenApkAnalyzer,
+                onOpenDeviceFiles,
                 indexStatus,
                 buildState,
                 onNewFile,

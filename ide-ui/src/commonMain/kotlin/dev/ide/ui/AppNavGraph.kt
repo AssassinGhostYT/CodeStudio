@@ -17,6 +17,7 @@ import dev.ide.ui.screens.ApkAnalyzerScreen
 import dev.ide.ui.screens.AppIconStudioScreen
 import dev.ide.ui.screens.CodeStyleScreen
 import dev.ide.ui.screens.CreateProjectScreen
+import dev.ide.ui.screens.DeviceFileExplorerScreen
 import dev.ide.ui.screens.EditorScreen
 import dev.ide.ui.screens.ExportProjectScreen
 import dev.ide.ui.screens.LocalHistoryScreen
@@ -133,6 +134,7 @@ internal fun AppNavGraph(
                 onOpenPlugins = { app.openPlugins(Screen.Editor, PluginsScope.InstalledOnly) },
                 onOpenLocalHistory = { path -> state.active?.let { app.openLocalHistory(it.path) } ?: app.openLocalHistory(path) },
                 onOpenApkAnalyzer = { path -> app.openApkAnalyzer(path) },
+                onOpenDeviceFiles = { app.openDeviceFiles() },
                 onOpenModuleConfig = { module -> app.openModuleConfig(module, ModulesTab.Settings) },
                 onCloseProject = { app.navigateTo(Screen.Projects) },
                 onOpenRun = { app.navigateTo(Screen.Run) },
@@ -208,6 +210,26 @@ internal fun AppNavGraph(
                     backend = state.backend,
                     apkPath = path,
                     onBack = { app.navigateTo(Screen.Editor) },
+                )
+            }
+
+            Screen.DeviceFiles -> {
+                val projectDir = state.active?.path?.substringBeforeLast('/', "")
+                    ?.takeIf { it.isNotEmpty() }
+                    ?: state.backend.projects.storageRootPath()
+                DeviceFileExplorerScreen(
+                    backend = state.backend,
+                    initialPath = app.deviceFilesPath,
+                    projectDir = projectDir,
+                    onBack = { app.navigateTo(Screen.Editor) },
+                    onOpenFile = { devicePath ->
+                        // Pull into the project, then open the copy in the editor (the device copy is read-only).
+                        val dest = projectDir?.let { state.backend.deviceFiles.pullToProject(devicePath, it) }
+                        if (dest != null) {
+                            state.openAtLine(dest, 1, 1)
+                            app.navigateTo(Screen.Editor)
+                        }
+                    },
                 )
             }
 

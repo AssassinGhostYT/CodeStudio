@@ -176,6 +176,10 @@ fun EditorTopBar(
     onOpenLocalHistory: () -> Unit = {},
     /** Whether Local History is recorded at all; when false the ⋯ entry is hidden. */
     localHistoryEnabled: Boolean = true,
+    /** Opens the Device File Explorer (the ⋯ menu entry). */
+    onOpenDeviceFiles: () -> Unit = {},
+    /** Whether a device explorer is wired; when false the ⋯ entry is hidden. */
+    deviceFilesEnabled: Boolean = false,
     onToggleConsole: () -> Unit = {},
     consoleOpen: Boolean = false,
     /** Compact (phone) top bar only: a single button opening the RIGHT tool-window drawer — the phone has no
@@ -251,6 +255,8 @@ fun EditorTopBar(
                     onOptimizeImports = onOptimizeImports,
                     onOpenLocalHistory = onOpenLocalHistory,
                     localHistoryEnabled = localHistoryEnabled,
+                    onOpenDeviceFiles = onOpenDeviceFiles,
+                    deviceFilesEnabled = deviceFilesEnabled,
                     inlayHintsOn = inlayHintsOn,
                     onToggleInlayHints = onToggleInlayHints,
                     consoleOpen = consoleOpen,
@@ -415,6 +421,10 @@ private fun EditorOverflowMenu(
     onOpenLocalHistory: () -> Unit,
     /** Whether Local History is recorded at all; when false the entry is hidden. */
     localHistoryEnabled: Boolean,
+    /** Opens the Device File Explorer (browse the running device / pull files into the project). */
+    onOpenDeviceFiles: () -> Unit,
+    /** Whether a device explorer is wired; when false the entry is hidden. */
+    deviceFilesEnabled: Boolean,
     inlayHintsOn: Boolean,
     onToggleInlayHints: () -> Unit,
     consoleOpen: Boolean,
@@ -453,6 +463,9 @@ private fun EditorOverflowMenu(
                 }
             }
             OverflowItem(CaIcons.command, stringResource(Res.string.edchrome_command_palette)) { open = false; onOpenPalette() }
+            if (deviceFilesEnabled) {
+                OverflowItem(CaIcons.folderOpen, "Device File Explorer") { open = false; onOpenDeviceFiles() }
+            }
             // The AI assistant panel — a toggle, its on-state accented like the other tool windows.
             if (rightToolIconId != null) {
                 OverflowItem(actionIcon(rightToolIconId), rightToolTitle, active = rightToolOpen) {

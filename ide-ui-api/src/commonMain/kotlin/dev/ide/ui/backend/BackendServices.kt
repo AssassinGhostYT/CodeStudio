@@ -1216,6 +1216,75 @@ data class ApkAnalyzerResult(
 )
 
 // ---------------------------------------------------------------------------
+// Device File Explorer (browse the running device's filesystem)
+// ---------------------------------------------------------------------------
+
+/**
+ * One node in the device filesystem listing — a real path on the device that runs the IDE (`/sdcard`,
+ * the app sandbox, `/data/local/tmp`, …). [name] is the display name, [path] the absolute path.
+ */
+@Serializable
+data class UiDeviceEntry(
+    val name: String,
+    val path: String,
+    val isDirectory: Boolean,
+    val sizeBytes: Long = 0,
+    val lastModifiedMs: Long = 0,
+    /** True when the process can read [path]; a directory the app cannot open is shown but not expandable. */
+    val readable: Boolean = true,
+)
+
+/** Result of listing a device directory: its [entries] plus a [error] when the path could not be read. */
+@Serializable
+data class UiDeviceListing(
+    val path: String,
+    val entries: List<UiDeviceEntry> = emptyList(),
+    val error: String? = null,
+)
+
+/**
+ * Browse and transfer files on the device that runs the IDE (the "Device File Explorer" tool window). All
+ * access is through the app's own process — no ADB, no root: only paths the process can already read appear.
+ * Transfers go to/from the open project through [dev.ide.ui.backend.FileService]-style paths.
+ *
+ * Optional — a backend that wires no explorer inherits [Unsupported], so the tool window stays absent.
+ */
+interface DeviceFileService {
+    /** The well-known roots offered as quick links (`/sdcard`, app sandbox, `/data/local/tmp`, `/`). */
+    fun roots(): List<UiDeviceEntry> = emptyList()
+
+    /** List the children of device directory [path] (sorted: directories first, then by name). */
+    fun list(path: String): UiDeviceListing = UiDeviceListing(path)
+
+    /** The path of the folder the device explorer should open first (e.g. `/sdcard`), or null when none. */
+    fun defaultPath(): String? = null
+
+    /**
+     * Copy the device file [devicePath] into the open project at [projectDirPath] (a path inside the project
+     * tree). Returns the created project path, or null on failure. Blocks on I/O — call off the main thread.
+     */
+    fun pullToProject(devicePath: String, projectDirPath: String): String? = null
+
+    /**
+     * Copy the project file [projectFilePath] onto the device at [deviceDirPath] (a device directory). Returns
+     * the created device path, or null on failure. Blocks on I/O — call off the main thread.
+     */
+    fun pushFromProject(projectFilePath: String, deviceDirPath: String): String? = null
+
+    /** Create the device directory [path] (parents included). True on success. */
+    fun createDirectory(path: String): Boolean = false
+
+    /** Delete the device file or directory [path]. True on success. */
+    fun delete(path: String): Boolean = false
+
+    /** Whether the device explorer is available (a backend that wired one). */
+    fun isSupported(): Boolean = false
+
+    /** No-op service for a backend that wires no device explorer. */
+    object Unsupported : DeviceFileService
+}
+
+// ---------------------------------------------------------------------------
 // UI actions (toolbar / menus / command palette)
 // ---------------------------------------------------------------------------
 

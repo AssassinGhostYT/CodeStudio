@@ -89,6 +89,10 @@ interface IdeBackend {
     /** Read-only APK size analyzer (dex/resources/assets/res/manifest/native/other). Optional. */
     val apkAnalyzer: ApkAnalyzerService get() = ApkAnalyzerService.Unsupported
 
+    /** Browse and transfer files on the running device (the "Device File Explorer" tool window). Optional —
+     *  a backend that wires no explorer inherits [DeviceFileService.Unsupported] (the tool window is absent). */
+    val deviceFiles: DeviceFileService get() = DeviceFileService.Unsupported
+
     /** The bundled Material-icon catalog (for the Canvas Icon Manager). Optional — a backend that ships no
      *  icon bundle inherits [IconService.Unsupported] (the picker shows an empty state). */
     val icons: IconService get() = IconService.Unsupported

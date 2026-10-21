@@ -273,6 +273,7 @@ internal fun ExpandedLayout(
     onOpenPlugins: () -> Unit,
     onOpenLocalHistory: (filePath: String) -> Unit,
     onOpenApkAnalyzer: (filePath: String) -> Unit,
+    onOpenDeviceFiles: () -> Unit,
     indexStatus: IndexUiStatus,
     buildState: BuildState,
     onNewFile: (String, List<PackageSegment>) -> Unit,
@@ -338,6 +339,7 @@ internal fun ExpandedLayout(
                                 val activePath = state.active?.path
                                 if (activePath != null) onOpenLocalHistory(activePath)
                             },
+                            onOpenDeviceFiles = onOpenDeviceFiles,
                         )
                         // Right-edge tool-window pane. Fully plugin-derived: nothing lays down when no plugin
                         // contributes a RIGHT tool window (the AI chat is one such plugin).
@@ -411,6 +413,7 @@ internal fun CompactLayout(
     onOpenPlugins: () -> Unit,
     onOpenLocalHistory: (filePath: String) -> Unit,
     onOpenApkAnalyzer: (filePath: String) -> Unit,
+    onOpenDeviceFiles: () -> Unit,
     indexStatus: IndexUiStatus,
     buildState: BuildState,
     onNewFile: (String, List<PackageSegment>) -> Unit,
@@ -492,6 +495,7 @@ internal fun CompactLayout(
                             val activePath = state.active?.path
                             if (activePath != null) onOpenLocalHistory(activePath)
                         },
+                        onOpenDeviceFiles = onOpenDeviceFiles,
                     )
                     // While the keyboard is up: a coding-symbol accessory bar sits directly above it. Off-keyboard,
                     // the dock's collapsed bar takes the slot instead.
