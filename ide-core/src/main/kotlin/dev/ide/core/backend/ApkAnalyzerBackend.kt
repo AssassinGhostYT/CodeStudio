@@ -20,7 +20,7 @@ internal class ApkAnalyzerBackend(private val ctx: BackendContext) : ApkAnalyzer
             var totalUncompressed = 0L
             val byCategory = mutableMapOf<String, ApkAnalyzerSummary.CategoryTotal>()
 
-            zip.entries().forEachRemaining { e ->
+            zip.entries().asSequence().forEach { e ->
                 val path = e.name
                 val compressed = e.compressedSize
                 val uncompressed = e.size
@@ -75,14 +75,15 @@ internal class ApkAnalyzerBackend(private val ctx: BackendContext) : ApkAnalyzer
     /** Rough method count for a DEX file — reads the header (no full parse). */
     private fun estimateMethodCount(zip: ZipFile, entry: java.util.zip.ZipEntry): Int? {
         return try {
-            val is = zip.getInputStream(entry)
+            val input = zip.getInputStream(entry)
             val header = ByteArray(112) // DEX header size
-            if (is.read(header) == 112) {
-                // method_ids_off at offset 92 (4 bytes), method_ids_size at 96 (4 bytes)
-                // Actually: header[92..95] = method_ids_off, header[96..99] = method_ids_size
+            if (input.read(header) == 112) {
+                // method_ids_size at offset 96 (4 bytes, little-endian)
                 val sizeBytes = header.copyOfRange(96, 100)
-                (sizeBytes[3].toInt() shl 24) or ((sizeBytes[2] & 0xFF) shl 16) or
-                    ((sizeBytes[1] & 0xFF) shl 8) or (sizeBytes[0] & 0xFF)
+                (sizeBytes[3].toInt() and 0xFF shl 24) or
+                    (sizeBytes[2].toInt() and 0xFF shl 16) or
+                    (sizeBytes[1].toInt() and 0xFF shl 8) or
+                    (sizeBytes[0].toInt() and 0xFF)
             } else null
         } catch (_: Exception) {
             null
