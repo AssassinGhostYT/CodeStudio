@@ -30,6 +30,7 @@ import org.eclipse.jgit.lib.RefUpdate
 import org.eclipse.jgit.transport.RefSpec
 import org.eclipse.jgit.transport.URIish
 import org.eclipse.jgit.transport.RemoteRefUpdate
+import org.eclipse.jgit.transport.RemoteRefUpdate.Status
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -1550,28 +1551,28 @@ internal class GitServiceCli(
             val status = refUpdate?.status ?: return GitOpResult.ok(
                 "Proyecto subido a github.com/$repo (rama $target).",
             )
-            return when (status) {
-                RemoteRefUpdate.Status.OK,
-                RemoteRefUpdate.Status.UP_TO_DATE -> GitOpResult.ok(
-                    "Proyecto subido a github.com/$repo (rama $target).",
-                )
-                RemoteRefUpdate.Status.REJECTED_NONFASTFORWARD -> GitOpResult.fail(
-                    "Push rechazado: la rama remota tiene commits que no tienes en local. " +
-                        "Haz pull primero o fuerza el push desde la terminal.",
-                )
-                RemoteRefUpdate.Status.REJECTED_OTHER_REASON -> GitOpResult.fail(
-                    "Push rechazado por el servidor: ${refUpdate.message ?: "razón desconocida"}.",
-                )
-                RemoteRefUpdate.Status.REJECTED_NODELETE -> GitOpResult.fail(
-                    "No se puede borrar la rama remota (protegida).",
-                )
-                RemoteRefUpdate.Status.REMOTE_FAILURE -> GitOpResult.fail(
-                    "Fallo en el servidor remoto: ${refUpdate.message ?: "error desconocido"}.",
-                )
-                else -> GitOpResult.fail(
-                    "Push falló: ${status.name} — ${refUpdate.message ?: "sin detalles"}.",
-                )
-            }
+return when (status) {
+                    Status.OK,
+                    Status.UP_TO_DATE -> GitOpResult.ok(
+                        "Proyecto subido a github.com/$repo (rama $target).",
+                    )
+                    Status.REJECTED_NONFASTFORWARD -> GitOpResult.fail(
+                        "Push rechazado: la rama remota tiene commits que no tienes en local. " +
+                            "Haz pull primero o fuerza el push desde la terminal.",
+                    )
+                    Status.REJECTED_OTHER_REASON -> GitOpResult.fail(
+                        "Push rechazado por el servidor: ${refUpdate.message ?: "razón desconocida"}.",
+                    )
+                    Status.REJECTED_NODELETE -> GitOpResult.fail(
+                        "No se puede borrar la rama remota (protegida).",
+                    )
+                    Status.REMOTE_FAILURE -> GitOpResult.fail(
+                        "Fallo en el servidor remoto: ${refUpdate.message ?: "error desconocido"}.",
+                    )
+                    else -> GitOpResult.fail(
+                        "Push falló: ${status.name} — ${refUpdate.message ?: "sin detalles"}.",
+                    )
+                }
         }.getOrElse { error ->
             GitOpResult.fail(
                 "No se pudo subir a GitHub: " +
