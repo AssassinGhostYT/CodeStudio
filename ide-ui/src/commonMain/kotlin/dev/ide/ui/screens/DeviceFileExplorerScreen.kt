@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -75,16 +74,19 @@ fun DeviceFileExplorerScreen(
     var fullAccess by remember { mutableStateOf(storageAccess.hasFullAccess()) }
     val home = remember(service) { runCatching { service.homePath() }.getOrNull() }
     val defaultRoot = remember(service) { runCatching { service.defaultPath() }.getOrNull() ?: home ?: "/" }
+    // The folder the user is in. It is remembered in the app state, so opening a file in the editor and
+    // coming back lands in the same folder instead of the root.
     var currentPath by remember { mutableStateOf(initialPath ?: defaultRoot) }
     var listing by remember { mutableStateOf<UiDeviceListing?>(null) }
     var loading by remember { mutableStateOf(true) }
     var status by remember { mutableStateOf<String?>(null) }
     var reloadKey by remember { mutableStateOf(0) }
+    // One scroll state per folder: each folder keeps its own position, and it is restored on return.
     val listState = app.deviceFileScrollState(currentPath)
     val roots = remember(service) { runCatching { service.roots() }.getOrDefault(emptyList()) }
 
     LaunchedEffect(currentPath) {
-        listState.scrollToItem(0) // reset scroll when folder changes
+        app.rememberDeviceFilesPath(currentPath)
     }
 
     LaunchedEffect(currentPath, service, reloadKey) {

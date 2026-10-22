@@ -469,9 +469,8 @@ AnimatedVisibility(
             DiffView(diffFile!!, diffText, onBack = { diffFile = null })
         } else {
             LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp)) {
-                // If there's a local repo, show the local Git UI (status, changes, remotes, info).
-                // GitHub session / repo picker only appears when there's NO local repo yet,
-                // or when the user explicitly opens the Remote dialog to connect one.
+                // --- Local repository (only when the project actually has a .git) ---
+                val s = session
                 if (git.available) {
                     item {
                         SectionCard("Acciones") {
@@ -506,18 +505,22 @@ AnimatedVisibility(
                         }
                         Spacer(Modifier.height(10.dp))
                     }
-                    item {
-                        SectionCard("Repositorio remoto", CaIcons.github) {
-                            RemoteCardBody(
-                                remotes = remotes,
-                                currentBranch = currentBranch,
-                                busyRemove = busy == GitOp.RemoteRemove,
-                                onConnect = { dialog = GitDialog.Remote },
-                                onRemove = { name -> runOp(GitOp.RemoteRemove) { git.removeRemote(name) } },
-                                onOpenUrl = { url -> runCatching { uriHandler.openUri(url) } },
-                            )
+                    // The remotes of the local repository. Skipped when the connect card below would
+                    // repeat the very same "Conectar con GitHub" entry.
+                    if (remotes.isNotEmpty() || (s != null && s.repoFullName != null)) {
+                        item {
+                            SectionCard("Repositorio remoto", CaIcons.github) {
+                                RemoteCardBody(
+                                    remotes = remotes,
+                                    currentBranch = currentBranch,
+                                    busyRemove = busy == GitOp.RemoteRemove,
+                                    onConnect = { dialog = GitDialog.Remote },
+                                    onRemove = { name -> runOp(GitOp.RemoteRemove) { git.removeRemote(name) } },
+                                    onOpenUrl = { url -> runCatching { uriHandler.openUri(url) } },
+                                )
+                            }
+                            Spacer(Modifier.height(10.dp))
                         }
-                        Spacer(Modifier.height(10.dp))
                     }
                     item {
                         SectionCard("Información") {
@@ -526,29 +529,35 @@ AnimatedVisibility(
                         Spacer(Modifier.height(14.dp))
                     }
                 } else {
-                    // No local repo yet: show init option, then GitHub connection / repo picker
                     item {
                         NoRepoCard(
                             initializing = busy == GitOp.Init,
                             onInit = { runOp(GitOp.Init) { git.init() } },
-                            note = "El repositorio también se inicializará solo al subir el proyecto a ${session?.repoFullName.orEmpty()}.",
+                            note = s?.repoFullName?.let {
+                                "El repositorio también se inicializará solo al subir el proyecto a $it."
+                            }.orEmpty(),
+                        )
+                        Spacer(Modifier.height(14.dp))
+                    }
+                }
+
+                // --- The GitHub session: ONE single place to connect, never duplicated ---
+                when {
+                    // Not connected yet: the only place to connect with GitHub.
+                    s == null -> item {
+                        GitHubConnectCard(
+                            connecting = connecting,
+                            onConnect = { startGithubConnect() },
+                            onManageRemote = { dialog = GitDialog.Remote },
                         )
                         Spacer(Modifier.height(14.dp))
                     }
 
-                    if (session == null) {
-                        item {
-                            GitHubConnectCard(
-                                connecting = connecting,
-                                onConnect = { startGithubConnect() },
-                                onManageRemote = { dialog = GitDialog.Remote },
-                            )
-                            Spacer(Modifier.height(14.dp))
-                        }
-                    } else if (session?.repoFullName == null) {
+                    // Connected, but no repository picked yet.
+                    s.repoFullName == null -> {
                         item {
                             RepoPickerHeader(
-                                login = session?.login.orEmpty(),
+                                login = s.login.orEmpty(),
                                 count = repos.size,
                                 connectingRepo = connecting,
                                 onLogout = { logoutGithub() },
@@ -562,18 +571,18 @@ AnimatedVisibility(
                             )
                             Spacer(Modifier.height(10.dp))
                         }
+                        items(repos, key = { it.fullName }) { repo ->
+                            RepoRow(
+                                repo = repo,
+                                connecting = connecting,
+                                isCloning = pickingRepo == repo.fullName,
+                                willClone = !git.available,
+                                onPick = { pickRepo(repo) },
+                            )
+                            Spacer(Modifier.height(8.dp))
+                        }
+                        item { Spacer(Modifier.height(6.dp)) }
                     }
-                    items(repos, key = { it.fullName }) { repo ->
-                        RepoRow(
-                            repo = repo,
-                            connecting = connecting,
-                            isCloning = pickingRepo == repo.fullName,
-                            willClone = !git.available,
-                            onPick = { pickRepo(repo) },
-                        )
-                        Spacer(Modifier.height(8.dp))
-                    }
-                    item { Spacer(Modifier.height(6.dp)) }
                 }
             }
         }
@@ -1404,7 +1413,7 @@ private fun GitHubConnectCard(connecting: Boolean, onConnect: () -> Unit, onMana
                         Icon(CaIcons.github, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
                     }
                     Text(
-                        "Conectar con GitHub",
+                        "Conectar",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.padding(start = 8.dp),
