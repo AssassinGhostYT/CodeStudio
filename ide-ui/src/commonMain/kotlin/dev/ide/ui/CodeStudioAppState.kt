@@ -107,6 +107,13 @@ class CodeStudioAppState(
     var deviceFilesPath: String? by mutableStateOf(null)
         private set
 
+    /** Persisted scroll position per device-explorer folder so returning from the editor restores it. */
+    private val deviceFileScrollStates = mutableMapOf<String, LazyListState>()
+
+    /** Get or create the scroll state for a device-explorer folder. */
+    fun deviceFileScrollState(path: String): LazyListState =
+        deviceFileScrollStates.getOrPut(path) { LazyListState() }
+
     /** Where the Plugins screen returns on Back: the editor when opened from the file tree's panel header, or
      *  the landing picker when opened from the home tile. */
     var pluginsReturn: Screen by mutableStateOf(Screen.Editor)

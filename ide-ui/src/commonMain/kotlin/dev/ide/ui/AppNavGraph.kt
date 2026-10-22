@@ -218,6 +218,7 @@ internal fun AppNavGraph(
                     ?.takeIf { it.isNotEmpty() }
                     ?: state.backend.projects.storageRootPath()
                 DeviceFileExplorerScreen(
+                    app = app,
                     backend = state.backend,
                     initialPath = app.deviceFilesPath,
                     projectDir = projectDir,

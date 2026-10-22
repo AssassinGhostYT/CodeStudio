@@ -469,8 +469,9 @@ AnimatedVisibility(
             DiffView(diffFile!!, diffText, onBack = { diffFile = null })
         } else {
             LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp)) {
-                // Always show local Git status if a repo exists (git.available).
-                // GitHub session is only required for push/pull/publish/clone.
+                // If there's a local repo, show the local Git UI (status, changes, remotes, info).
+                // GitHub session / repo picker only appears when there's NO local repo yet,
+                // or when the user explicitly opens the Remote dialog to connect one.
                 if (git.available) {
                     item {
                         SectionCard("Acciones") {
@@ -524,10 +525,8 @@ AnimatedVisibility(
                         }
                         Spacer(Modifier.height(14.dp))
                     }
-                }
-
-                // No repo yet — show init card
-                if (!git.available) {
+                } else {
+                    // No local repo yet: show init option, then GitHub connection / repo picker
                     item {
                         NoRepoCard(
                             initializing = busy == GitOp.Init,
@@ -536,27 +535,26 @@ AnimatedVisibility(
                         )
                         Spacer(Modifier.height(14.dp))
                     }
-                }
 
-                // GitHub connection / repo picker — only shown when needed for remote ops
-                if (session == null) {
-                    item {
-                        GitHubConnectCard(
-                            connecting = connecting,
-                            onConnect = { startGithubConnect() },
-                            onManageRemote = { dialog = GitDialog.Remote },
-                        )
-                        Spacer(Modifier.height(14.dp))
-                    }
-                } else if (session?.repoFullName == null) {
-                    item {
-                        RepoPickerHeader(
-                            login = session?.login.orEmpty(),
-                            count = repos.size,
-                            connectingRepo = connecting,
-                            onLogout = { logoutGithub() },
-                        )
-                        Spacer(Modifier.height(10.dp))
+                    if (session == null) {
+                        item {
+                            GitHubConnectCard(
+                                connecting = connecting,
+                                onConnect = { startGithubConnect() },
+                                onManageRemote = { dialog = GitDialog.Remote },
+                            )
+                            Spacer(Modifier.height(14.dp))
+                        }
+                    } else if (session?.repoFullName == null) {
+                        item {
+                            RepoPickerHeader(
+                                login = session?.login.orEmpty(),
+                                count = repos.size,
+                                connectingRepo = connecting,
+                                onLogout = { logoutGithub() },
+                            )
+                            Spacer(Modifier.height(10.dp))
+                        }
                         CreateRepoTile(
                             connecting = connecting,
                             onClick = { dialog = GitDialog.CreateRepo },

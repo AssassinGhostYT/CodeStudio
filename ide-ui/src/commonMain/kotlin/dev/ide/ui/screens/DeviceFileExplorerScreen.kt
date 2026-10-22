@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.ide.ui.CodeStudioAppState
 import dev.ide.ui.backend.FileActions
 import dev.ide.ui.backend.IdeBackend
 import dev.ide.ui.backend.UiDeviceEntry
@@ -61,6 +61,7 @@ import org.jetbrains.compose.resources.stringResource
  */
 @Composable
 fun DeviceFileExplorerScreen(
+    app: CodeStudioAppState,
     backend: IdeBackend,
     initialPath: String?,
     projectDir: String?,
@@ -79,7 +80,7 @@ fun DeviceFileExplorerScreen(
     var loading by remember { mutableStateOf(true) }
     var status by remember { mutableStateOf<String?>(null) }
     var reloadKey by remember { mutableStateOf(0) }
-    val listState = rememberLazyListState()
+    val listState = app.deviceFileScrollState(currentPath)
     val roots = remember(service) { runCatching { service.roots() }.getOrDefault(emptyList()) }
 
     LaunchedEffect(currentPath) {
