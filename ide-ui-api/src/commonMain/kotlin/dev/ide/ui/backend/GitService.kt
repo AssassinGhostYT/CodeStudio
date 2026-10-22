@@ -44,6 +44,19 @@ data class GitCommitInfo(
     val dateMillis: Long,
 )
 
+/**
+ * Everything the Source-control panel needs for one refresh, read from a single repository handle.
+ * Keeping it in one snapshot avoids opening the repository once per list on mobile.
+ */
+data class GitSnapshot(
+    val branch: String?,
+    val files: List<GitFile>,
+    val remotes: List<GitRemote>,
+    val branches: List<GitBranch>,
+    val stashes: List<GitStash>,
+    val lastCommit: GitCommitInfo?,
+)
+
 /** GitHub device-flow step 1: the code the user enters at [verificationUri]. */
 data class GitHubDeviceFlow(
     val userCode: String,
@@ -129,6 +142,20 @@ interface GitService {
 
     /** HEAD commit when the repo has at least one, else null. */
     fun lastCommit(): GitCommitInfo?
+
+    /**
+     * One-shot view of the repository for the panel's refresh: branch, changes, remotes, branches,
+     * stashes and HEAD commit. The default implementation calls the individual methods; backends
+     * should override it to open the repository only once.
+     */
+    fun snapshot(): GitSnapshot = GitSnapshot(
+        branch = branch(),
+        files = status(),
+        remotes = remotes(),
+        branches = branches(),
+        stashes = stashList(),
+        lastCommit = lastCommit(),
+    )
 
     /** Initialize a git repository at the workspace root (no-op if one already exists). */
     fun init(): GitOpResult

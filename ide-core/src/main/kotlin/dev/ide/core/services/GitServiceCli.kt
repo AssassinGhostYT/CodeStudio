@@ -10,6 +10,7 @@ import dev.ide.ui.backend.GitHubSession
 import dev.ide.ui.backend.GitOpResult
 import dev.ide.ui.backend.GitRemote
 import dev.ide.ui.backend.GitService
+import dev.ide.ui.backend.GitSnapshot
 import dev.ide.ui.backend.GitStash
 import dev.ide.ui.backend.GitStatus
 import dev.ide.ui.backend.PublishMode
@@ -53,6 +54,21 @@ internal class GitServiceCli(
     private companion object {
         const val GITHUB_CLIENT_ID = "Ov23liR4ZOr83z3uusM7"
         const val SESSION_FILE = "github-session.properties"
+
+        /** Standard ignores the app writes when it creates the repo, so build outputs are never pushed. */
+        val DEFAULT_GITIGNORE = """
+            build/
+            */build/
+            .gradle/
+            .kotlin/
+            out/
+            target/
+            .cxx/
+            .idea/
+            *.iml
+            local.properties
+            .DS_Store
+        """.trimIndent() + "\n"
     }
 
     private val root: File
@@ -110,6 +126,124 @@ internal class GitServiceCli(
         } finally {
             runCatching {
                 git.close()
+            }
+        }
+    }
+
+    /** Branch name from an already-open handle, so callers don't reopen the repository. */
+    private fun branchOf(git: Git): String? {
+        return runCatching {
+            val full = git.repository.fullBranch ?: return null
+
+            if (full.startsWith(Constants.R_HEADS)) {
+                full.substring(Constants.R_HEADS.length)
+            } else {
+                null
+            }
+        }.getOrNull()
+    }
+
+    private fun filesOf(git: Git): List<GitFile> {
+        val status = git.status().call()
+        val files = mutableListOf<GitFile>()
+
+        status.added.forEach {
+            files += GitFile(it, GitStatus.Added, staged = true)
+        }
+
+        status.changed.forEach {
+            files += GitFile(it, GitStatus.Modified, staged = true)
+        }
+
+        status.removed.forEach {
+            files += GitFile(it, GitStatus.Deleted, staged = true)
+        }
+
+        status.modified.forEach {
+            files += GitFile(it, GitStatus.Modified, staged = false)
+        }
+
+        status.missing.forEach {
+            files += GitFile(it, GitStatus.Deleted, staged = false)
+        }
+
+        status.untracked.forEach {
+            files += GitFile(it, GitStatus.Untracked, staged = false)
+        }
+
+        return files
+    }
+
+    private fun remotesOf(git: Git): List<GitRemote> {
+        return git.remoteList()
+            .call()
+            .map { remote ->
+                GitRemote(
+                    name = remote.name,
+                    url = remote.urIs.firstOrNull()?.toString().orEmpty(),
+                )
+            }
+    }
+
+    private fun branchesOf(git: Git): List<GitBranch> {
+        val current = branchOf(git)
+
+        return git.branchList()
+            .setListMode(ListMode.ALL)
+            .call()
+            .map { ref ->
+                val isRemote = ref.name.startsWith(Constants.R_REMOTES)
+
+                val name = if (isRemote) {
+                    ref.name.substring(Constants.R_REMOTES.length)
+                } else {
+                    ref.name.substring(Constants.R_HEADS.length)
+                }
+
+                GitBranch(
+                    name = name,
+                    isCurrent = !isRemote && name == current,
+                    isRemote = isRemote,
+                )
+            }
+    }
+
+    private fun stashesOf(git: Git): List<GitStash> {
+        return git.stashList()
+            .call()
+            .sortedByDescending { it.commitTime }
+            .mapIndexed { index, commit ->
+                GitStash(id = index, message = commit.shortMessage)
+            }
+    }
+
+    private fun lastCommitOf(git: Git): GitCommitInfo? {
+        val commit = git.log()
+            .setMaxCount(1)
+            .call()
+            .firstOrNull()
+            ?: return null
+
+        return GitCommitInfo(
+            shortHash = commit.name.take(7),
+            message = commit.shortMessage,
+            author = commit.authorIdent.name,
+            dateMillis = commit.commitTime * 1000L,
+        )
+    }
+
+    /**
+     * Writes a default `.gitignore` at the workspace root when the app creates the repository and none
+     * exists yet. Keeps build outputs (and local machine config) out of the first push.
+     */
+    private fun ensureGitignore() {
+        runCatching {
+            if (!root.exists()) return
+
+            val file = File(root, ".gitignore")
+
+            if (!file.exists()) {
+                file.writeText(DEFAULT_GITIGNORE)
             }
         }
     }
@@ -172,6 +306,8 @@ internal class GitServiceCli(
 
     override fun init(): GitOpResult {
         if (available) {
+            ensureGitignore()
+
             return GitOpResult.ok(
                 "El repositorio ya está inicializado.",
             )
@@ -185,6 +321,8 @@ internal class GitServiceCli(
                 .call()
 
             git.close()
+
+            ensureGitignore()
 
             GitOpResult.ok(
                 "Repositorio git inicializado en ${root.absolutePath}.",
@@ -201,17 +339,34 @@ internal class GitServiceCli(
         val git = open() ?: return null
 
         return try {
-            val fullBranch = git.repository.fullBranch
-
-            if (fullBranch != null &&
-                fullBranch.startsWith(Constants.R_HEADS)
-            ) {
-                fullBranch.substring(Constants.R_HEADS.length)
-            } else {
-                null
+            branchOf(git)
+        } finally {
+            runCatching {
+                git.close()
             }
-        } catch (_: Throwable) {
-            null
+        }
+    }
+
+    override fun snapshot(): GitSnapshot {
+        val git = open()
+            ?: return GitSnapshot(
+                branch = null,
+                files = emptyList(),
+                remotes = emptyList(),
+                branches = emptyList(),
+                stashes = emptyList(),
+                lastCommit = null,
+            )
+
+        return try {
+            GitSnapshot(
+                branch = runCatching { branchOf(git) }.getOrNull(),
+                files = runCatching { filesOf(git) }.getOrDefault(emptyList()),
+                remotes = runCatching { remotesOf(git) }.getOrDefault(emptyList()),
+                branches = runCatching { branchesOf(git) }.getOrDefault(emptyList()),
+                stashes = runCatching { stashesOf(git) }.getOrDefault(emptyList()),
+                lastCommit = runCatching { lastCommitOf(git) }.getOrNull(),
+            )
         } finally {
             runCatching {
                 git.close()
@@ -223,66 +378,7 @@ internal class GitServiceCli(
         val git = open() ?: return emptyList()
 
         return try {
-            val status = git.status().call()
-            val files = mutableListOf<GitFile>()
-
-            status.added.forEach {
-                files += GitFile(
-                    it,
-                    GitStatus.Added,
-                    staged = true,
-                )
-            }
-
-            status.changed.forEach {
-                files += GitFile(
-                    it,
-                    GitStatus.Modified,
-                    staged = true,
-                )
-            }
-
-            status.removed.forEach {
-                files += GitFile(
-                    it,
-                    GitStatus.Deleted,
-                    staged = true,
-                )
-            }
-
-            status.modified.forEach {
-                files += GitFile(
-                    it,
-                    GitStatus.Modified,
-                    staged = false,
-                )
-            }
-
-            status.missing.forEach {
-                files += GitFile(
-                    it,
-                    GitStatus.Deleted,
-                    staged = false,
-                )
-            }
-
-            status.untracked.forEach {
-                files += GitFile(
-                    it,
-                    GitStatus.Untracked,
-                    staged = false,
-                )
-            }
-
-            status.untrackedFolders.forEach {
-                files += GitFile(
-                    it,
-                    GitStatus.Untracked,
-                    staged = false,
-                )
-            }
-
-            files
+            filesOf(git)
         } catch (_: Throwable) {
             emptyList()
         } finally {
@@ -384,13 +480,49 @@ internal class GitServiceCli(
         }
 
         return run({ git ->
+            val status = git.status().call()
+
+            val staged = status.added.isNotEmpty() ||
+                status.changed.isNotEmpty() ||
+                status.removed.isNotEmpty()
+
+            val pending = status.modified.isNotEmpty() ||
+                status.missing.isNotEmpty() ||
+                status.untracked.isNotEmpty()
+
+            if (!staged && !pending) {
+                return@run GitOpResult.fail(
+                    "No hay cambios que confirmar.",
+                )
+            }
+
+            // JGit allows empty commits silently: when nothing was prepared, stage the whole tree
+            // (honoring .gitignore) so the button always commits what the user sees as changed.
+            if (!staged) {
+                git.add()
+                    .addFilepattern(".")
+                    .call()
+
+                git.add()
+                    .addFilepattern(".")
+                    .setUpdate(true)
+                    .call()
+            }
+
             val commit = git.commit()
                 .setMessage(cleanMessage)
                 .call()
 
+            val count = if (staged) {
+                status.added.size + status.changed.size + status.removed.size
+            } else {
+                status.added.size + status.changed.size + status.removed.size +
+                    status.modified.size + status.missing.size + status.untracked.size
+            }
+
             GitOpResult.ok(
                 "Commit ${commit.name.take(7)} creado en " +
-                    "${branch() ?: "la rama actual"}.",
+                    "${branchOf(git) ?: "la rama actual"} ($count archivo(s)).",
             )
         }, "Git no está disponible en este entorno.")
     }
@@ -399,23 +531,74 @@ internal class GitServiceCli(
         remote: String,
     ): GitOpResult {
         return run({ git ->
-            val currentBranch = branch()
+            val currentBranch = branchOf(git)
                 ?: return@run GitOpResult.fail(
                     "No se pudo determinar la rama actual.",
                 )
 
+            if (git.repository.resolve(Constants.HEAD) == null) {
+                return@run GitOpResult.fail(
+                    "Aún no hay commits: confirma tus cambios antes de subirlos.",
+                )
+            }
+
             val command = git.push()
                 .setRemote(remote)
+                .setRefSpecs(
+                    RefSpec("refs/heads/$currentBranch:refs/heads/$currentBranch"),
+                )
+                .setTimeout(30)
 
             githubCredentials()?.let {
                 command.setCredentialsProvider(it)
             }
 
-            command.call()
+            // JGit doesn't throw on a rejected push: inspect the actual remote update.
+            val result = command.call()
 
-            GitOpResult.ok(
-                "Push a $remote/$currentBranch completado.",
-            )
+            val refUpdate = result
+                .firstOrNull()
+                ?.remoteUpdates
+                ?.firstOrNull()
+                ?: return@run GitOpResult.ok(
+                    "Push a $remote/$currentBranch completado.",
+                )
+
+            when (refUpdate.status) {
+                Status.OK -> GitOpResult.ok(
+                    "Push a $remote/$currentBranch completado.",
+                )
+
+                Status.UP_TO_DATE -> GitOpResult.ok(
+                    "Todo al día: $remote/$currentBranch ya está actualizado.",
+                )
+
+                Status.REJECTED_NONFASTFORWARD -> GitOpResult.fail(
+                    "Push rechazado: la rama remota $remote/$currentBranch tiene commits " +
+                        "que no tienes en local. Haz pull primero.",
+                )
+
+                Status.REJECTED_REMOTE_CHANGED -> GitOpResult.fail(
+                    "Push rechazado: la rama remota cambió. Haz pull primero.",
+                )
+
+                Status.REJECTED_OTHER_REASON -> GitOpResult.fail(
+                    "Push rechazado por el servidor: ${refUpdate.message ?: "razón desconocida"}.",
+                )
+
+                Status.REJECTED_NODELETE -> GitOpResult.fail(
+                    "No se puede borrar la rama remota (protegida).",
+                )
+
+                Status.NON_EXISTING -> GitOpResult.fail(
+                    "La rama remota no existe.",
+                )
+
+                else -> GitOpResult.fail(
+                    "Push falló: ${refUpdate.status?.name ?: "sin estado"} — " +
+                        "${refUpdate.message ?: "sin detalles"}.",
+                )
+            }
         }, "Git no está disponible en este entorno.")
     }
 
@@ -588,32 +771,7 @@ internal class GitServiceCli(
         val git = open() ?: return emptyList()
 
         return try {
-            val currentBranch = branch()
-
-            git.branchList()
-                .setListMode(ListMode.ALL)
-                .call()
-                .map { ref ->
-                    val isRemote = ref.name.startsWith(
-                        Constants.R_REMOTES,
-                    )
-
-                    val name = if (isRemote) {
-                        ref.name.substring(
-                            Constants.R_REMOTES.length,
-                        )
-                    } else {
-                        ref.name.substring(
-                            Constants.R_HEADS.length,
-                        )
-                    }
-
-                    GitBranch(
-                        name = name,
-                        isCurrent = !isRemote && name == currentBranch,
-                        isRemote = isRemote,
-                    )
-                }
+            branchesOf(git)
         } catch (_: Throwable) {
             emptyList()
         } finally {
@@ -737,15 +895,7 @@ internal class GitServiceCli(
         val git = open() ?: return emptyList()
 
         return try {
-            git.stashList()
-                .call()
-                .sortedByDescending { it.commitTime }
-                .mapIndexed { index, commit ->
-                    GitStash(
-                        id = index,
-                        message = commit.shortMessage,
-                    )
-                }
+            stashesOf(git)
         } catch (_: Throwable) {
             emptyList()
         } finally {
@@ -805,17 +955,7 @@ internal class GitServiceCli(
         val git = open() ?: return emptyList()
 
         return try {
-            git.remoteList()
-                .call()
-                .map { remote ->
-                    GitRemote(
-                        name = remote.name,
-                        url = remote.urIs
-                            .firstOrNull()
-                            ?.toString()
-                            .orEmpty(),
-                    )
-                }
+            remotesOf(git)
         } catch (_: Throwable) {
             emptyList()
         } finally {
@@ -882,18 +1022,7 @@ internal class GitServiceCli(
         val git = open() ?: return null
 
         return try {
-            val commit = git.log()
-                .setMaxCount(1)
-                .call()
-                .firstOrNull()
-                ?: return null
-
-            GitCommitInfo(
-                shortHash = commit.name.take(7),
-                message = commit.shortMessage,
-                author = commit.authorIdent.name,
-                dateMillis = commit.commitTime * 1000L,
-            )
+            lastCommitOf(git)
         } catch (_: Throwable) {
             null
         } finally {
@@ -1133,15 +1262,44 @@ internal class GitServiceCli(
 
         val url = "https://github.com/$fullName.git"
 
-        return if (!available) {
-            cloneInto(
+        if (available) {
+            return pointExistingRepoTo(url, fullName)
+        }
+
+        val projectFiles = root.listFiles()
+            ?.filter { it.name != ".gitignore" }
+            .orEmpty()
+
+        if (projectFiles.isEmpty()) {
+            File(root, ".gitignore").delete()
+
+            return cloneInto(
                 url = url,
                 defaultBranch = defaultBranch,
                 token = token,
                 fullName = fullName,
             )
+        }
+
+        // The workspace already has a project but no repository: cloning on top of it would fail
+        // (and deleting the user's files is not an option). Connect the remote instead so Pull/Push
+        // work from here.
+        val initResult = init()
+
+        if (!initResult.success) {
+            return initResult
+        }
+
+        val wireResult = pointExistingRepoTo(url, fullName)
+
+        return if (wireResult.success) {
+            GitOpResult.ok(
+                "Proyecto local conectado a $fullName. La carpeta ya tenía archivos, así que no se " +
+                    "clonó: usa Publicar para subirlo, o Pull para traer el remoto (si ya tiene " +
+                    "commits, revisa los conflictos).",
+            )
         } else {
-            pointExistingRepoTo(url, fullName)
+            wireResult
         }
     }
 
@@ -1435,6 +1593,9 @@ internal class GitServiceCli(
         }
 
         return run({ git ->
+            // Make sure build outputs (.gradle/, build/, local.properties…) stay out of the push.
+            ensureGitignore()
+
             git.add()
                 .addFilepattern(".")
                 .call()
@@ -1552,6 +1713,9 @@ internal class GitServiceCli(
                 "Proyecto subido a github.com/$repo (rama $target).",
             )
             return when (status) {
+                Status.OK -> GitOpResult.ok(
+                    "Proyecto subido a github.com/$repo (rama $target).",
+                )
                 Status.UP_TO_DATE -> GitOpResult.ok(
                     "Proyecto subido a github.com/$repo (rama $target).",
                 )

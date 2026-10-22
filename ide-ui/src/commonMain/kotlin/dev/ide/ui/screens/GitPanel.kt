@@ -134,20 +134,24 @@ fun GitPanel(backend: IdeBackend) {
     fun reload() {
         scope.launch(Dispatchers.IO) {
             refreshing = true
-            val f = runCatching { git.status() }.getOrDefault(emptyList())
-            val b = runCatching { git.branch() }.getOrNull()
-            val r = runCatching { git.remotes() }.getOrDefault(emptyList())
-            val br = runCatching { git.branches() }.getOrDefault(emptyList())
-            val st = runCatching { git.stashList() }.getOrDefault(emptyList())
-            val lc = runCatching { git.lastCommit() }.getOrNull()
+            val snap = runCatching { git.snapshot() }.getOrNull()
             val s = runCatching { git.githubSession() }.getOrNull()
             withContext(Dispatchers.Main) {
-                files = f
-                currentBranch = b
-                remotes = r
-                branchList = br
-                stashList = st
-                lastCommit = lc
+                if (snap != null) {
+                    files = snap.files
+                    currentBranch = snap.branch
+                    remotes = snap.remotes
+                    branchList = snap.branches
+                    stashList = snap.stashes
+                    lastCommit = snap.lastCommit
+                } else {
+                    files = emptyList()
+                    currentBranch = null
+                    remotes = emptyList()
+                    branchList = emptyList()
+                    stashList = emptyList()
+                    lastCommit = null
+                }
                 if (s != null) session = s
                 refreshing = false
             }
@@ -189,11 +193,18 @@ fun GitPanel(backend: IdeBackend) {
             val flow = withContext(Dispatchers.IO) { git.githubDevice() }
             connecting = false
             if (flow == null) {
-                notice = Notice(
-                    "GitHub no está configurado en esta compilación: reemplaza TU_CLIENT_ID en GitServiceCli.kt " +
-                        "(github.com/settings/developers → New OAuth App suele bastar con 1 minuto).",
-                    false, ++noticeId,
-                )
+                notice = if (!git.githubAvailable) {
+                    Notice(
+                        "GitHub no está configurado en esta compilación: reemplaza TU_CLIENT_ID en GitServiceCli.kt " +
+                            "(github.com/settings/developers → New OAuth App suele bastar con 1 minuto).",
+                        false, ++noticeId,
+                    )
+                } else {
+                    Notice(
+                        "No se pudo contactar con GitHub. Revisa tu conexión a internet e inténtalo de nuevo.",
+                        false, ++noticeId,
+                    )
+                }
             } else {
                 deviceFlow = flow
                 dialog = GitDialog.Device
@@ -308,10 +319,24 @@ fun GitPanel(backend: IdeBackend) {
             val result = withContext(Dispatchers.IO) { git.githubPoll() }
             if (deviceFlow == null) break
             if (result.success) {
-                session = runCatching { git.githubSession() }.getOrNull()
+                val fresh = withContext(Dispatchers.IO) {
+                    runCatching { git.githubSession() }.getOrNull()
+                }
+
+                // Close the dialog and switch to the connected state in the same frame, before the
+                // slower repository refresh, so the panel never looks stuck after authorizing.
                 deviceFlow = null
                 dialog = null
-                notice = Notice(result.message, true, ++noticeId)
+                session = fresh
+                repos = emptyList()
+                notice = if (fresh != null) {
+                    Notice(result.message, true, ++noticeId)
+                } else {
+                    Notice(
+                        "GitHub autorizó el acceso, pero no se pudo guardar la sesión. Inténtalo de nuevo.",
+                        false, ++noticeId,
+                    )
+                }
                 reload()
             } else {
                 notice = Notice(result.message, false, ++noticeId)
@@ -327,7 +352,15 @@ fun GitPanel(backend: IdeBackend) {
     LaunchedEffect(session?.login, session?.repoFullName) {
         val s = session
         if (s != null && s.repoFullName == null) {
-            val r = withContext(Dispatchers.IO) { git.githubRepos() }
+            var r = withContext(Dispatchers.IO) { git.githubRepos() }
+
+            // A single silent retry absorbs the brief network hiccup right after authorizing, which
+            // otherwise left the picker empty until another tab forced a fresh load.
+            if (r.isEmpty()) {
+                delay(1200)
+                r = withContext(Dispatchers.IO) { git.githubRepos() }
+            }
+
             repos = r
             if (r.isEmpty()) {
                 notice = Notice("No se encontraron repositorios en tu cuenta.", false, ++noticeId)
@@ -505,16 +538,15 @@ AnimatedVisibility(
                         }
                         Spacer(Modifier.height(10.dp))
                     }
-                    // The remotes of the local repository. Skipped when the connect card below would
-                    // repeat the very same "Conectar con GitHub" entry.
-                    if (remotes.isNotEmpty() || (s != null && s.repoFullName != null)) {
+                    // Remotes of the local repository. Only listed when they exist: the single place
+                    // to connect with GitHub is the card at the bottom, never a second copy here.
+                    if (remotes.isNotEmpty()) {
                         item {
                             SectionCard("Repositorio remoto", CaIcons.github) {
                                 RemoteCardBody(
                                     remotes = remotes,
                                     currentBranch = currentBranch,
                                     busyRemove = busy == GitOp.RemoteRemove,
-                                    onConnect = { dialog = GitDialog.Remote },
                                     onRemove = { name -> runOp(GitOp.RemoteRemove) { git.removeRemote(name) } },
                                     onOpenUrl = { url -> runCatching { uriHandler.openUri(url) } },
                                 )
@@ -953,62 +985,35 @@ private fun RemoteCardBody(
     remotes: List<GitRemote>,
     currentBranch: String?,
     busyRemove: Boolean,
-    onConnect: () -> Unit,
     onRemove: (String) -> Unit,
     onOpenUrl: (String) -> Unit,
 ) {
-    if (remotes.isEmpty()) {
+    remotes.forEach { remote ->
         Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
                 Icon(CaIcons.github, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(10.dp).size(24.dp))
             }
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text("Conectar con GitHub", style = MaterialTheme.typography.titleSmall)
+                Text(remote.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "Conecta tu repositorio remoto",
+                    "Conectado · ${currentBranch?.let { "${remote.name}/$it" } ?: remote.name}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Ide.colors.success,
+                )
+                Text(
+                    remote.url,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
-            Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable { onConnect() },
-            ) {
-                Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(CaIcons.link, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(14.dp))
-                    Text("Conectar", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(start = 6.dp))
-                }
+            IconButton(onClick = { onOpenUrl(remote.url) }) {
+                Icon(CaIcons.share, contentDescription = "Abrir", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
             }
-        }
-    } else {
-        remotes.forEach { remote ->
-            Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
-                    Icon(CaIcons.github, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(10.dp).size(24.dp))
-                }
-                Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                    Text(remote.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(
-                        "Conectado · ${currentBranch?.let { "${remote.name}/$it" } ?: remote.name}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Ide.colors.success,
-                    )
-                    Text(
-                        remote.url,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                IconButton(onClick = { onOpenUrl(remote.url) }) {
-                    Icon(CaIcons.share, contentDescription = "Abrir", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                }
-                IconButton(onClick = { onRemove(remote.name) }, enabled = !busyRemove) {
-                    if (busyRemove) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                    else Icon(CaIcons.close, contentDescription = "Desconectar", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
-                }
+            IconButton(onClick = { onRemove(remote.name) }, enabled = !busyRemove) {
+                if (busyRemove) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                else Icon(CaIcons.close, contentDescription = "Desconectar", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
             }
         }
     }
