@@ -93,7 +93,7 @@ private enum class GitOp {
 }
 
 /** Which dialog is open; null = none. */
-private enum class GitDialog { Commit, Branch, Merge, Stash, Device, Publish, CreateRepo }
+private enum class GitDialog { Commit, Branch, Merge, Stash, Remote, Device, Publish, CreateRepo }
 
 /** An auto-dismissing toast: [ok] selects the success/error styling. */
 private data class Notice(val text: String, val ok: Boolean, val id: Long)
@@ -542,6 +542,22 @@ AnimatedVisibility(
                         }
                         Spacer(Modifier.height(10.dp))
                     }
+                    // Remotes of the local repository. Only listed when they exist: the single place
+                    // to connect with GitHub is the card at the bottom, never a second copy here.
+                    if (remotes.isNotEmpty()) {
+                        item {
+                            SectionCard("Repositorio remoto", CaIcons.github) {
+                                RemoteCardBody(
+                                    remotes = remotes,
+                                    currentBranch = currentBranch,
+                                    busyRemove = busy == GitOp.RemoteRemove,
+                                    onRemove = { name -> runOp(GitOp.RemoteRemove) { git.removeRemote(name) } },
+                                    onOpenUrl = { url -> runCatching { uriHandler.openUri(url) } },
+                                )
+                            }
+                            Spacer(Modifier.height(10.dp))
+                        }
+                    }
                     item {
                         SectionCard("Información") {
                             InfoCardBody(branch = currentBranch, filesCount = files.size, remotes = remotes, lastCommit = lastCommit)
@@ -561,46 +577,22 @@ AnimatedVisibility(
                     }
                 }
 
-                // --- The GitHub session: ONE single place to connect, never duplicated ---
-                when {
-                    // Not connected yet: the only place to connect with GitHub.
-                    s == null -> item {
-                        GitHubConnectCard(
+                // --- GitHub: ONE single card for the whole flow, keeping the original design ---
+                if (s == null || s.repoFullName == null) {
+                    item {
+                        GitHubCard(
                             connecting = connecting,
+                            session = s,
+                            repos = repos,
+                            pickingRepo = pickingRepo,
+                            willClone = !git.available,
                             onConnect = { startGithubConnect() },
+                            onManageRemote = { dialog = GitDialog.Remote },
+                            onPick = { pickRepo(it) },
+                            onCreateRepo = { dialog = GitDialog.CreateRepo },
+                            onLogout = { logoutGithub() },
                         )
                         Spacer(Modifier.height(14.dp))
-                    }
-
-                    // Connected, but no repository picked yet.
-                    s.repoFullName == null -> {
-                        item {
-                            RepoPickerHeader(
-                                login = s.login.orEmpty(),
-                                count = repos.size,
-                                connectingRepo = connecting,
-                                onLogout = { logoutGithub() },
-                            )
-                            Spacer(Modifier.height(10.dp))
-                        }
-                        item {
-                            CreateRepoTile(
-                                connecting = connecting,
-                                onClick = { dialog = GitDialog.CreateRepo },
-                            )
-                            Spacer(Modifier.height(10.dp))
-                        }
-                        items(repos, key = { it.fullName }) { repo ->
-                            RepoRow(
-                                repo = repo,
-                                connecting = connecting,
-                                isCloning = pickingRepo == repo.fullName,
-                                willClone = !git.available,
-                                onPick = { pickRepo(repo) },
-                            )
-                            Spacer(Modifier.height(8.dp))
-                        }
-                        item { Spacer(Modifier.height(6.dp)) }
                     }
                 }
             }
@@ -640,6 +632,12 @@ AnimatedVisibility(
             onSave = { message -> runOp(GitOp.StashSave) { git.stashSave(message) } },
             onRestore = { id -> runOp(GitOp.StashRestore) { git.stashRestore(id) } },
             onDrop = { id -> runOp(GitOp.StashDrop, closeOnSuccess = false) { git.stashDrop(id) } },
+        )
+        GitDialog.Remote -> RemoteDialog(
+            existing = remotes.firstOrNull(),
+            busy = busy == GitOp.RemoteAdd,
+            onDismiss = { dialog = null },
+            onConnect = { name, url -> runOp(GitOp.RemoteAdd) { git.addRemote(name, url) } },
         )
         GitDialog.Device -> DeviceFlowDialog(
             flow = deviceFlow,
@@ -971,6 +969,49 @@ private fun ChangeGroup(
 }
 
 // ---------------------------------------------------------------------------
+// Remote card
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun RemoteCardBody(
+    remotes: List<GitRemote>,
+    currentBranch: String?,
+    busyRemove: Boolean,
+    onRemove: (String) -> Unit,
+    onOpenUrl: (String) -> Unit,
+) {
+    remotes.forEach { remote ->
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
+                Icon(CaIcons.github, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(10.dp).size(24.dp))
+            }
+            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                Text(remote.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    "Conectado · ${currentBranch?.let { "${remote.name}/$it" } ?: remote.name}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Ide.colors.success,
+                )
+                Text(
+                    remote.url,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            IconButton(onClick = { onOpenUrl(remote.url) }) {
+                Icon(CaIcons.share, contentDescription = "Abrir", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+            }
+            IconButton(onClick = { onRemove(remote.name) }, enabled = !busyRemove) {
+                if (busyRemove) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                else Icon(CaIcons.close, contentDescription = "Desconectar", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Info card
 // ---------------------------------------------------------------------------
 
@@ -1282,6 +1323,46 @@ private fun StashDialog(
     }
 }
 
+@Composable
+private fun RemoteDialog(
+    existing: GitRemote?,
+    busy: Boolean,
+    onDismiss: () -> Unit,
+    onConnect: (String, String) -> Unit,
+) {
+    var name by remember { mutableStateOf(existing?.name ?: "origin") }
+    var url by remember { mutableStateOf(existing?.url ?: "") }
+    DialogShell("Repositorio remoto", onDismiss) {
+        Text(
+            "Configura el repositorio remoto al que se harán Push y Pull.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            label = { Text("Nombre") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = url,
+            onValueChange = { url = it },
+            label = { Text("URL (https://github.com/usuario/repo.git)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancelar") }
+            TextButton(onClick = { onConnect(name, url) }, enabled = !busy && url.isNotBlank()) {
+                Text(if (busy) "Conectando…" else "Conectar")
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -1291,7 +1372,18 @@ private fun StashDialog(
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun GitHubConnectCard(connecting: Boolean, onConnect: () -> Unit) {
+private fun GitHubCard(
+    connecting: Boolean,
+    session: GitHubSession?,
+    repos: List<GitHubRepo>,
+    pickingRepo: String?,
+    willClone: Boolean,
+    onConnect: () -> Unit,
+    onManageRemote: () -> Unit,
+    onPick: (GitHubRepo) -> Unit,
+    onCreateRepo: () -> Unit,
+    onLogout: () -> Unit,
+) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
@@ -1302,91 +1394,127 @@ private fun GitHubConnectCard(connecting: Boolean, onConnect: () -> Unit) {
             Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)) {
                 Icon(CaIcons.github, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(16.dp).size(32.dp))
             }
-            Text(
-                "Conectar con GitHub",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(top = 14.dp),
-            )
-            Text(
-                "Inicia sesión con tu cuenta de GitHub para ver tus repositorios, elegir uno " +
-                    "y subir tu proyecto directamente a tu perfil. No saldrás de la app: GitHub te " +
-                    "mostrará un código de 8 dígitos que confirmas en el navegador.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(top = 18.dp)
-                    .clickable(enabled = !connecting) { onConnect() },
-            ) {
-                Row(Modifier.padding(horizontal = 24.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (connecting) {
-                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                    } else {
-                        Icon(CaIcons.github, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
-                    }
-                    Text(
-                        "Conectar",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
-                }
-            }
-        }
-    }
-}
 
-@Composable
-private fun RepoPickerHeader(login: String, count: Int, connectingRepo: Boolean, onLogout: () -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-    ) {
-        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(shape = CircleShape, color = Ide.colors.success.copy(alpha = 0.14f)) {
-                Icon(CaIcons.github, contentDescription = null, tint = Ide.colors.success, modifier = Modifier.padding(10.dp).size(24.dp))
-            }
-            Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text("Elige tu repositorio", style = MaterialTheme.typography.titleSmall)
+            if (session == null) {
                 Text(
-                    if (count == 0) "Cargando repositorios de @$login…"
-                    else "Selecciona a dónde subirás tu proyecto, @$login",
+                    "Conectar con GitHub",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(top = 14.dp),
+                )
+                Text(
+                    "Inicia sesión con tu cuenta de GitHub para ver tus repositorios, elegir uno " +
+                        "y subir tu proyecto directamente a tu perfil. No saldrás de la app: GitHub te " +
+                        "mostrará un código de 8 dígitos que confirmas en el navegador.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 6.dp),
                 )
-            }
-            TextButton(onClick = onLogout, enabled = !connectingRepo) { Text("Cerrar sesión") }
-        }
-    }
-}
-
-@Composable
-private fun CreateRepoTile(connecting: Boolean, onClick: () -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
-        modifier = Modifier.fillMaxWidth().clickable(enabled = !connecting) { onClick() },
-    ) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(CaIcons.upload, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-            Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text(
-                    "Subir este proyecto a GitHub",
-                    style = MaterialTheme.typography.bodyMedium,
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
                     color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 18.dp)
+                        .clickable(enabled = !connecting) { onConnect() },
+                ) {
+                    Row(Modifier.padding(horizontal = 24.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (connecting) {
+                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                        } else {
+                            Icon(CaIcons.github, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
+                        }
+                        Text(
+                            if (connecting) "Conectando…" else "Conectar",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
+                }
+                TextButton(onClick = onManageRemote, enabled = !connecting) {
+                    Text("O configurar un remoto manualmente (URL)", style = MaterialTheme.typography.labelMedium)
+                }
+            } else {
+                Text(
+                    "Elige tu repositorio",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(top = 14.dp),
                 )
                 Text(
-                    "Crea un repositorio nuevo y sube tus archivos",
+                    if (repos.isEmpty()) {
+                        "Cargando repositorios de @${session.login.orEmpty()}…"
+                    } else {
+                        "Selecciona a dónde subirás tu proyecto, @${session.login.orEmpty()}"
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 6.dp),
                 )
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                    modifier = Modifier.padding(top = 14.dp).fillMaxWidth()
+                        .clickable(enabled = !connecting) { onCreateRepo() },
+                ) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(CaIcons.upload, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text(
+                                "Subir este proyecto a GitHub",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                            Text(
+                                "Crea un repositorio nuevo y sube tus archivos",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+
+                repos.forEach { repo ->
+                    Row(
+                        Modifier.fillMaxWidth()
+                            .clickable(enabled = !connecting) { onPick(repo) }
+                            .padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(
+                            if (willClone) CaIcons.download else CaIcons.link,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(15.dp),
+                        )
+                        Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                            Text(
+                                repo.fullName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                repo.defaultBranch,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        if (pickingRepo == repo.fullName) {
+                            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        } else {
+                            Text(
+                                if (willClone) "Clonar" else "Conectar",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                }
+
+                TextButton(onClick = onLogout, enabled = !connecting) {
+                    Text("Cerrar sesión", style = MaterialTheme.typography.labelMedium)
+                }
             }
         }
     }
@@ -1437,65 +1565,6 @@ private fun CreateRepoDialog(
             TextButton(onClick = { onCreate(name, isPrivate) }, enabled = !busy && name.isNotBlank()) {
                 if (busy) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
                 Text(if (busy) "Subiendo…" else "Crear y subir proyecto", modifier = Modifier.padding(start = if (busy) 6.dp else 0.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun RepoRow(
-    repo: GitHubRepo,
-    connecting: Boolean,
-    isCloning: Boolean,
-    willClone: Boolean,
-    onPick: () -> Unit,
-) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) Motion.PRESS_SCALE else 1f,
-        animationSpec = tween(Motion.FAST),
-        label = "repoPress",
-    )
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth().graphicsLayer { scaleX = scale; scaleY = scale }
-            .clickable(interactionSource = interaction, enabled = !connecting) { onPick() },
-    ) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(CaIcons.gitBranch, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-            Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text(repo.fullName, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    if (isCloning) "Clonando…" else "Rama predeterminada: ${repo.defaultBranch}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (isCloning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (isCloning) {
-                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.primary)
-            } else {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                ) {
-                    Row(Modifier.padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            if (willClone) CaIcons.download else CaIcons.link,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(13.dp),
-                        )
-                        Text(
-                            if (willClone) "Clonar" else "Conectar",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(start = 5.dp),
-                        )
-                    }
-                }
             }
         }
     }
