@@ -93,7 +93,7 @@ private enum class GitOp {
 }
 
 /** Which dialog is open; null = none. */
-private enum class GitDialog { Commit, Branch, Merge, Stash, Remote, Device, Publish, CreateRepo }
+private enum class GitDialog { Commit, Branch, Merge, Stash, Device, Publish, CreateRepo }
 
 /** An auto-dismissing toast: [ok] selects the success/error styling. */
 private data class Notice(val text: String, val ok: Boolean, val id: Long)
@@ -542,22 +542,6 @@ AnimatedVisibility(
                         }
                         Spacer(Modifier.height(10.dp))
                     }
-                    // Remotes of the local repository. Only listed when they exist: the single place
-                    // to connect with GitHub is the card at the bottom, never a second copy here.
-                    if (remotes.isNotEmpty()) {
-                        item {
-                            SectionCard("Repositorio remoto", CaIcons.github) {
-                                RemoteCardBody(
-                                    remotes = remotes,
-                                    currentBranch = currentBranch,
-                                    busyRemove = busy == GitOp.RemoteRemove,
-                                    onRemove = { name -> runOp(GitOp.RemoteRemove) { git.removeRemote(name) } },
-                                    onOpenUrl = { url -> runCatching { uriHandler.openUri(url) } },
-                                )
-                            }
-                            Spacer(Modifier.height(10.dp))
-                        }
-                    }
                     item {
                         SectionCard("Información") {
                             InfoCardBody(branch = currentBranch, filesCount = files.size, remotes = remotes, lastCommit = lastCommit)
@@ -584,7 +568,6 @@ AnimatedVisibility(
                         GitHubConnectCard(
                             connecting = connecting,
                             onConnect = { startGithubConnect() },
-                            onManageRemote = { dialog = GitDialog.Remote },
                         )
                         Spacer(Modifier.height(14.dp))
                     }
@@ -657,12 +640,6 @@ AnimatedVisibility(
             onSave = { message -> runOp(GitOp.StashSave) { git.stashSave(message) } },
             onRestore = { id -> runOp(GitOp.StashRestore) { git.stashRestore(id) } },
             onDrop = { id -> runOp(GitOp.StashDrop, closeOnSuccess = false) { git.stashDrop(id) } },
-        )
-        GitDialog.Remote -> RemoteDialog(
-            existing = remotes.firstOrNull(),
-            busy = busy == GitOp.RemoteAdd,
-            onDismiss = { dialog = null },
-            onConnect = { name, url -> runOp(GitOp.RemoteAdd) { git.addRemote(name, url) } },
         )
         GitDialog.Device -> DeviceFlowDialog(
             flow = deviceFlow,
@@ -994,49 +971,6 @@ private fun ChangeGroup(
 }
 
 // ---------------------------------------------------------------------------
-// Remote card
-// ---------------------------------------------------------------------------
-
-@Composable
-private fun RemoteCardBody(
-    remotes: List<GitRemote>,
-    currentBranch: String?,
-    busyRemove: Boolean,
-    onRemove: (String) -> Unit,
-    onOpenUrl: (String) -> Unit,
-) {
-    remotes.forEach { remote ->
-        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceVariant) {
-                Icon(CaIcons.github, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(10.dp).size(24.dp))
-            }
-            Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                Text(remote.name, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    "Conectado · ${currentBranch?.let { "${remote.name}/$it" } ?: remote.name}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = Ide.colors.success,
-                )
-                Text(
-                    remote.url,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            IconButton(onClick = { onOpenUrl(remote.url) }) {
-                Icon(CaIcons.share, contentDescription = "Abrir", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-            }
-            IconButton(onClick = { onRemove(remote.name) }, enabled = !busyRemove) {
-                if (busyRemove) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                else Icon(CaIcons.close, contentDescription = "Desconectar", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(18.dp))
-            }
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Info card
 // ---------------------------------------------------------------------------
 
@@ -1348,46 +1282,6 @@ private fun StashDialog(
     }
 }
 
-@Composable
-private fun RemoteDialog(
-    existing: GitRemote?,
-    busy: Boolean,
-    onDismiss: () -> Unit,
-    onConnect: (String, String) -> Unit,
-) {
-    var name by remember { mutableStateOf(existing?.name ?: "origin") }
-    var url by remember { mutableStateOf(existing?.url ?: "") }
-    DialogShell("Repositorio remoto", onDismiss) {
-        Text(
-            "Configura el repositorio remoto al que se harán Push y Pull.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
-            value = name,
-            onValueChange = { name = it },
-            label = { Text("Nombre") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
-            value = url,
-            onValueChange = { url = it },
-            label = { Text("URL (https://github.com/usuario/repo.git)") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-        Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.End) {
-            TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancelar") }
-            TextButton(onClick = { onConnect(name, url) }, enabled = !busy && url.isNotBlank()) {
-                Text(if (busy) "Conectando…" else "Conectar")
-            }
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -1397,7 +1291,7 @@ private fun RemoteDialog(
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun GitHubConnectCard(connecting: Boolean, onConnect: () -> Unit, onManageRemote: () -> Unit) {
+private fun GitHubConnectCard(connecting: Boolean, onConnect: () -> Unit) {
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
@@ -1441,9 +1335,6 @@ private fun GitHubConnectCard(connecting: Boolean, onConnect: () -> Unit, onMana
                         modifier = Modifier.padding(start = 8.dp),
                     )
                 }
-            }
-            TextButton(onClick = onManageRemote, enabled = !connecting) {
-                Text("O configurar un remoto manualmente (URL)", style = MaterialTheme.typography.labelMedium)
             }
         }
     }
