@@ -1,11 +1,9 @@
 package dev.ide.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -368,13 +366,19 @@ fun GitPanel(backend: IdeBackend) {
         }
     }
 
-    val infinite = rememberInfiniteTransition(label = "gitRefresh")
-    val angle by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(900, easing = LinearEasing)),
-        label = "refreshSpin",
-    )
+    // Spins ONLY while refreshing: a perpetual infinite animation kept the panel burning CPU
+    // (and scheduling frames) even when nothing was loading, which contributed to freezes/ANRs.
+    val spin = remember { Animatable(0f) }
+    LaunchedEffect(refreshing) {
+        if (!refreshing) {
+            spin.snapTo(0f)
+            return@LaunchedEffect
+        }
+        while (true) {
+            spin.snapTo(0f)
+            spin.animateTo(360f, tween(900, easing = LinearEasing))
+        }
+    }
 
     Column(Modifier.fillMaxSize()) {
         NoticeBar(notice)
@@ -421,7 +425,7 @@ fun GitPanel(backend: IdeBackend) {
             Icon(
                 CaIcons.refresh,
                 contentDescription = "Actualizar",
-                modifier = Modifier.size(16.dp).rotate(if (refreshing) angle else 0f),
+                modifier = Modifier.size(16.dp).rotate(if (refreshing) spin.value else 0f),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text("Actualizar", modifier = Modifier.padding(start = 6.dp))
@@ -890,6 +894,8 @@ private fun ActionsGrid(
 // Changes grouped by status
 // ---------------------------------------------------------------------------
 
+private const val MAX_VISIBLE_CHANGES = 60
+
 @Composable
 private fun ChangesCard(
     files: List<GitFile>,
@@ -954,7 +960,9 @@ private fun ChangeGroup(
             modifier = Modifier.padding(start = 6.dp),
         )
     }
-    group.forEach { f ->
+    // Never compose an unbounded list: a workspace without .gitignore can report tens of
+    // thousands of untracked files, and drawing them all in one frame froze the app for seconds.
+    group.take(MAX_VISIBLE_CHANGES).forEach { f ->
         Row(
             Modifier.fillMaxWidth().clickable { onOpenDiff(f) }.padding(vertical = 3.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -973,6 +981,15 @@ private fun ChangeGroup(
             }
             Checkbox(checked = f.staged, onCheckedChange = { onToggleStage(f) })
         }
+    }
+    if (group.size > MAX_VISIBLE_CHANGES) {
+        Text(
+            "… y ${group.size - MAX_VISIBLE_CHANGES} archivo(s) más. Se incluirán igualmente al " +
+                "confirmar o publicar.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp, start = 18.dp),
+        )
     }
 }
 
