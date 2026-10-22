@@ -555,11 +555,13 @@ AnimatedVisibility(
                             )
                             Spacer(Modifier.height(10.dp))
                         }
-                        CreateRepoTile(
-                            connecting = connecting,
-                            onClick = { dialog = GitDialog.CreateRepo },
-                        )
-                        Spacer(Modifier.height(10.dp))
+                        item {
+                            CreateRepoTile(
+                                connecting = connecting,
+                                onClick = { dialog = GitDialog.CreateRepo },
+                            )
+                            Spacer(Modifier.height(10.dp))
+                        }
                     }
                     items(repos, key = { it.fullName }) { repo ->
                         RepoRow(
