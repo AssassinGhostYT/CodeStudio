@@ -564,17 +564,6 @@ AnimatedVisibility(
                         }
                         Spacer(Modifier.height(14.dp))
                     }
-                } else {
-                    item {
-                        NoRepoCard(
-                            initializing = busy == GitOp.Init,
-                            onInit = { runOp(GitOp.Init) { git.init() } },
-                            note = s?.repoFullName?.let {
-                                "El repositorio también se inicializará solo al subir el proyecto a $it."
-                            }.orEmpty(),
-                        )
-                        Spacer(Modifier.height(14.dp))
-                    }
                 }
 
                 // --- GitHub: ONE single card for the whole flow, keeping the original design ---
@@ -702,59 +691,6 @@ private fun NoticeBar(notice: Notice?) {
                     maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
                 )
-            }
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// No-repository state
-// ---------------------------------------------------------------------------
-
-@Composable
-private fun NoRepoCard(initializing: Boolean, onInit: () -> Unit, note: String = "") {
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-    ) {
-        Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)) {
-                Icon(CaIcons.gitBranch, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(14.dp).size(28.dp))
-            }
-            Text(
-                "No hay un repositorio git en este proyecto.",
-                style = MaterialTheme.typography.titleSmall,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 14.dp),
-            )
-            Text(
-                note.ifEmpty { "Inicializa un repositorio para empezar a usar Control de versiones." },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-            Surface(
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(top = 16.dp)
-                    .clickable(enabled = !initializing) { onInit() },
-            ) {
-                Row(Modifier.padding(horizontal = 22.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (initializing) {
-                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                    } else {
-                        Icon(CaIcons.plus, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
-                    }
-                    Text(
-                        "Inicializar repositorio",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
-                }
             }
         }
     }
