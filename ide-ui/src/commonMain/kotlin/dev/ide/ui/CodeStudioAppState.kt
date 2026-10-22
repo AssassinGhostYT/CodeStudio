@@ -115,12 +115,6 @@ class CodeStudioAppState(
     fun deviceFileScrollState(path: String): LazyListState =
         deviceFileScrollStates.getOrPut(path) { LazyListState() }
 
-    /** Remembers the folder the user is browsing in the Device File Explorer, so leaving it (to open a file
-     *  in the editor) and coming back lands in the same folder instead of the root. */
-    fun rememberDeviceFilesPath(path: String) {
-        deviceFilesPath = path
-    }
-
     /** Where the Plugins screen returns on Back: the editor when opened from the file tree's panel header, or
      *  the landing picker when opened from the home tile. */
     var pluginsReturn: Screen by mutableStateOf(Screen.Editor)
@@ -357,10 +351,10 @@ class CodeStudioAppState(
         screen = Screen.ApkAnalyzer
     }
 
-    /** Open the Device File Explorer at [path] (null = keep the folder the user was browsing last, so reopening
-     *  the explorer does not throw them back to the root). Back returns to the editor. */
+    /** Open the Device File Explorer at [path] (null = the device explorer's default root). Back returns to the
+     *  editor. */
     fun openDeviceFiles(path: String? = null) {
-        if (path != null) deviceFilesPath = path
+        deviceFilesPath = path
         screen = Screen.DeviceFiles
     }
 
