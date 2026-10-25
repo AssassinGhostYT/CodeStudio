@@ -784,7 +784,9 @@ private fun TreeRowContent(
                 FileActionItem(CaIcons.gitBranch, "Ver diff con HEAD") {
                     menuOpen = false
                     try {
-                        ctx.onOpenLocalHistory?.invoke(diffPath)
+                        val app = (ctx as? Any)?.javaClass?.getMethod("app")?.invoke(ctx) ?: return@FileActionItem
+                        val open = app.javaClass.getMethod("openGitDiff", String::class.java)
+                        open.invoke(app, diffPath)
                     } catch (_: Throwable) {}
                 }
             }
