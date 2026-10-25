@@ -461,8 +461,11 @@ private fun EditorOverflowMenu(
                 if (localHistoryEnabled) {
                     OverflowItem(CaIcons.clock, stringResource(Res.string.local_history_menu)) { open = false; onOpenLocalHistory() }
                 }
-                if (hasActiveFile && localHistoryEnabled) {
-                    OverflowItem(CaIcons.gitBranch, "Ver diff con HEAD") { open = false; onOpenLocalHistory() }
+                if (hasActiveFile) {
+                    OverflowItem(CaIcons.gitBranch, "Ver diff con HEAD") {
+                        open = false
+                        // will be wired via context later
+                    }
                 }
             }
             OverflowItem(CaIcons.command, stringResource(Res.string.edchrome_command_palette)) { open = false; onOpenPalette() }
