@@ -100,10 +100,6 @@ class CodeStudioAppState(
     var localHistoryPath: String? by mutableStateOf(null)
         private set
 
-    /** The file whose Git diff against HEAD is being viewed. */
-    var gitDiffPath: String? by mutableStateOf(null)
-        private set
-
     /** The APK file being analyzed (from the file tree context menu). */
     var apkAnalyzerPath: String? by mutableStateOf(null)
         private set
@@ -349,11 +345,6 @@ class CodeStudioAppState(
         screen = Screen.LocalHistory
     }
 
-    fun openGitDiff(path: String) {
-        gitDiffPath = path
-        screen = Screen.GitDiff
-    }
-
     /** Open APK Analyzer for [path]; Back returns to the editor. */
     fun openApkAnalyzer(path: String) {
         apkAnalyzerPath = path
@@ -545,7 +536,6 @@ class CodeStudioAppState(
             screen == Screen.IconManager -> screen = iconManagerReturn
             // Local History is always opened from the editor (its ⋯ menu or the file tree), so Back lands there.
             screen == Screen.LocalHistory -> screen = Screen.Editor
-            screen == Screen.GitDiff -> screen = Screen.Editor
             screen == Screen.ApkAnalyzer -> screen = Screen.Editor
             // The hub returns to wherever it was opened from (picker or editor).
             screen == Screen.Hub -> screen = hubReturn

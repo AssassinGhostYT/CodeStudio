@@ -21,7 +21,6 @@ import dev.ide.ui.screens.DeviceFileExplorerScreen
 import dev.ide.ui.screens.EditorScreen
 import dev.ide.ui.screens.ExportProjectScreen
 import dev.ide.ui.screens.LocalHistoryScreen
-import dev.ide.ui.screens.GitDiffScreen
 import dev.ide.ui.screens.HomeScreen
 import dev.ide.ui.screens.ImportPreviewScreen
 import dev.ide.ui.screens.IconManagerScreen
@@ -203,10 +202,6 @@ internal fun AppNavGraph(
                         app.navigateTo(Screen.Editor)
                     },
                 )
-            }
-            Screen.GitDiff -> {
-                val path = app.gitDiffPath.orEmpty()
-                GitDiffScreen(backend = state.backend, path = path, onBack = { app.navigateTo(Screen.Editor) })
             }
 
             Screen.ApkAnalyzer -> {
