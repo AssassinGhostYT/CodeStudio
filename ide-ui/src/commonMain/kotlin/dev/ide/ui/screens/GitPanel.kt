@@ -508,7 +508,7 @@ AnimatedVisibility(
             LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp)) {
                 // --- Local repository (only when the project actually has a .git) ---
                 val s = session
-                if (git.available) {
+                if (git.available && s != null && s.repoFullName != null) {
                     item {
                         SectionCard("Acciones") {
                             ActionsGrid(
