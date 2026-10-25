@@ -503,7 +503,7 @@ AnimatedVisibility(
         }
 
         if (diffFile != null) {
-            DiffView(diffFile!!, diffText, onBack = { diffFile = null })
+            DiffView(diffFile!!, diffText, lastCommit, onBack = { diffFile = null })
         } else {
             LazyColumn(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp)) {
                 // --- Local repository (only when the project actually has a .git) ---
@@ -701,22 +701,100 @@ private fun NoticeBar(notice: Notice?) {
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun DiffView(file: GitFile, diffText: String, onBack: () -> Unit) {
+private fun DiffView(
+    file: GitFile,
+    diffText: String,
+    lastCommit: GitCommitInfo?,
+    onBack: () -> Unit,
+) {
     Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
-        TextButton(onClick = onBack) { Text("← Volver") }
-        Text(
-            file.path,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            diffText.ifEmpty { "Sin diferencias." },
-            fontFamily = FontFamily.Monospace,
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 8.dp),
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onBack) {
+                Text("← Volver")
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (file.staged) "Preparado" else "Sin preparar",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (file.staged) Ide.colors.success else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        ) {
+            Column(Modifier.padding(12.dp)) {
+                Text(
+                    file.path,
+                    style = MaterialTheme.typography.titleSmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (lastCommit != null) {
+                    Text(
+                        "${lastCommit.shortHash} • ${lastCommit.author} • ${lastCommit.date} • ${lastCommit.message}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+        }
+        if (diffText.isBlank()) {
+            Column(
+                modifier = Modifier.fillMaxSize().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Icon(CaIcons.check, contentDescription = null, tint = Ide.colors.success, modifier = Modifier.size(28.dp))
+                Text("Sin diferencias con HEAD", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 10.dp))
+                Text("El archivo no tiene cambios frente al último commit.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+            }
+        } else {
+            val scroll = rememberScrollState()
+            val hScroll = rememberScrollState()
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = 10.dp)
+                    .horizontalScroll(hScroll)
+                    .verticalScroll(scroll)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                    .border(BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), RoundedCornerShape(12.dp))
+                    .padding(8.dp),
+            ) {
+                diffText.lineSequence().forEach { line ->
+                    val color = when {
+                        line.startsWith("+") && !line.startsWith("+++") -> Color(0xFFB9F6CA)
+                        line.startsWith("-") && !line.startsWith("---") -> Color(0xFFFF8A80)
+                        line.startsWith("@@") -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.onSurface
+                    }
+                    val bg = when {
+                        line.startsWith("+") && !line.startsWith("+++") -> Color(0x332E7D32)
+                        line.startsWith("-") && !line.startsWith("---") -> Color(0x33FF5252)
+                        else -> Color.Transparent
+                    }
+                    Text(
+                        line,
+                        fontFamily = FontFamily.Monospace,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = color,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(bg)
+                            .padding(horizontal = 6.dp, vertical = 1.dp),
+                    )
+                }
+            }
+        }
     }
 }
 

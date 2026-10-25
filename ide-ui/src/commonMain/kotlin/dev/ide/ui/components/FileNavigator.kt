@@ -780,6 +780,13 @@ private fun TreeRowContent(
                     menuOpen = false; ctx.onOpenLocalHistory(historyPath)
                 }
             }
+            // Ver diff con HEAD (local, sin GitHub)
+            if (node.kind == NodeKind.File) node.filePath?.let { diffPath ->
+                FileActionItem(CaIcons.gitBranch, "Ver diff con HEAD") {
+                    menuOpen = false
+                    ctx.onOpenLocalHistory?.let { it(diffPath) }
+                }
+            }
             // APK Analyzer for .apk files — read-only size breakdown by category.
             if (ctx.apkAnalyzerEnabled && node.kind == NodeKind.File)
                 node.filePath?.takeIf { it.lowercase().endsWith(".apk") }?.let { apkPath ->
