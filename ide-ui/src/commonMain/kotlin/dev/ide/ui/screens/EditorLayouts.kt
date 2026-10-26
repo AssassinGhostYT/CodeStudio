@@ -152,6 +152,7 @@ internal fun buildLeftPanels(
                 { p -> onOpenLocalHistory(p); closeDrawer() },
                 state.backend.localHistory.isSupported(),
                 { p -> onOpenApkAnalyzer(p); closeDrawer() },
+                onOpenGitDiff = { p -> onOpenGitDiff(p); closeDrawer() },
                 state.backend.apkAnalyzer.isSupported(),
                 closeDrawer,
             )
@@ -205,6 +206,7 @@ private fun FilesPanelContent(
     onOpenModuleConfig: (String?) -> Unit,
     onOpenPlugins: () -> Unit = {},
     onOpenLocalHistory: (filePath: String) -> Unit = {},
+    onOpenGitDiff: (filePath: String) -> Unit = {},
     localHistoryEnabled: Boolean,
     onOpenApkAnalyzer: (filePath: String) -> Unit = {},
     apkAnalyzerEnabled: Boolean,
@@ -226,6 +228,7 @@ private fun FilesPanelContent(
         onAddSourceRoot = { node -> closeDrawer(); state.addSourceRootModule = node.moduleConfigName ?: node.name },
         onOpenPlugins = onOpenPlugins,
         onOpenLocalHistory = onOpenLocalHistory,
+        onOpenGitDiff = onOpenGitDiff,
         localHistoryEnabled = localHistoryEnabled,
         onOpenApkAnalyzer = onOpenApkAnalyzer,
         apkAnalyzerEnabled = apkAnalyzerEnabled,

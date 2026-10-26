@@ -783,11 +783,7 @@ private fun TreeRowContent(
             if (node.kind == NodeKind.File) node.filePath?.let { diffPath ->
                 FileActionItem(CaIcons.gitBranch, "Ver diff con HEAD") {
                     menuOpen = false
-                    try {
-                        val state = (ctx as? Any)
-                        val open = state?.javaClass?.getMethod("openGitDiff", String::class.java)
-                        open?.invoke(state, diffPath)
-                    } catch (_: Throwable) {}
+                    ctx.onOpenGitDiff(diffPath)
                 }
             }
             // APK Analyzer for .apk files — read-only size breakdown by category.

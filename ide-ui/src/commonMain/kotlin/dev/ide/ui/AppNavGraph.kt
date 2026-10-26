@@ -21,6 +21,7 @@ import dev.ide.ui.screens.DeviceFileExplorerScreen
 import dev.ide.ui.screens.EditorScreen
 import dev.ide.ui.screens.ExportProjectScreen
 import dev.ide.ui.screens.LocalHistoryScreen
+import dev.ide.ui.screens.GitDiffScreen
 import dev.ide.ui.screens.HomeScreen
 import dev.ide.ui.screens.ImportPreviewScreen
 import dev.ide.ui.screens.IconManagerScreen
@@ -133,6 +134,7 @@ internal fun AppNavGraph(
                 onOpenIconManager = { app.openIconManager(Screen.Editor) },
                 onOpenPlugins = { app.openPlugins(Screen.Editor, PluginsScope.InstalledOnly) },
                 onOpenLocalHistory = { path -> state.active?.let { app.openLocalHistory(it.path) } ?: app.openLocalHistory(path) },
+                onOpenGitDiff = { path -> app.openGitDiff(path) },
                 onOpenApkAnalyzer = { path -> app.openApkAnalyzer(path) },
                 onOpenDeviceFiles = { app.openDeviceFiles() },
                 onOpenModuleConfig = { module -> app.openModuleConfig(module, ModulesTab.Settings) },
@@ -185,8 +187,6 @@ internal fun AppNavGraph(
             Screen.LocalHistory -> {
                 val path = app.localHistoryPath.orEmpty()
                 val tab = state.active
-                // Diff against the live buffer when the file is open (it may hold unsaved work the user wants
-                // to compare), else against what is on disk.
                 val current = if (tab?.path == path) {
                     tab.session.doc.text
                 } else {
@@ -202,6 +202,10 @@ internal fun AppNavGraph(
                         app.navigateTo(Screen.Editor)
                     },
                 )
+            }
+            Screen.GitDiff -> {
+                val path = app.gitDiffPath.orEmpty()
+                GitDiffScreen(git = state.backend.git, path = path, onBack = { app.navigateTo(Screen.Editor) })
             }
 
             Screen.ApkAnalyzer -> {
