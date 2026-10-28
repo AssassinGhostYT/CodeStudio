@@ -160,6 +160,8 @@ fun FileNavigator(
     onReveal: (TreeNode) -> Unit = {},
     /** Open Local History for a file node (snapshots taken on every save); shown in the row context menu. */
     onOpenLocalHistory: (filePath: String) -> Unit = {},
+    /** Open the Git diff against HEAD (local) for a file node; shown in the row context menu. */
+    onOpenGitDiff: (filePath: String) -> Unit = {},
     /** Whether Local History is enabled (Settings ▸ Editor ▸ Local history). When false the entry is hidden. */
     localHistoryEnabled: Boolean = true,
     /** Whether APK Analyzer is supported. When false the entry is hidden. */
@@ -200,6 +202,7 @@ fun FileNavigator(
         canExport,
         onExport,
         onOpenLocalHistory,
+        onOpenGitDiff,
         localHistoryEnabled,
         onOpenApkAnalyzer,
         apkAnalyzerEnabled
@@ -389,6 +392,7 @@ private class FileRowActions(
     val canExport: Boolean = false,
     val onExport: (TreeNode) -> Unit = {},
     val onOpenLocalHistory: (filePath: String) -> Unit = {},
+    val onOpenGitDiff: (filePath: String) -> Unit = {},
     val localHistoryEnabled: Boolean = true,
     val onOpenApkAnalyzer: (filePath: String) -> Unit = {},
     val apkAnalyzerEnabled: Boolean = true,

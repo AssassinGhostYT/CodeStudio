@@ -65,6 +65,8 @@ fun EditorScreen(
     onOpenPlugins: () -> Unit = {},
     /** Open Local History for the active file (snapshots taken on every save). */
     onOpenLocalHistory: (filePath: String) -> Unit = {},
+    /** Open the Git diff against HEAD (local) for a file. */
+    onOpenGitDiff: (filePath: String) -> Unit = {},
     /** Open APK Analyzer for a file (from file tree context menu on .apk). */
     onOpenApkAnalyzer: (filePath: String) -> Unit = {},
     /** Open the Device File Explorer (browse the running device / pull files into the project). */
@@ -137,6 +139,7 @@ fun EditorScreen(
                 onOpenIconManager,
                 onOpenPlugins,
                 onOpenLocalHistory,
+                onOpenGitDiff,
                 onOpenApkAnalyzer,
                 onOpenDeviceFiles,
                 indexStatus,
@@ -157,6 +160,7 @@ fun EditorScreen(
                 onOpenIconManager,
                 onOpenPlugins,
                 onOpenLocalHistory,
+                onOpenGitDiff,
                 onOpenApkAnalyzer,
                 onOpenDeviceFiles,
                 indexStatus,

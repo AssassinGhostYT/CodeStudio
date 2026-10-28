@@ -74,7 +74,7 @@ fun GitDiffScreen(
                 Text(path, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (lastCommit != null) {
                     Text(
-                        "${lastCommit!!.shortHash} • ${lastCommit!!.author} • ${lastCommit!!.date} • ${lastCommit!!.message}",
+                        "${lastCommit!!.shortHash} • ${lastCommit!!.author} • ${lastCommit!!.message}",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
