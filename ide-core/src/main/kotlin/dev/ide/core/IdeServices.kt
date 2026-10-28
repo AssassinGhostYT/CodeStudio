@@ -20,6 +20,7 @@ import dev.ide.android.support.AndroidRClassProvider
 import dev.ide.android.support.AndroidSupport
 import dev.ide.android.support.AndroidVariants
 import dev.ide.android.support.AndroidViewBindingProvider
+import dev.ide.android.support.BundledAndroidx
 import dev.ide.android.support.PreviewResourceLinker
 import dev.ide.android.support.SampleAndroidProject
 import dev.ide.android.support.index.AndroidResourceIndex
@@ -1839,12 +1840,29 @@ class IdeServices private constructor(
     ): SourceAnalyzer =
         if (hasLanguageBackend(language)) module.service(analyzerKeyFor(language)) else PlainTextAnalyzer
 
+    /**
+     * Bundled AndroidX compile stubs (`AppCompatActivity`, `ActivityCompat`, `@NonNull`, …) for an Android
+     * module, so a project scaffolded on an offline install resolves its `androidx.*` imports instead of
+     * showing red imports — the framework `android.jar` only carries `android.*`, not AndroidX. Appended to
+     * the EDITOR analysis classpath only (never the model or dex path); online the project's own resolved
+     * AAR is added first and wins. Empty on a non-Android module or a stripped test classpath.
+     */
+    private fun bundledAndroidxEntries(module: Module): List<dev.ide.model.ClasspathEntry> {
+        val android = module.facets.get(AndroidFacet.KEY) != null || module.type.platform == PlatformKind.ANDROID
+        if (!android) return emptyList()
+        val dir = store.rootPath.resolve(".platform").resolve("androidx")
+        return BundledAndroidx.extractTo(dir).map {
+            dev.ide.model.ClasspathEntry(store.vfs.fileFor(it), dev.ide.model.ClasspathEntryKind.LIBRARY)
+        }
+    }
+
     /** Construct the analyzer for [module] in [language]. Invoked once by the module-scoped analyzer
      *  service factory; the module container caches and disposes the result. */
     private fun buildAnalyzer(module: Module, language: LanguageId): SourceAnalyzer =
         backendFor(language).createAnalyzer(
             ModuleCompilationContext.create(
-                store.workspace, module, activeConfigs(module)
+                store.workspace, module, activeConfigs(module),
+                extraLibraries = bundledAndroidxEntries(module),
             )
         ).also {
             when (it) {

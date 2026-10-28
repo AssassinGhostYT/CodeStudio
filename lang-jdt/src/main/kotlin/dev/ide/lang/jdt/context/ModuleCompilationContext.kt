@@ -37,13 +37,23 @@ object ModuleCompilationContext {
      * drops any dependency whose [dev.ide.model.OrderEntry.variant] qualifier isn't in it (a shared,
      * unqualified one always stays). Lets the editor analyze against the selected variant's classpath.
      */
-    fun create(workspace: Workspace, module: Module, variant: Set<String>? = null): CompilationContext {
+    fun create(
+        workspace: Workspace,
+        module: Module,
+        variant: Set<String>? = null,
+        extraLibraries: List<ClasspathEntry> = emptyList(),
+    ): CompilationContext {
         val sources = LinkedHashSet<VirtualFile>()
         val libraries = LinkedHashSet<ClasspathEntry>()
         val sourceAttachments = LinkedHashSet<VirtualFile>()
         val libIndex = libraryIndex(workspace)
 
         collect(workspace, module, isRoot = true, variant, sources, libraries, sourceAttachments, libIndex, HashSet())
+        // Host-supplied jars that must resolve for analysis but are not part of the project model (e.g. the
+        // bundled AndroidX stubs on an offline install). Appended AFTER the declared libraries so a real
+        // resolved artifact wins first on the compile path; non-Maven paths pass through version-conflict
+        // resolution untouched.
+        libraries.addAll(extraLibraries)
 
         // The boot classpath is THIS module's platform SDK, resolved by kind (a `java-*`/`kotlin-*` module
         // gets the core-Java SDK, an `android-*` module the Android SDK) — the same resolver the build uses,
