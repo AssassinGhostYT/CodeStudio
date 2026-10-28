@@ -232,7 +232,7 @@ El archivo `.apk` compilado estará disponible en la ruta:
 - [ ] 🔄 Completado de recursos Android (`@drawable/`, `@string/`).
 - [ ] 🔄 **Generación de código** (override stubs y postfix listos; falta menú Generate de constructores/getters) — ~40%.
 - [ ] 🟡 Soporte Gradle-KTS / version catalogs completos (se generan e importan; falta edición dedicada del catálogo).
-- [ ] 🟡 Diff de archivo unificado y último commit (faltan historial completo, side-by-side y blame).
+- [x] **Diff de archivo unificado y último commit** (diff contra `HEAD` con JGit desde el árbol de archivos, cabecera con hash/autor/mensaje; pendiente: historial completo, side-by-side y blame).
 - [ ] 🔄 Editor visual de layouts (preview live + edición de atributos; sin paleta drag-drop, bloque solo Java).
 - [ ] 🟡 Minimapa (folding y breadcrumbs listos).
 - [ ] 🟡 Vista previa de traducciones (resources OK, traducciones no).
