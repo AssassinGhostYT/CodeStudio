@@ -374,6 +374,11 @@ internal fun ExpandedLayout(
                             // the console subtree, not the whole editor layout.
                             val appLog by state.backend.build.appLog.collectAsState()
                             val testState by state.backend.build.testState.collectAsState()
+                            val testModules = remember(state) {
+                                state.backend.build.runTasks()
+                                    .filter { it.id.startsWith("test:") }
+                                    .map { it.id.removePrefix("test:") }
+                            }
                             BuildConsole(
                                 buildState = buildState,
                                 indexStatus = indexStatus,
@@ -386,6 +391,8 @@ internal fun ExpandedLayout(
                                 activeFilePath = state.active?.path,
                                 appLog = appLog,
                                 testState = testState,
+                                testModules = testModules,
+                                onRunTest = { module -> state.requestRun { state.backend.build.runTask("test:$module") } },
                                 focusTabId = state.consoleFocusTabId,
                                 onFocusConsumed = { state.clearFocusConsoleTab() },
                             )
@@ -538,6 +545,11 @@ internal fun CompactLayout(
                 ) {
                     val appLog by state.backend.build.appLog.collectAsState()
                     val testState by state.backend.build.testState.collectAsState()
+                    val testModules = remember(state) {
+                        state.backend.build.runTasks()
+                            .filter { it.id.startsWith("test:") }
+                            .map { it.id.removePrefix("test:") }
+                    }
                     BuildConsole(
                         buildState = buildState,
                         indexStatus = indexStatus,
@@ -550,6 +562,8 @@ internal fun CompactLayout(
                         backend = state.backend,
                         activeFilePath = state.active?.path,
                         testState = testState,
+                        testModules = testModules,
+                        onRunTest = { module -> state.requestRun { state.backend.build.runTask("test:$module") } },
                         appLog = appLog,
                         focusTabId = state.consoleFocusTabId,
                         onFocusConsumed = { state.clearFocusConsoleTab() },
