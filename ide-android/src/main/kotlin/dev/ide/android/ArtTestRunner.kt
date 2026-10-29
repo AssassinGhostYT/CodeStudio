@@ -39,6 +39,7 @@ class ArtTestRunner(
         onOutcome: (TestOutcome) -> Unit,
     ) {
         try {
+            Files.createDirectories(cacheRoot)
             val work = Files.createTempDirectory(cacheRoot, "tests-")
             try {
                 // 1. Los directorios de clases se empaquetan en jars (D8 no acepta directorios).
@@ -92,8 +93,10 @@ class ArtTestRunner(
         val requestClass = loader.loadClass("org.junit.runner.Request")
         val resultClass = loader.loadClass("org.junit.runner.Result")
         val failureClass = loader.loadClass("org.junit.runner.notification.Failure")
-        val testAnn = loader.loadClass("org.junit.Test")
-        val ignoreAnn = loader.loadClass("org.junit.Ignore")
+        @Suppress("UNCHECKED_CAST")
+        val testAnn = loader.loadClass("org.junit.Test") as Class<out Annotation>
+        @Suppress("UNCHECKED_CAST")
+        val ignoreAnn = loader.loadClass("org.junit.Ignore") as Class<out Annotation>
 
         val core = junitCore.getDeclaredConstructor().newInstance()
         val runRequest: Method = junitCore.getMethod("run", requestClass)

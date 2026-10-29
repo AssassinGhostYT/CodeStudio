@@ -108,7 +108,7 @@ internal class TestService(
                 phase("Compilando Kotlin de tests…")
                 val resolved = kotlinPlugins.resolveFor(module, libs + junitJars + boot)
                 val r = incrementalKotlin.compile(
-                    allKotlin, allJava, libs + junitJars, kotlinOut, levelOf(module),
+                    allKotlin, allJava, libs + junitJars, kotlinOut, levelOf(module.languageLevel),
                     bootClasspath = boot,
                     compilerPlugins = resolved.classpaths,
                     pluginOptions = resolved.options,
@@ -119,7 +119,7 @@ internal class TestService(
             if (allJava.isNotEmpty()) {
                 phase("Compilando Java de tests…")
                 val r = JdtBatchCompiler.compile(
-                    allJava, libs + junitJars + listOf(kotlinOut), javaOut, levelOf(module), bootClasspath = boot,
+                    allJava, libs + junitJars + listOf(kotlinOut), javaOut, levelOf(module.languageLevel), bootClasspath = boot,
                 )
                 if (!r.success) return fail("Error compilando Java:\n" + r.messages.joinToString("\n"))
             }
