@@ -265,8 +265,8 @@ fun BuildConsole(
                     { logcatLevel = it },
                     logcatQuery,
                     { logcatQuery = it },
-                ) { backend?.build?.clearAppLog() }
-                BuildTab.Tests -> TestsTab(testState),
+                ) { backend?.build?.clearAppLog() },
+                BuildTab.Tests -> TestsTab(testState)
             }
         }
         // A compact native ad in the console footer, only while nothing is building — a natural pause, never
