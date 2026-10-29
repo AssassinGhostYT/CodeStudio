@@ -373,6 +373,7 @@ internal fun ExpandedLayout(
                             // Collected here (not threaded from the parent) so ~10/s app-log updates recompose only
                             // the console subtree, not the whole editor layout.
                             val appLog by state.backend.build.appLog.collectAsState()
+                            val testState by state.backend.build.testState.collectAsState()
                             BuildConsole(
                                 buildState = buildState,
                                 indexStatus = indexStatus,
@@ -384,6 +385,7 @@ internal fun ExpandedLayout(
                                 backend = state.backend,
                                 activeFilePath = state.active?.path,
                                 appLog = appLog,
+                                testState = testState,
                                 focusTabId = state.consoleFocusTabId,
                                 onFocusConsumed = { state.clearFocusConsoleTab() },
                             )
@@ -535,6 +537,7 @@ internal fun CompactLayout(
                     bar = { BottomNav(selected = state.bottomNavSelection(), onSelect = { state.onBottomNav(it) }) },
                 ) {
                     val appLog by state.backend.build.appLog.collectAsState()
+                    val testState by state.backend.build.testState.collectAsState()
                     BuildConsole(
                         buildState = buildState,
                         indexStatus = indexStatus,
@@ -546,6 +549,7 @@ internal fun CompactLayout(
                         onOpenDiagnostic = { d -> d.file?.let { state.openAtLine(it, d.line, d.column); state.consoleOpen = false } },
                         backend = state.backend,
                         activeFilePath = state.active?.path,
+                        testState = testState,
                         appLog = appLog,
                         focusTabId = state.consoleFocusTabId,
                         onFocusConsumed = { state.clearFocusConsoleTab() },

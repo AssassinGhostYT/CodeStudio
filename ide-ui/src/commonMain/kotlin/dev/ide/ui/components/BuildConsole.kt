@@ -86,6 +86,7 @@ import dev.ide.ui.backend.RunStatus
 import dev.ide.ui.backend.StepStatus
 import dev.ide.ui.backend.UiLogLevel
 import dev.ide.ui.backend.UiSeverity
+import dev.ide.ui.backend.UiTestState
 import dev.ide.ui.ext.ToolWindowAnchor
 import dev.ide.ui.ext.ToolWindowContext
 import dev.ide.ui.ext.ToolWindowContribution
@@ -171,6 +172,8 @@ fun BuildConsole(
     /** External focus request: non-null selects that BOTTOM plugin tab (e.g. the top-bar terminal
      *  icon) and calls [onFocusConsumed] so the parent can clear the pending request. */
     focusTabId: String? = null,
+    /** Estado en vivo de la pestaña "Tests" (Resultado de tests JUnit compilados). */
+    testState: UiTestState = UiTestState(),
     onFocusConsumed: () -> Unit = {},
 ) {
     val running = buildState.status == RunStatus.Running
@@ -197,6 +200,13 @@ fun BuildConsole(
     LaunchedEffect(buildState.status) {
         if (buildState.status == RunStatus.Failed && (errors > 0 || warnings > 0)) {
             tab = BuildTab.Problems
+            activePluginTab = null
+        }
+    }
+    // Al arrancar una ejecución de tests, muestra la pestaña Tests.
+    LaunchedEffect(testState.moduleName, testState.running) {
+        if (testState.running && testState.moduleName.isNotEmpty()) {
+            tab = BuildTab.Tests
             activePluginTab = null
         }
     }
@@ -256,6 +266,7 @@ fun BuildConsole(
                     logcatQuery,
                     { logcatQuery = it },
                 ) { backend?.build?.clearAppLog() }
+                BuildTab.Tests -> TestsTab(testState),
             }
         }
         // A compact native ad in the console footer, only while nothing is building — a natural pause, never
@@ -264,7 +275,7 @@ fun BuildConsole(
     }
 }
 
-private enum class BuildTab { Problems, Log, Steps, Logcat }
+private enum class BuildTab { Problems, Log, Steps, Logcat, Tests }
 
 /** True for a step that has settled (won't change again this build) — for the running-progress fraction. */
 private val StepStatus.isSettled: Boolean
@@ -423,6 +434,8 @@ private fun copyForTab(
             }
             tab to (if (shown.isEmpty()) null else fun(): String = shown.joinToString("\n", transform = ::renderLogcatForCopy))
         }
+        // Los tests no tienen transcripción de texto que copiar.
+        BuildTab.Tests -> tab to null
     }
 }
 
@@ -441,14 +454,13 @@ private fun CopyButton(tab: BuildTab, provide: () -> String) {
             delay(1500.milliseconds); copied = false
         }
     }
-    val label = stringResource(
-        when (tab) {
-            BuildTab.Problems -> Res.string.buildc_tab_problems
-            BuildTab.Log -> Res.string.buildc_tab_log
-            BuildTab.Steps -> Res.string.buildc_tab_steps
-            BuildTab.Logcat -> Res.string.buildc_tab_logcat
-        }
-    )
+    val label = when (tab) {
+        BuildTab.Problems -> stringResource(Res.string.buildc_tab_problems)
+        BuildTab.Log -> stringResource(Res.string.buildc_tab_log)
+        BuildTab.Steps -> stringResource(Res.string.buildc_tab_steps)
+        BuildTab.Logcat -> stringResource(Res.string.buildc_tab_logcat)
+        BuildTab.Tests -> "Tests"
+    }
     IconButtonCa(
         if (copied) CaIcons.check else CaIcons.copy,
         if (copied) stringResource(Res.string.buildc_copied) else stringResource(Res.string.buildc_copy, label),
@@ -626,6 +638,7 @@ private fun ConsoleTabs(
                 badge = if (appLog.connected) "●" else appLog.lines.size.takeIf { it > 0 }?.toString(),
                 badgeColor = if (appLog.connected) Ide.colors.success else MaterialTheme.colorScheme.outline,
             ) { onSelect(BuildTab.Logcat) }
+            TabItem("Tests", builtInActive && tab == BuildTab.Tests) { onSelect(BuildTab.Tests) }
             // Plugin-contributed BOTTOM tool windows. The PRoot terminal tab used to live here between
             // Steps and Logcat — it's gone, the real Termux lives behind the toolbar's Terminal button
             // and never registers a BOTTOM tool window.
@@ -1674,6 +1687,37 @@ private fun SearchField(
                     .clickable(interactionSource, indication = null) { onValueChange("") },
                 tint = MaterialTheme.colorScheme.outline
             )
+        }
+    }
+}
+
+/** Tabla de la pestaña "Tests": muestra el estado vivo de la ejecución de tests JUnit. */
+@Composable
+fun TestsTab(testState: UiTestState) {
+    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+        if (!testState.hasContent) {
+            Text(
+                "No hay resultados de test (ejecuta un test para verlos)",
+                color = MaterialTheme.colorScheme.outline,
+                style = Ide.type.caption,
+            )
+            return
+        }
+        Text(
+            "Tests: ${testState.passed} ✔ ${testState.failed} ✘ ${testState.skipped} ⏭",
+            color = when {
+                testState.failed == 0 -> MaterialTheme.colorScheme.onSurface
+                testState.passed > 0 -> Ide.colors.success
+                else -> MaterialTheme.colorScheme.error
+            },
+            style = Ide.type.subhead,
+        )
+        if (testState.message.isNotEmpty()) {
+            Text(testState.message, color = MaterialTheme.colorScheme.outline, style = Ide.type.codeSmall)
+        }
+        val elapsed = testState.elapsedMs
+        if (elapsed > 0) {
+            Text("Tiempo: ${elapsed / 1000}s", color = MaterialTheme.colorScheme.onSurfaceVariant, style = Ide.type.caption)
         }
     }
 }

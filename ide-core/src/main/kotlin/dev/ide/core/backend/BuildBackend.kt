@@ -10,6 +10,7 @@ import dev.ide.ui.backend.RunConsoleUi
 import dev.ide.ui.backend.RunTaskOption
 import dev.ide.ui.backend.UiPermissionDecision
 import dev.ide.ui.backend.UiPermissionRequest
+import dev.ide.ui.backend.UiTestState
 import kotlinx.coroutines.flow.StateFlow
 
 /** [BuildService] over the engine: build/run state, the run-task list, interactive console I/O, and the
@@ -39,6 +40,10 @@ internal class BuildBackend(private val ctx: BackendContext) : BuildService {
 
     override val appLog: StateFlow<AppLogUi> = ctx.engineFlow(AppLogUi()) { runner(it).appLog }
     override fun clearAppLog() = runner(ctx.services).clearAppLog()
+
+    override val testState: StateFlow<UiTestState> = ctx.engineFlow(UiTestState()) { runner(it).testState }
+    override fun runTests(moduleName: String) = runner(ctx.services).runTests(moduleName)
+    override fun clearTests() = runner(ctx.services).clearTests()
 
     override fun listVariants(moduleName: String): List<String> = ctx.services.listVariants(moduleName)
     override fun activeVariant(moduleName: String): String? = ctx.services.activeVariant(moduleName)

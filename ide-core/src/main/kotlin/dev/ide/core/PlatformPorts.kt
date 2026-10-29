@@ -2,6 +2,7 @@ package dev.ide.core
 
 import dev.ide.analytics.AnalyticsService
 import dev.ide.build.engine.ProgramInterpreter
+import dev.ide.core.TestRunner
 import dev.ide.lang.kotlin.compile.KotlinPluginLoader
 import dev.ide.platform.ServiceKey
 import dev.ide.preview.impl.CustomViewRuntime
@@ -25,6 +26,7 @@ import dev.ide.preview.impl.RealViewRuntime
  * analytics / build-runner / notifications ports are a separate concern and are not modelled here.)
  */
 internal val PROGRAM_INTERPRETER = ServiceKey<ProgramInterpreter>("platform.programInterpreter")
+internal val TEST_RUNNER = ServiceKey<TestRunner>("platform.testRunner")
 internal val APK_INSTALLER = ServiceKey<ApkInstaller>("platform.apkInstaller")
 internal val APP_LOG_CHANNEL = ServiceKey<AppLogChannel>("platform.appLogChannel")
 internal val CUSTOM_VIEW_RUNTIME = ServiceKey<CustomViewRuntime>("platform.customViewRuntime")

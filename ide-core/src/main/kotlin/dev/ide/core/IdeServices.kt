@@ -490,6 +490,10 @@ class IdeServices private constructor(
     // absent that (desktop / tests), fall back to the default in-process bytecode interpreter.
     private val programInterpreter: ProgramInterpreter =
         env.container.getServiceOrNull(PROGRAM_INTERPRETER) ?: VmProgramInterpreter()
+    // The unit-test runner. A device host registers a DexClassLoader-based runner; absent that (desktop /
+    // tests), fall back to the URLClassLoader implementation.
+    private val testRunner: TestRunner =
+        env.container.getServiceOrNull(TEST_RUNNER) ?: JvmTestRunner()
     private val apkInstaller: ApkInstaller? = env.container.getServiceOrNull(APK_INSTALLER)
     private val appLogChannel: AppLogChannel? = env.container.getServiceOrNull(APP_LOG_CHANNEL)
     private val customViewRuntime: CustomViewRuntime? = env.container.getServiceOrNull(CUSTOM_VIEW_RUNTIME)
@@ -643,6 +647,7 @@ class IdeServices private constructor(
         override fun bootClasspathFor(module: Module) = this@IdeServices.bootClasspathFor(module)
         override val androidTools get() = this@IdeServices.androidTools
         override val programInterpreter get() = this@IdeServices.programInterpreter
+        override val testRunner get() = this@IdeServices.testRunner
         override val apkInstaller get() = this@IdeServices.apkInstaller
         override val appLogChannel get() = this@IdeServices.appLogChannel
         override fun modules() = this@IdeServices.modules()

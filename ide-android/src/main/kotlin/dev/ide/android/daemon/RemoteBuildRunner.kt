@@ -24,6 +24,7 @@ import dev.ide.ui.backend.StepStatus
 import dev.ide.ui.backend.UiLogLevel
 import dev.ide.ui.backend.UiPermissionDecision
 import dev.ide.ui.backend.UiPermissionRequest
+import dev.ide.ui.backend.UiTestState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -103,6 +104,11 @@ class RemoteBuildRunner(context: Context, private val services: IdeServices) : B
     override val appLog: StateFlow<AppLogUi> =
         services.appLogState.map { it.toAppLogUi() }.stateIn(scope, SharingStarted.Eagerly, AppLogUi())
     override fun clearAppLog() { runCatching { services.clearAppLog() } }
+
+    // Unit tests run in the UI process (not the build daemon), so they delegate to the in-process runner.
+    override val testState: StateFlow<UiTestState> get() = services.buildRunner.testState
+    override fun runTests(moduleName: String) = services.buildRunner.runTests(moduleName)
+    override fun clearTests() = services.buildRunner.clearTests()
 
     private fun AppLogSnapshot.toAppLogUi(): AppLogUi = AppLogUi(
         lines = entries.map { e ->

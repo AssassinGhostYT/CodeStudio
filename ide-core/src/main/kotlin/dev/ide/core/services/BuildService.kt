@@ -63,6 +63,7 @@ import dev.ide.model.LibraryDependency
 import dev.ide.model.LibraryKind
 import dev.ide.model.LibraryRef
 import dev.ide.model.Module
+import dev.ide.model.PlatformKind
 import dev.ide.model.event.ProjectModelListener
 import dev.ide.model.event.ProjectModelTopics
 import dev.ide.model.module
@@ -75,6 +76,7 @@ import dev.ide.vfs.VfsTopics
 import dev.ide.ui.backend.BuildDiagnosticUi
 import dev.ide.ui.backend.BuildLogLine
 import dev.ide.ui.backend.BuildState
+import dev.ide.ui.backend.UiTestState
 import dev.ide.ui.backend.BuildStepUi
 import dev.ide.ui.backend.ConsoleChunk
 import dev.ide.ui.backend.ConsoleChunkKind
@@ -154,6 +156,19 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
     // more by contributing to the EP.
     private val kotlinCompilerPlugins: List<KotlinCompilerPlugin> =
         ctx.platform.extensions.extensions(KOTLIN_COMPILER_PLUGIN_EP)
+
+    // Unit-test runner: discovers/compiles/runs src/test against the module, streaming to the Tests tab.
+    // It shares the incremental Kotlin compiler + the module-applicable compiler plugins with the build.
+    private val testService = TestService(ctx, incrementalKotlin, kotlinCompilerPlugins, ctx.testRunner, buildScope)
+
+    /** Live JUnit run state for the console's Tests tab. */
+    val testState: StateFlow<UiTestState> get() = testService.state
+
+    /** Compile + run [moduleName]'s unit tests (see [TestService]). */
+    fun runTests(moduleName: String) = testService.run(moduleName)
+
+    /** Clear the Tests tab. */
+    fun clearTests() = testService.clear()
 
     // Build-time source generators contributed through `platform.sourceGenerator` (a KSP runner, ViewBinding
     // emitter, …); the build runs them into a module's GENERATED root ahead of compilation. Empty until a
@@ -745,6 +760,11 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
             )
             add(RunTaskOption("build:${m.name}", "Build ${m.name}", "build"))
         }
+        // JVM modules: a unit-test run (JUnit 4 over src/test) — the Tests console tab shows the results.
+        for (m in ctx.modules()) {
+            if (m.type.platform != PlatformKind.JVM) continue
+            add(RunTaskOption("test:${m.name}", "Test ${m.name}", "test"))
+        }
         for (m in ctx.modules().filter { it.type.id == "android-app" }) {
             for (v in AndroidVariants.compute(m)) {
                 val cap = v.name.replaceFirstChar { it.uppercase() }
@@ -910,6 +930,9 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
         // a duplicate task) must surface as a Failed build in the console, never crash the IDE.
         try {
             when {
+                // Unit tests run through the TestService (its own Tests tab), not the build console's graph.
+                id.startsWith("test:") -> runTests(id.removePrefix("test:"))
+
                 id.startsWith("run:") -> {
                     val moduleName = id.removePrefix("run:")
                     val module = ctx.modules().firstOrNull { it.name == moduleName } ?: return fail(

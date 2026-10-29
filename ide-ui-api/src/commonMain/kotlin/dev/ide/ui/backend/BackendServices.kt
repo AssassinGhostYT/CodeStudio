@@ -365,6 +365,15 @@ interface BuildService {
 
     /** Select [variant] as [moduleName]'s active variant (re-analyzes the editor + re-indexes). */
     fun setActiveVariant(moduleName: String, variant: String) {}
+
+    /** Live JUnit run state for the "Tests" console tab. */
+    val testState: StateFlow<UiTestState> get() = MutableStateFlow(UiTestState())
+
+    /** Compile and run [moduleName]'s unit tests (`src/test/...`), streaming results into [testState]. */
+    fun runTests(moduleName: String) {}
+
+    /** Clear the Tests tab's results. */
+    fun clearTests() {}
 }
 
 // ---------------------------------------------------------------------------

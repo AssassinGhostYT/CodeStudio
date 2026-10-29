@@ -313,6 +313,11 @@ object AndroidIde {
             customViewRuntime = previewRuntime,
             realViewRuntime = realViewRuntime,
             kotlinPluginLoader = kotlinPluginLoader,
+            testRunner = dev.ide.android.ArtTestRunner(
+                androidJar = androidJar.toPath(),
+                cacheRoot = File(context.cacheDir, "test-cache").toPath(),
+                minApi = Build.VERSION.SDK_INT,
+            ),
             r8Shrinker = r8Shrinker,
             r8MergeDexer = r8MergeDexer,
             mergeChunkProvider = dexMergeChunkProvider,

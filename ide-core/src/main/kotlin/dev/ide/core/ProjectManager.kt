@@ -66,6 +66,9 @@ class ProjectManager private constructor(
     /** The console-run interpreter (from :ide-android on device — a bytecode VM whose peers are dexed) so a
      *  Java `run` works in every opened project. Null → the engine's default in-process VM interpreter. */
     private val programInterpreter: ProgramInterpreter? = null,
+    /** The host's unit-test runner (from :ide-android: D8-dex + DexClassLoader). Null → the desktop
+     *  `URLClassLoader` default, resolved by the engine. */
+    private val testRunner: TestRunner? = null,
     /** On-device APK installer (from :ide-android) so the android Run works in every opened project. */
     private val apkInstaller: ApkInstaller? = null,
     /** On-device app-log channel (from :ide-android): receives a running debug app's forwarded logs for the
@@ -126,6 +129,7 @@ class ProjectManager private constructor(
         // registered → the engine falls back to its in-process default.
         androidTools?.let { t -> env.container.registerServiceIfAbsent(ANDROID_DEVICE_TOOLS) { t } }
         programInterpreter?.let { p -> env.container.registerServiceIfAbsent(PROGRAM_INTERPRETER) { p } }
+        testRunner?.let { t -> env.container.registerServiceIfAbsent(TEST_RUNNER) { t } }
         apkInstaller?.let { i -> env.container.registerServiceIfAbsent(APK_INSTALLER) { i } }
         appLogChannel?.let { c -> env.container.registerServiceIfAbsent(APP_LOG_CHANNEL) { c } }
         customViewRuntime?.let { c -> env.container.registerServiceIfAbsent(CUSTOM_VIEW_RUNTIME) { c } }
@@ -576,6 +580,9 @@ class ProjectManager private constructor(
             /** The host's console-run interpreter (a bytecode VM whose peers are dexed on ART), so a Java
              *  console `run` works on device. */
             programInterpreter: ProgramInterpreter? = null,
+            /** The host's unit-test runner (D8-dex + DexClassLoader on ART). Null → the engine's URLClassLoader
+             *  default, which only works off device. */
+            testRunner: TestRunner? = null,
             /** The device's `Build.VERSION.SDK_INT` — the min-api the Android APK build/dex targets. */
             deviceApiLevel: Int = 21,
             /** The host's APK installer, so the android Run (build + install + launch) works on device. */
@@ -630,6 +637,7 @@ class ProjectManager private constructor(
                 tools,
                 legacyDataDirs = legacyDataDirs,
                 programInterpreter = programInterpreter,
+                testRunner = testRunner,
                 apkInstaller = apkInstaller,
                 appLogChannel = appLogChannel,
                 customViewRuntime = customViewRuntime,

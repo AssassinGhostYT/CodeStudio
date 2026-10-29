@@ -75,6 +75,10 @@ internal interface EngineContext {
      *  device). Never null — a host that registers no port gets a default in-process interpreter. */
     val programInterpreter: ProgramInterpreter
 
+    /** The unit-test runner: loads + runs compiled JUnit classes. Never null — desktop gets a
+     *  `URLClassLoader` default; the device registers a `DexClassLoader` port. */
+    val testRunner: TestRunner
+
     /** On-device APK install+launch port (the Android Run), or null on the desktop. */
     val apkInstaller: ApkInstaller?
 

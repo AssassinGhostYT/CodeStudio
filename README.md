@@ -228,7 +228,7 @@ El archivo `.apk` compilado estará disponible en la ruta:
 - [x] **Historial local (Local History)** de cambios por archivo (instantáneas al guardar, retención configurable, diff y restauración al buffer).
 - [ ] 🔄 **Autocompletado contextual** (símbolos, miembros, auto-import) — ~50%.
 - [ ] 🔄 **Completado con resolución semántica real** (tipos inferidos) — ~40%.
-- [ ] 🟡 Auto-import de clases no importadas.
+- [x] **Auto-import de clases no importadas** (Java JDT/PSI y Kotlin: al aceptar un tipo/símbolo no importado se añade el `import`; quick-fix "Add import"/"Import"; "Optimize Imports").
 - [ ] 🔄 Completado de recursos Android (`@drawable/`, `@string/`).
 - [ ] 🔄 **Generación de código** (override stubs y postfix listos; falta menú Generate de constructores/getters) — ~40%.
 - [ ] 🟡 Soporte Gradle-KTS / version catalogs completos (se generan e importan; falta edición dedicada del catálogo).

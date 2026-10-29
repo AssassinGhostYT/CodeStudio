@@ -4,6 +4,7 @@ import dev.ide.ui.backend.AppLogUi
 import dev.ide.ui.backend.BuildState
 import dev.ide.ui.backend.RunConsoleUi
 import dev.ide.ui.backend.RunTaskOption
+import dev.ide.ui.backend.UiTestState
 import dev.ide.ui.backend.UiPermissionDecision
 import dev.ide.ui.backend.UiPermissionRequest
 import kotlinx.coroutines.flow.StateFlow
@@ -22,10 +23,13 @@ interface BuildRunner {
     val runConsole: StateFlow<RunConsoleUi?>
     val permissionRequest: StateFlow<UiPermissionRequest?>
     val appLog: StateFlow<AppLogUi>
+    val testState: StateFlow<UiTestState>
     fun runTasks(): List<RunTaskOption>
     fun runTask(id: String)
     fun runBuild()
     fun stopBuild()
+    fun runTests(moduleName: String)
+    fun clearTests()
     fun sendRunInput(text: String)
     fun closeRunInput()
     fun sendRunPointer(action: Int, x: Float, y: Float)
@@ -46,11 +50,14 @@ internal class InProcessBuildRunner(private val build: dev.ide.core.services.Bui
     override val runConsole: StateFlow<RunConsoleUi?> get() = build.runConsole
     override val permissionRequest: StateFlow<UiPermissionRequest?> get() = build.permissionRequest
     override val appLog: StateFlow<AppLogUi> get() = build.appLog
+    override val testState: StateFlow<UiTestState> get() = build.testState
     override fun clearAppLog() = build.clearAppLog()
     override fun runTasks(): List<RunTaskOption> = build.runTasks()
     override fun runTask(id: String) = build.runTask(id)
     override fun runBuild() = build.runBuild()
     override fun stopBuild() = build.stopBuild()
+    override fun runTests(moduleName: String) = build.runTests(moduleName)
+    override fun clearTests() = build.clearTests()
     override fun sendRunInput(text: String) = build.sendRunInput(text)
     override fun closeRunInput() = build.closeRunInput()
     override fun sendRunPointer(action: Int, x: Float, y: Float) = build.sendRunPointer(action, x, y)
