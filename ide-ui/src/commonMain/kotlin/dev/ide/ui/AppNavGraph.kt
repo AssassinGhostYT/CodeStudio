@@ -7,6 +7,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import dev.ide.ui.backend.FileActions
+import dev.ide.ui.components.BetaInfo
 import dev.ide.ui.backend.IconSnippets
 import dev.ide.ui.backend.ProjectInfo
 import dev.ide.ui.backend.UiInsertionTarget
@@ -347,6 +348,7 @@ internal fun AppNavGraph(
                 onOpenKeystoreManager = app::openKeystoreManagerFromHub,
                 onOpenPlugins = { app.openPlugins(Screen.Hub, PluginsScope.BuiltInOnly) },
                 onOpenStorage = { app.navigateTo(Screen.Storage) },
+                onOpenDiscord = { fileActions.openUrl(BetaInfo.DISCORD_URL) },
             )
 
             // Settings, reached from the hub. With a project open (hub entered from the editor) the

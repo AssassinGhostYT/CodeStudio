@@ -46,8 +46,8 @@ object BetaInfo {
     /** What "Learn more" on the analytics consent prompt opens: the privacy policy. */
     const val PRIVACY_URL: String = "https://github.com/AssassinGhostYT/CodeStudio/blob/main/PRIVACY.md"
 
-    /** The Discord community invite (opened via FileActions.openUrl from the Projects screen). */
-    const val DISCORD_URL: String = "https://discord.gg/y2gycT6pDW"
+    /** The Discord community invite (opened via FileActions.openUrl from the Settings hub). */
+    const val DISCORD_URL: String = "https://discord.gg/fGPJtJwbAw"
 
     /** Where the "Sponsor" action sends the user (the GitHub Sponsors page). */
     const val SPONSOR_URL: String = "https://github.com/sponsors/AssassinGhostYT"

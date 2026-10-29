@@ -1,9 +1,11 @@
 package dev.ide.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -29,6 +31,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -72,6 +75,7 @@ fun SettingsHubScreen(
     onOpenKeystoreManager: () -> Unit,
     onOpenPlugins: () -> Unit,
     onOpenStorage: () -> Unit,
+    onOpenDiscord: () -> Unit,
 ) {
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
@@ -119,6 +123,12 @@ fun SettingsHubScreen(
                     }
                 }
             }
+            // Comunidad: tarjeta de Discord con su color e icono oficiales, para unirse al servidor del app.
+            DiscordCommunityCard(
+                onClick = onOpenDiscord,
+                modifier = Modifier.widthIn(max = 640.dp).fillMaxWidth()
+                    .padding(horizontal = 16.dp).padding(bottom = 24.dp),
+            )
             // A native ad under the destinations — a pure navigation/browse surface, no workflow to interrupt.
             AdSlot(
                 AdPlacement.SETTINGS,
@@ -150,4 +160,36 @@ private fun HubRow(dest: HubDest) {
             Icon(CaIcons.chevronRight, null, Modifier.size(18.dp), tint = scheme.outline)
         },
     )
+}
+
+/** Discord's official blurple — the brand color of the community card. */
+private val DiscordBlurple = Color(0xFF5865F2)
+
+/** A full-width Discord invite card: official blurple background, Discord glyph and "Únete a la Comunidad". */
+@Composable
+private fun DiscordCommunityCard(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier
+            .clip(MaterialTheme.shapes.large)
+            .background(DiscordBlurple)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(CaIcons.discord, null, Modifier.size(30.dp), tint = Color.White)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                "Únete a la Comunidad",
+                color = Color.White,
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Text(
+                "Chat, ayuda y comparte lo que construyes en Discord",
+                color = Color.White.copy(alpha = 0.85f),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Icon(CaIcons.chevronRight, null, Modifier.size(20.dp), tint = Color.White.copy(alpha = 0.9f))
+    }
 }
