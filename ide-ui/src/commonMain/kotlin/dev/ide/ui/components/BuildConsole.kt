@@ -259,13 +259,15 @@ fun BuildConsole(
                     running,
                 )
                 BuildTab.Steps -> StepsTab(buildState.steps)
-                BuildTab.Logcat -> LogcatTab(
-                    appLog,
-                    logcatLevel,
-                    { logcatLevel = it },
-                    logcatQuery,
-                    { logcatQuery = it },
-                ) { backend?.build?.clearAppLog() },
+                BuildTab.Logcat -> {
+                    LogcatTab(
+                        appLog,
+                        logcatLevel,
+                        { logcatLevel = it },
+                        logcatQuery,
+                        { logcatQuery = it },
+                    ) { backend?.build?.clearAppLog() }
+                }
                 BuildTab.Tests -> TestsTab(testState)
             }
         }
