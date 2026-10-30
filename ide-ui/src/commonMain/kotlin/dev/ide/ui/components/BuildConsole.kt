@@ -167,7 +167,7 @@ fun BuildConsole(
     modifier: Modifier = Modifier,
     onOpenDiagnostic: (BuildDiagnosticUi) -> Unit = {},
     /** Abre el archivo:línea de un test al tocar su fila en la pestaña Tests. */
-    onOpenTestSource: (String, Int) -> Unit = {},
+    onOpenTestSource: (String, Int) -> Unit = { _, _ -> },
     /** Backend for plugin BOTTOM tool-window tabs; null hides them (e.g. backends/tests without one). */
     backend: IdeBackend? = null,
     activeFilePath: String? = null,
@@ -1833,9 +1833,10 @@ private fun TestResultRow(r: UiTestResult, onOpen: (UiTestResult) -> Unit) {
                 modifier = Modifier.padding(start = 22.dp, top = 2.dp),
             )
         }
-        if (r.file != null && r.line > 0) {
+        val testFile = r.file
+        if (testFile != null && r.line > 0) {
             Text(
-                "${r.file.substringAfterLast('/').substringAfterLast('\\')}:${r.line}",
+                "${testFile.substringAfterLast('/').substringAfterLast('\\')}:${r.line}",
                 color = MaterialTheme.colorScheme.outline,
                 style = Ide.type.caption,
                 modifier = Modifier.padding(start = 22.dp, top = 1.dp),
