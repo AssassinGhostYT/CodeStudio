@@ -207,9 +207,10 @@ fun BuildConsole(
             activePluginTab = null
         }
     }
-    // Al arrancar una ejecución de tests, muestra la pestaña Tests.
+    // Al solicitar tests de un módulo, muestra la pestaña Tests (también si el run falla al instante, p. ej.
+    // porque no hay src/test: en ese caso `running` ya volvió a false y el mensaje debe verse igual).
     LaunchedEffect(testState.moduleName, testState.running) {
-        if (testState.running && testState.moduleName.isNotEmpty()) {
+        if (testState.moduleName.isNotEmpty()) {
             tab = BuildTab.Tests
             activePluginTab = null
         }
