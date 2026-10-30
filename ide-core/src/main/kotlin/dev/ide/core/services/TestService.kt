@@ -35,7 +35,8 @@ import java.util.stream.Collectors
  * sources into `build/test-{classes,kotlin-classes}` (so a test run doesn't depend on a prior build), then
  * hands the classpath to the host [TestRunner] (URLClassLoader on desktop, DexClassLoader on device). This
  * keeps normal builds untouched — the biggest risk of a test runner — at the cost of recompiling the main
- * sources for a run. Scoped to JVM modules for now (Android unit tests need the SDK/Robolectric path).
+ * sources for a run. Works for JVM and Android modules (Android runs against the device SDK; tests that need
+ * a `Context`/Activity require instrumentation, not this runner).
  */
 internal class TestService(
     private val ctx: EngineContext,

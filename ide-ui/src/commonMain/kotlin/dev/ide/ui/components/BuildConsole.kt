@@ -86,7 +86,9 @@ import dev.ide.ui.backend.RunStatus
 import dev.ide.ui.backend.StepStatus
 import dev.ide.ui.backend.UiLogLevel
 import dev.ide.ui.backend.UiSeverity
+import dev.ide.ui.backend.UiTestResult
 import dev.ide.ui.backend.UiTestState
+import dev.ide.ui.backend.UiTestStatus
 import dev.ide.ui.ext.ToolWindowAnchor
 import dev.ide.ui.ext.ToolWindowContext
 import dev.ide.ui.ext.ToolWindowContribution
@@ -164,6 +166,8 @@ fun BuildConsole(
     onCollapse: () -> Unit,
     modifier: Modifier = Modifier,
     onOpenDiagnostic: (BuildDiagnosticUi) -> Unit = {},
+    /** Abre el archivo:línea de un test al tocar su fila en la pestaña Tests. */
+    onOpenTestSource: (String, Int) -> Unit = {},
     /** Backend for plugin BOTTOM tool-window tabs; null hides them (e.g. backends/tests without one). */
     backend: IdeBackend? = null,
     activeFilePath: String? = null,
@@ -268,7 +272,9 @@ fun BuildConsole(
                         { logcatQuery = it },
                     ) { backend?.build?.clearAppLog() }
                 }
-                BuildTab.Tests -> TestsTab(testState)
+                BuildTab.Tests -> TestsTab(testState) { r ->
+                    r.file?.let { f -> if (r.line > 0) onOpenTestSource(f, r.line) }
+                }
             }
         }
         // A compact native ad in the console footer, only while nothing is building — a natural pause, never
@@ -1693,36 +1699,146 @@ private fun SearchField(
     }
 }
 
-/** Tabla de la pestaña "Tests": muestra el estado vivo de la ejecución de tests JUnit. */
+/** Pestaña "Tests": estado de la ejecución JUnit y la lista de resultados por test. */
 @Composable
-fun TestsTab(testState: UiTestState) {
-    Column(
-        Modifier.fillMaxSize().padding(4.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
+fun TestsTab(testState: UiTestState, onOpenTest: (UiTestResult) -> Unit = {}) {
+    Column(Modifier.fillMaxSize().padding(4.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (testState.running) {
+                CircularProgressIndicator(
+                    Modifier.size(14.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            } else {
+                val failed = testState.failed > 0
+                val icon = when {
+                    failed -> CaIcons.error
+                    testState.total > 0 -> CaIcons.check
+                    else -> CaIcons.info
+                }
+                Icon(
+                    icon,
+                    null,
+                    Modifier.size(14.dp),
+                    tint = when {
+                        failed -> MaterialTheme.colorScheme.error
+                        testState.total > 0 -> Ide.colors.success
+                        else -> MaterialTheme.colorScheme.outline
+                    },
+                )
+            }
+            Text(
+                when {
+                    testState.running -> testState.message.ifBlank { "Ejecutando tests…" }
+                    testState.moduleName.isNotEmpty() -> "Tests de ${testState.moduleName}"
+                    else -> "Tests"
+                },
+                color = MaterialTheme.colorScheme.onSurface,
+                style = Ide.type.subhead,
+                modifier = Modifier.weight(1f),
+            )
+            if (!testState.running && testState.elapsedMs > 0) {
+                Text(
+                    "${testState.elapsedMs / 1000}s",
+                    color = MaterialTheme.colorScheme.outline,
+                    style = Ide.type.caption,
+                )
+            }
+        }
+
         if (!testState.hasContent) {
             Text(
-                "Aún no hay resultados de test. Ejecuta un test desde el menú Run.",
+                "Aún no hay resultados. Ejecuta un test desde el menú Run: ▶ → Test <módulo>.",
                 color = MaterialTheme.colorScheme.outline,
                 style = Ide.type.caption,
             )
-        } else {
+            return@Column
+        }
+
+        if (!testState.running && testState.message.isNotEmpty()) {
             Text(
-                "Tests: ${testState.passed} ✔ ${testState.failed} ✘ ${testState.skipped} ⏭",
-                color = when {
-                    testState.failed == 0 -> MaterialTheme.colorScheme.onSurface
-                    testState.passed > 0 -> Ide.colors.success
-                    else -> MaterialTheme.colorScheme.error
-                },
-                style = Ide.type.subhead,
+                testState.message,
+                color = MaterialTheme.colorScheme.error,
+                style = Ide.type.codeSmall,
+                modifier = Modifier.padding(bottom = 6.dp),
             )
-            if (testState.message.isNotEmpty()) {
-                Text(testState.message, color = MaterialTheme.colorScheme.outline, style = Ide.type.codeSmall)
+        }
+
+        if (testState.total > 0) {
+            Text(
+                "${testState.total} test(s) · ${testState.passed} pasaron · ${testState.failed} fallaron · ${testState.skipped} omitidos",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = Ide.type.caption,
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+        }
+
+        if (testState.results.isEmpty()) {
+            Spacer(Modifier.weight(1f))
+        } else {
+            Column(
+                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                for (r in testState.results) TestResultRow(r, onOpenTest)
             }
-            val elapsed = testState.elapsedMs
-            if (elapsed > 0) {
-                Text("Tiempo: ${elapsed / 1000}s", color = MaterialTheme.colorScheme.onSurfaceVariant, style = Ide.type.caption)
+        }
+    }
+}
+
+/** Una fila de resultado: estado, suite.método, duración y detalle del fallo (con archivo:línea). */
+@Composable
+private fun TestResultRow(r: UiTestResult, onOpen: (UiTestResult) -> Unit) {
+    val (icon, color, label) = when (r.status) {
+        UiTestStatus.Passed -> Triple(CaIcons.check, Ide.colors.success, "PASÓ")
+        UiTestStatus.Failed -> Triple(CaIcons.close, MaterialTheme.colorScheme.error, "FALLÓ")
+        UiTestStatus.Error -> Triple(CaIcons.error, MaterialTheme.colorScheme.error, "ERROR")
+        UiTestStatus.Skipped -> Triple(CaIcons.chevronRight, MaterialTheme.colorScheme.outline, "OMITIDO")
+    }
+    val clickable = r.file != null && r.line > 0
+    Column(
+        Modifier.fillMaxWidth()
+            .then(if (clickable) Modifier.clickable { onOpen(r) } else Modifier)
+            .padding(vertical = 3.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(icon, null, Modifier.size(14.dp), tint = color)
+            Text(
+                "${r.suite.substringAfterLast('.')}.${r.name}",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = Ide.type.codeSmall,
+                modifier = Modifier.weight(1f),
+            )
+            if (r.durationMs > 0) {
+                Text("${r.durationMs} ms", color = MaterialTheme.colorScheme.outline, style = Ide.type.caption)
             }
+            Text(label, color = color, style = Ide.type.caption)
+        }
+        if (r.message.isNotBlank()) {
+            Text(
+                r.message,
+                color = MaterialTheme.colorScheme.error,
+                style = Ide.type.codeSmall,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 22.dp, top = 2.dp),
+            )
+        }
+        if (r.file != null && r.line > 0) {
+            Text(
+                "${r.file.substringAfterLast('/').substringAfterLast('\\')}:${r.line}",
+                color = MaterialTheme.colorScheme.outline,
+                style = Ide.type.caption,
+                modifier = Modifier.padding(start = 22.dp, top = 1.dp),
+            )
         }
     }
 }
