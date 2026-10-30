@@ -19,8 +19,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -176,10 +174,6 @@ fun BuildConsole(
     focusTabId: String? = null,
     /** Estado en vivo de la pestaña "Tests" (Resultado de tests JUnit compilados). */
     testState: UiTestState = UiTestState(),
-    /** Módulos JVM con tests ejecutables desde la pestaña "Tests". */
-    testModules: List<String> = emptyList(),
-    /** Ejecuta los tests del módulo indicado (nombre del módulo). */
-    onRunTest: (String) -> Unit = {},
     onFocusConsumed: () -> Unit = {},
 ) {
     val running = buildState.status == RunStatus.Running
@@ -274,7 +268,7 @@ fun BuildConsole(
                         { logcatQuery = it },
                     ) { backend?.build?.clearAppLog() }
                 }
-                BuildTab.Tests -> TestsTab(testState, testModules, onRunTest)
+                BuildTab.Tests -> TestsTab(testState)
             }
         }
         // A compact native ad in the console footer, only while nothing is building — a natural pause, never
@@ -1699,42 +1693,16 @@ private fun SearchField(
     }
 }
 
-/** Tabla de la pestaña "Tests": botones para ejecutar tests y el estado vivo de la ejecución JUnit. */
-@OptIn(ExperimentalLayoutApi::class)
+/** Tabla de la pestaña "Tests": muestra el estado vivo de la ejecución de tests JUnit. */
 @Composable
-fun TestsTab(
-    testState: UiTestState,
-    testModules: List<String> = emptyList(),
-    onRunTest: (String) -> Unit = {},
-) {
+fun TestsTab(testState: UiTestState) {
     Column(
         Modifier.fillMaxSize().padding(4.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        if (testModules.isEmpty()) {
-            Text(
-                "No hay módulos JVM con tests. Los tests unitarios solo están soportados en módulos JVM (Java/Kotlin) por ahora.",
-                color = MaterialTheme.colorScheme.outline,
-                style = Ide.type.caption,
-            )
-        } else {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                for (module in testModules) {
-                    PrimaryButton(
-                        text = if (testModules.size == 1) "Ejecutar tests" else "Test $module",
-                        onClick = { onRunTest(module) },
-                        icon = CaIcons.play,
-                    )
-                }
-            }
-        }
-
         if (!testState.hasContent) {
             Text(
-                "Aún no hay resultados de test.",
+                "Aún no hay resultados de test. Ejecuta un test desde el menú Run.",
                 color = MaterialTheme.colorScheme.outline,
                 style = Ide.type.caption,
             )

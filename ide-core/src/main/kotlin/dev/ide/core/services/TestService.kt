@@ -12,7 +12,6 @@ import dev.ide.lang.kotlin.compile.resolveFor
 import dev.ide.model.ContentRole
 import dev.ide.model.DependencyScope
 import dev.ide.model.Module
-import dev.ide.model.PlatformKind
 import dev.ide.ui.backend.UiTestResult
 import dev.ide.ui.backend.UiTestState
 import dev.ide.ui.backend.UiTestStatus
@@ -65,9 +64,6 @@ internal class TestService(
             ctx.flushOpenDocuments()
             val module = ctx.modules().firstOrNull { it.name == moduleName }
                 ?: return fail("No existe el módulo '$moduleName'.")
-            if (module.type.platform != PlatformKind.JVM) {
-                return fail("Los tests solo están soportados en módulos JVM (Java/Kotlin) por ahora.")
-            }
 
             val testRoots = testSourceRoots(module)
             if (testRoots.isEmpty()) {

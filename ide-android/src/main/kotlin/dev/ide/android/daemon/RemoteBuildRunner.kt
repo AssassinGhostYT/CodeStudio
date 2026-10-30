@@ -230,7 +230,16 @@ class RemoteBuildRunner(context: Context, private val services: IdeServices) : B
     override fun runTasks(): List<RunTaskOption> = runCatching { services.buildRunner.runTasks() }.getOrDefault(emptyList())
 
     override fun runBuild() = execute { client.runBuild() }
-    override fun runTask(id: String) = execute { client.runTask(id) }
+    override fun runTask(id: String) {
+        // Unit tests run in the UI process (JUnit over the live model), not in the :build daemon, which
+        // doesn't own the test runner — a plain client.runTask("test:…") would be ignored there and the
+        // console would spin forever. Route test ids to the in-process runner and surface results via testState.
+        if (id.startsWith("test:")) {
+            runTests(id.removePrefix("test:"))
+            return
+        }
+        execute { client.runTask(id) }
+    }
 
     override fun stopBuild() {
         // Drop a build still queued behind the daemon-open handshake — Stop must never let it fire later.
