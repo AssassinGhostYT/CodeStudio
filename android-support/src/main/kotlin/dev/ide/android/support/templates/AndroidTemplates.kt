@@ -511,5 +511,42 @@ object AndroidLibraryTemplate : ProjectTemplate {
                 """,
             )
         }
+        // Local unit test so "Test lib" works out of the box (src/test is a TEST_IMPLEMENTATION source set).
+        if (kotlin) {
+            scaffold.writeText(
+                "lib/src/test/kotlin/$path/LibraryUnitTest.kt",
+                """
+                package $pkg
+
+                import org.junit.Assert.assertEquals
+                import org.junit.Test
+
+                class LibraryUnitTest {
+                    @Test
+                    fun addition_isCorrect() {
+                        assertEquals(4, 2 + 2)
+                    }
+                }
+                """,
+            )
+        } else {
+            scaffold.writeText(
+                "lib/src/test/java/$path/LibraryUnitTest.java",
+                """
+                package $pkg;
+
+                import static org.junit.Assert.assertEquals;
+
+                import org.junit.Test;
+
+                public class LibraryUnitTest {
+                    @Test
+                    public void addition_isCorrect() {
+                        assertEquals(4, 2 + 2);
+                    }
+                }
+                """,
+            )
+        }
     }
 }

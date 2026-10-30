@@ -24,10 +24,12 @@ sealed class AndroidModuleType(
 
     override fun supportedBuildSystems(): Set<BuildSystemId> = setOf(BuildSystemId.NATIVE)
 
-    /** `main` plus one source set per default build type, each with java/res/assets roots. */
+    /** `main` plus one source set per default build type, each with java/res/assets roots, and the local
+     *  unit-test set (`src/test/...`) so a fresh module has somewhere for JUnit tests to live. */
     override fun defaultSourceSets(): List<SourceSetTemplate> = buildList {
         add(sourceSet("main"))
         AndroidFacet.DEFAULT_BUILD_TYPES.forEach { add(sourceSet(it.name)) }
+        add(testSourceSet("test"))
     }
 
     /** A starter [AndroidFacet] — placeholder namespace/SDK the wizard overrides. */
@@ -55,6 +57,18 @@ sealed class AndroidModuleType(
             "src/$name/assets" to setOf(ContentRole.ASSETS),
             "src/$name/resources" to setOf(ContentRole.RESOURCE),  // Java resources → merged into the APK root
             "src/$name/jniLibs" to setOf(ContentRole.JNI_LIBS),    // prebuilt `<abi>/*.so` → packaged under lib/
+        ),
+    )
+
+    /** Local unit tests: excluded from the APK/AAR by the build system (see `moduleRoots`), run by the
+     *  in-process JUnit runner from the Tests tab. */
+    private fun testSourceSet(name: String) = SourceSetTemplate(
+        name = name,
+        scope = DependencyScope.TEST_IMPLEMENTATION,
+        roots = linkedMapOf(
+            "src/$name/java" to setOf(ContentRole.SOURCE),
+            "src/$name/kotlin" to setOf(ContentRole.SOURCE),
+            "src/$name/resources" to setOf(ContentRole.RESOURCE),
         ),
     )
 

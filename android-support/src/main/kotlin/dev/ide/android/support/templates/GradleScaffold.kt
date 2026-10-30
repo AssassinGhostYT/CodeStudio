@@ -187,5 +187,58 @@ internal object GradleScaffold {
         blank()
 
         scaffold.writeText("${app.module}/build.gradle.kts", sb.toString())
+
+        // Android Studio's wizard also lays down a local unit test so `test` has something to run. Keep the
+        // convention (src/test/java, even for Kotlin) so the in-process JUnit runner finds it out of the box.
+        writeUnitTest(scaffold, app)
+    }
+
+    /** A sample JUnit 4 local unit test under `src/test/java` (the Android convention for both Java/Kotlin). */
+    private fun writeUnitTest(scaffold: ProjectScaffold, app: AppOptions) {
+        val path = app.namespace.replace('.', '/')
+        if (app.kotlin) {
+            scaffold.writeText(
+                "${app.module}/src/test/java/$path/ExampleUnitTest.kt",
+                """
+                package ${app.namespace}
+
+                import org.junit.Assert.assertEquals
+                import org.junit.Test
+
+                /**
+                 * Example local unit test, which will execute on the development machine (host).
+                 * See [testing documentation](http://d.android.com/tools/testing).
+                 */
+                class ExampleUnitTest {
+                    @Test
+                    fun addition_isCorrect() {
+                        assertEquals(4, 2 + 2)
+                    }
+                }
+                """.trimIndent() + "\n",
+            )
+        } else {
+            scaffold.writeText(
+                "${app.module}/src/test/java/$path/ExampleUnitTest.java",
+                """
+                package ${app.namespace};
+
+                import static org.junit.Assert.assertEquals;
+
+                import org.junit.Test;
+
+                /**
+                 * Example local unit test, which will execute on the development machine (host).
+                 * See <a href="http://d.android.com/tools/testing">testing documentation</a>.
+                 */
+                public class ExampleUnitTest {
+                    @Test
+                    public void addition_isCorrect() {
+                        assertEquals(4, 2 + 2);
+                    }
+                }
+                """.trimIndent() + "\n",
+            )
+        }
     }
 }

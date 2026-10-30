@@ -68,7 +68,10 @@ internal class TestService(
 
             val testRoots = testSourceRoots(module)
             if (testRoots.isEmpty()) {
-                return fail("No hay carpeta de tests. Crea src/test/java o src/test/kotlin en ${module.name}.")
+                return fail(
+                    "No hay carpeta de tests. Crea ${module.name}/src/test/java (o src/test/kotlin) con una " +
+                        "clase que tenga un método @Test (JUnit 4)."
+                )
             }
             val javaTests = filesUnder(testRoots, ".java")
             val kotlinTests = filesUnder(testRoots, ".kt")
