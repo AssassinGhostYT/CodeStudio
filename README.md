@@ -256,7 +256,7 @@ El archivo `.apk` compilado estará disponible en la ruta:
 - [ ] Network profiler (tráfico y llamadas HTTP).
 - [ ] Energy / battery profiler.
 - [ ] App Inspector (vistas, bindings en vivo).
-- [ ] Runner de tests unitarios (JUnit) con resultados.
+- [x] Runner de tests unitarios (JUnit) con resultados — JVM y Android desde el menú Run; resultados en la pestaña Tests del panel de build.
 - [ ] Tests instrumentados / conectados en dispositivo.
 - [ ] Cobertura de código y reportes.
 - [ ] 🟡 Rename de símbolos (resolución en Java; falta renombrado multi-lenguaje a nivel de proyecto).
