@@ -142,9 +142,11 @@ internal class TestService(
                 results.add(outcome.toUi(sourceByName))
                 publishResults(results, moduleName, started)
             }
-            // Gradle/Studio parity: leave a JUnit XML report under build/test-results/test so CI and other
-            // tools can consume the run. Best-effort — a report failure must not fail the test run.
+            // Gradle/Studio parity: leave the JUnit XML under build/test-results/test (CI/tooling) and an HTML
+            // report under build/reports/tests/test (humans). Best-effort — a report failure must not fail
+            // the test run.
             runCatching { writeJUnitXml(results, moduleRoot.resolve("build/test-results/test")) }
+            runCatching { writeHtmlReport(results, moduleRoot.resolve("build/reports/tests/test")) }
             _state.update {
                 it.copy(
                     running = false,
@@ -191,6 +193,47 @@ internal class TestService(
             Files.writeString(dir.resolve("TEST-$safe.xml"), xml)
         }
     }
+
+    /** Writes a self-contained `index.html` (Gradle/Studio-style report) with the run's results. */
+    private fun writeHtmlReport(results: List<UiTestResult>, dir: Path) {
+        Files.createDirectories(dir)
+        val total = results.size
+        val passed = results.count { it.status == UiTestStatus.Passed }
+        val failed = results.count { it.status == UiTestStatus.Failed || it.status == UiTestStatus.Error }
+        val skipped = results.count { it.status == UiTestStatus.Skipped }
+        val html = buildString {
+            append("<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>Test results</title>")
+            append("<style>body{font-family:sans-serif;margin:24px;color:#222}")
+            append("table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 10px;border-bottom:1px solid #ddd}")
+            append(".pass{color:#1a7f37}.fail{color:#b42318}.skip{color:#8a6d3b}pre{white-space:pre-wrap;margin:4px 0 0;color:#b42318;font-size:12px}")
+            append("</style></head><body>")
+            append("<h1>Tests</h1><p><b>$total</b> tests &middot; <span class=\"pass\">$passed passed</span> &middot; ")
+            append("<span class=\"fail\">$failed failed</span> &middot; <span class=\"skip\">$skipped skipped</span></p>")
+            append("<table><thead><tr><th>Class</th><th>Test</th><th>Status</th><th>Time</th></tr></thead><tbody>")
+            results.sortedWith(compareBy({ it.suite }, { it.name })).forEach { r ->
+                val (cls, label) = when (r.status) {
+                    UiTestStatus.Passed -> "pass" to "PASSED"
+                    UiTestStatus.Failed -> "fail" to "FAILED"
+                    UiTestStatus.Error -> "fail" to "ERROR"
+                    UiTestStatus.Skipped -> "skip" to "SKIPPED"
+                }
+                append("<tr><td>${htmlEscape(r.suite)}</td><td>${htmlEscape(r.name)}</td>")
+                append("<td class=\"$cls\">$label</td><td>${r.durationMs} ms</td></tr>")
+                if (r.status == UiTestStatus.Failed || r.status == UiTestStatus.Error) {
+                    val detail = listOf(r.message, r.stackTrace).filter { it.isNotBlank() }.joinToString("\n")
+                    if (detail.isNotBlank()) {
+                        append("<tr><td colspan=\"4\"><pre>${htmlEscape(detail)}</pre></td></tr>")
+                    }
+                }
+            }
+            append("</tbody></table></body></html>")
+        }
+        Files.writeString(dir.resolve("index.html"), html)
+    }
+
+    private fun htmlEscape(s: String): String = s
+        .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        .replace("\"", "&quot;")
 
     private fun xmlEscape(s: String): String = s
         .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
