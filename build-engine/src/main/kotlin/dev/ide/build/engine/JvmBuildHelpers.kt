@@ -28,7 +28,7 @@ fun sourceFiles(module: Module): List<Path> = module.sourceSets
     .filter { ContentRole.SOURCE in it.roles || ContentRole.GENERATED in it.roles }
     .map { Paths.get(it.dir.path) }
     .filter { Files.isDirectory(it) }
-    .flatMap { root -> Files.walk(root).use { s -> s.filter { it.toString().endsWith(".java") }.collect(Collectors.toList()) } }
+    .flatMap { root -> Files.walk(root).use { s -> s.filter { Files.isRegularFile(it) && it.toString().endsWith(".java") }.collect(Collectors.toList()) } }
 
 fun depOutputDirs(module: Module): List<Path> =
     module.classpath(DependencyScope.IMPLEMENTATION).entries

@@ -51,19 +51,23 @@ class IncrementalKotlinCompiler(private val compiler: KotlinJvmCompiler = Kotlin
         runtimePluginClasspaths: List<List<Path>> = emptyList(),
     ): Result {
         val kt = kotlinSources.map { it.toAbsolutePath().normalize() }.filter { Files.isRegularFile(it) }
+        // Interop `.java` inputs must be real files too: a directory reaches the Kotlin compiler as a Java
+        // source root and its `configureSourceRoots` NPEs on `listFiles()` (null on Android). Filtering here
+        // also keeps the context hash and the compile seeing the exact same set.
+        val java = javaSources.map { it.toAbsolutePath().normalize() }.filter { Files.isRegularFile(it) }
         if (kt.isEmpty()) {                              // no Kotlin left → nothing to emit; clear stale state
             clearDir(outputDir); state(outputDir).delete()
             return Result(true, emptyList(), Mode.NOOP)
         }
 
-        val context = contextHash(javaSources, classpath, bootClasspath, jvmTarget, compilerPlugins, pluginOptions, runtimePluginClasspaths)
+        val context = contextHash(java, classpath, bootClasspath, jvmTarget, compilerPlugins, pluginOptions, runtimePluginClasspaths)
         val srcHash = kt.associateWith { fileHash(it) }
         val prev = state(outputDir).read()
 
         // No usable baseline, the interop/classpath context moved, or a source was deleted → full rebuild.
         val removed = prev != null && (prev.srcHash.keys - srcHash.keys).isNotEmpty()
         if (prev == null || prev.context != context || removed) {
-            return full(kt, javaSources, classpath, outputDir, jvmTarget, bootClasspath, context, srcHash, compilerPlugins, pluginOptions, runtimePluginClasspaths)
+            return full(kt, java, classpath, outputDir, jvmTarget, bootClasspath, context, srcHash, compilerPlugins, pluginOptions, runtimePluginClasspaths)
         }
 
         // The manifest must describe exactly what is in the output dir. If a prior run left them out of sync —
@@ -73,14 +77,14 @@ class IncrementalKotlinCompiler(private val compiler: KotlinJvmCompiler = Kotlin
         // depends on (a spurious "unresolved reference"). A full rebuild is the only safe move. (Generalizes the
         // old dirty-empty-only tamper check to every path.)
         if (currentClasses(outputDir).toSet() != prev.abi.keys) {
-            return full(kt, javaSources, classpath, outputDir, jvmTarget, bootClasspath, context, srcHash, compilerPlugins, pluginOptions, runtimePluginClasspaths)
+            return full(kt, java, classpath, outputDir, jvmTarget, bootClasspath, context, srcHash, compilerPlugins, pluginOptions, runtimePluginClasspaths)
         }
 
         val dirty = kt.filter { prev.srcHash[it] != srcHash[it] }
         if (dirty.isEmpty()) return Result(true, emptyList(), Mode.NOOP) // nothing changed; output matches the manifest
 
-        return incremental(kt, dirty, javaSources, classpath, outputDir, jvmTarget, bootClasspath, context, srcHash, prev, compilerPlugins, pluginOptions, runtimePluginClasspaths)
-            ?: full(kt, javaSources, classpath, outputDir, jvmTarget, bootClasspath, context, srcHash, compilerPlugins, pluginOptions, runtimePluginClasspaths)
+        return incremental(kt, dirty, java, classpath, outputDir, jvmTarget, bootClasspath, context, srcHash, prev, compilerPlugins, pluginOptions, runtimePluginClasspaths)
+            ?: full(kt, java, classpath, outputDir, jvmTarget, bootClasspath, context, srcHash, compilerPlugins, pluginOptions, runtimePluginClasspaths)
     }
 
     /** Whole-module compile into a clean output dir; records a fresh manifest. */

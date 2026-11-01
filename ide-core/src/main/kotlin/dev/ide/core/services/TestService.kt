@@ -98,8 +98,20 @@ internal class TestService(
             val mainRoots = mainSourceRoots(module)
             val bridge = writeTestBridge()
                 ?: return fail("No se pudo preparar el runner de tests (no se pudo escribir el bridge).")
-            val allJava = (filesUnder(mainRoots, ".java") + javaTests + bridge).distinct()
-            val allKotlin = (filesUnder(mainRoots, ".kt") + kotlinTests).distinct()
+            // The bridge is generated Java that only the JUnit runner loads reflectively: never hand it to the
+            // Kotlin compiler as an interop source (it isn't referenced by any Kotlin file), and never hand the
+            // compiler a non-file path. A directory as a Java source root makes kotlinc's
+            // `configureSourceRoots` NPE on `listFiles()` (null on Android).
+            if (!Files.isRegularFile(bridge)) {
+                return fail("No se pudo preparar el runner de tests (el bridge no es un archivo).")
+            }
+            val allJava = (filesUnder(mainRoots, ".java") + javaTests)
+                .filter { Files.isRegularFile(it) }
+                .distinct()
+            val javacSources = (allJava + bridge).distinct()
+            val allKotlin = (filesUnder(mainRoots, ".kt") + kotlinTests)
+                .filter { Files.isRegularFile(it) }
+                .distinct()
 
             val libs = module.classpath(DependencyScope.TEST_IMPLEMENTATION).entries
                 .map { Paths.get(it.root.path) }
@@ -118,10 +130,10 @@ internal class TestService(
                 )
                 if (!r.success) return fail("Error compilando Kotlin:\n" + r.messages.joinToString("\n"))
             }
-            if (allJava.isNotEmpty()) {
+            if (javacSources.isNotEmpty()) {
                 phase("Compilando Java de tests…")
                 val r = JdtBatchCompiler.compile(
-                    allJava, libs + junitJars + listOf(kotlinOut), javaOut, levelOf(module.languageLevel), bootClasspath = boot,
+                    javacSources, libs + junitJars + listOf(kotlinOut), javaOut, levelOf(module.languageLevel), bootClasspath = boot,
                 )
                 if (!r.success) return fail("Error compilando Java:\n" + r.messages.joinToString("\n"))
             }
@@ -133,6 +145,9 @@ internal class TestService(
                 results.add(outcome.toUi(sourceByName))
                 publishResults(results, moduleName, started)
             }
+            // Gradle/Studio parity: leave a JUnit XML report under build/test-results/test so CI and other
+            // tools can consume the run. Best-effort — a report failure must not fail the test run.
+            runCatching { writeJUnitXml(results, moduleRoot.resolve("build/test-results/test")) }
             _state.update {
                 it.copy(
                     running = false,
@@ -144,6 +159,45 @@ internal class TestService(
             fail("Fallo del runner: ${t.message ?: t}")
         }
     }
+
+    /** Writes one Gradle-style `TEST-<suite>.xml` per suite (the format Studio/CI parsers read). */
+    private fun writeJUnitXml(results: List<UiTestResult>, dir: Path) {
+        if (results.isEmpty()) return
+        Files.createDirectories(dir)
+        results.groupBy { it.suite.ifBlank { "tests" } }.forEach { (suite, cases) ->
+            val failures = cases.count { it.status == UiTestStatus.Failed }
+            val errors = cases.count { it.status == UiTestStatus.Error }
+            val skipped = cases.count { it.status == UiTestStatus.Skipped }
+            val time = cases.sumOf { it.durationMs } / 1000.0
+            val xml = buildString {
+                append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+                append(
+                    "<testsuite name=\"${xmlEscape(suite)}\" tests=\"${cases.size}\" failures=\"$failures\" " +
+                        "errors=\"$errors\" skipped=\"$skipped\" time=\"$time\">\n"
+                )
+                cases.forEach { c ->
+                    append("  <testcase classname=\"${xmlEscape(suite)}\" name=\"${xmlEscape(c.name)}\" time=\"${c.durationMs / 1000.0}\"")
+                    when (c.status) {
+                        UiTestStatus.Failed -> append(
+                            ">\n    <failure message=\"${xmlEscape(c.message)}\">${xmlEscape(c.stackTrace)}</failure>\n  </testcase>\n"
+                        )
+                        UiTestStatus.Error -> append(
+                            ">\n    <error message=\"${xmlEscape(c.message)}\">${xmlEscape(c.stackTrace)}</error>\n  </testcase>\n"
+                        )
+                        UiTestStatus.Skipped -> append(">\n    <skipped/>\n  </testcase>\n")
+                        else -> append("/>\n")
+                    }
+                }
+                append("</testsuite>\n")
+            }
+            val safe = suite.replace(Regex("""[^\w.\-]"""), "_")
+            Files.writeString(dir.resolve("TEST-$safe.xml"), xml)
+        }
+    }
+
+    private fun xmlEscape(s: String): String = s
+        .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        .replace("\"", "&quot;").replace("'", "&apos;")
 
     private fun publishResults(results: List<UiTestResult>, moduleName: String, started: Long) {
         _state.update {

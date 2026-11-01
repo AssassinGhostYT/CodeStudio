@@ -116,7 +116,13 @@ class KotlinJvmCompiler(
         val onArt = isAndroidRuntime || bootClasspath.isNotEmpty()
 
         // kotlinc resolves Java sources for interop but only emits Kotlin classes; both are free args.
-        val sourcePaths = (kotlinSources + javaSources).map { it.toString() }
+        // Only real files may be free args: a directory (or a vanished path) becomes a Java source root, and
+        // the compiler's `configureSourceRoots` calls `listFiles()` on it — which returns null on Android for
+        // an unreadable directory and throws an NPE (JvmConfigurationPipelinePhase.kt:238). Drop them here so
+        // no caller can crash the compile phase.
+        val sourcePaths = (kotlinSources + javaSources)
+            .filter { java.nio.file.Files.isRegularFile(it) }
+            .map { it.toString() }
         val fullClasspath = (classpath + boot + listOfNotNull(stdlibJar())).distinct()
 
         // Runtime-loaded plugins can't ride the CLI `-Xplugin` path (it can't define a jar's classes on ART),
@@ -179,7 +185,10 @@ class KotlinJvmCompiler(
             collector.report(CompilerMessageSeverity.WARNING, "plugin options ignored on the registrar path: $pluginOptions", null)
         }
         val args = buildArguments(
-            (kotlinSources + javaSources).map { it.toString() }, fullClasspath, outputDir, jvmTarget, onArt, friendPaths,
+            (kotlinSources + javaSources)
+                .filter { java.nio.file.Files.isRegularFile(it) }   // see `compile`: no directories as free args
+                .map { it.toString() },
+            fullClasspath, outputDir, jvmTarget, onArt, friendPaths,
         )
         // GroupingMessageCollector is what the real pipeline wraps the collector in (it defers messages so
         // related diagnostics group up). CRITICAL: unlike `K2JVMCompiler.exec`, driving the phases by hand
