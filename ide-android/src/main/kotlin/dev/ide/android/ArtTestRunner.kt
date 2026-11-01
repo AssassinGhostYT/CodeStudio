@@ -4,10 +4,10 @@ import dalvik.system.DexClassLoader
 import dev.ide.android.support.tools.ArtReflectionRewrite
 import dev.ide.android.support.tools.D8InProcessDexer
 import dev.ide.android.support.tools.DexInputDedup
+import dev.ide.core.JUnitReflectiveDriver
 import dev.ide.core.TestOutcome
 import dev.ide.core.TestOutcomeStatus
 import dev.ide.core.TestRunner
-import java.lang.reflect.Method
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -89,64 +89,9 @@ class ArtTestRunner(
     }
 
     private fun runJUnit(loader: ClassLoader, testClassNames: List<String>, onOutcome: (TestOutcome) -> Unit) {
-        val junitCore = loader.loadClass("org.junit.runner.JUnitCore")
-        val requestClass = loader.loadClass("org.junit.runner.Request")
-        val resultClass = loader.loadClass("org.junit.runner.Result")
-        val failureClass = loader.loadClass("org.junit.runner.notification.Failure")
-        @Suppress("UNCHECKED_CAST")
-        val testAnn = loader.loadClass("org.junit.Test") as Class<out Annotation>
-        @Suppress("UNCHECKED_CAST")
-        val ignoreAnn = loader.loadClass("org.junit.Ignore") as Class<out Annotation>
-
-        val core = junitCore.getDeclaredConstructor().newInstance()
-        val runRequest: Method = junitCore.getMethod("run", requestClass)
-        val requestMethod: Method = requestClass.getMethod("method", Class::class.java, String::class.java)
-        val getFailures: Method = resultClass.getMethod("getFailures")
-        val getIgnoreCount: Method = resultClass.getMethod("getIgnoreCount")
-        val getMessage: Method = failureClass.getMethod("getMessage")
-        val getTrace: Method = failureClass.getMethod("getTrace")
-
-        for (className in testClassNames) {
-            val cls = try {
-                loader.loadClass(className)
-            } catch (t: Throwable) {
-                onOutcome(TestOutcome(className, "<class>", TestOutcomeStatus.ERROR, 0, t.toString(), t.stackTraceToString()))
-                continue
-            }
-            val methods = cls.methods.filter { it.isAnnotationPresent(testAnn) }
-            if (methods.isEmpty()) {
-                onOutcome(TestOutcome(className, "<no @Test>", TestOutcomeStatus.SKIPPED, 0, "No @Test methods"))
-                continue
-            }
-            val classIgnored = cls.isAnnotationPresent(ignoreAnn)
-            for (m in methods) {
-                if (classIgnored || m.isAnnotationPresent(ignoreAnn)) {
-                    onOutcome(TestOutcome(className, m.name, TestOutcomeStatus.SKIPPED, 0))
-                    continue
-                }
-                val started = System.currentTimeMillis()
-                try {
-                    val request = requestMethod.invoke(null, cls, m.name)
-                    val result = runRequest.invoke(core, request)
-                    val elapsed = System.currentTimeMillis() - started
-                    @Suppress("UNCHECKED_CAST")
-                    val failures = getFailures.invoke(result) as List<Any>
-                    if (failures.isEmpty()) {
-                        val ignored = getIgnoreCount.invoke(result) as Int
-                        val status = if (ignored > 0) TestOutcomeStatus.SKIPPED else TestOutcomeStatus.PASSED
-                        onOutcome(TestOutcome(className, m.name, status, elapsed))
-                    } else {
-                        val failure = failures.first()
-                        val message = getMessage.invoke(failure) as String? ?: ""
-                        val trace = getTrace.invoke(failure) as String? ?: ""
-                        onOutcome(TestOutcome(className, m.name, TestOutcomeStatus.FAILED, elapsed, message, trace))
-                    }
-                } catch (t: Throwable) {
-                    val cause = t.cause ?: t
-                    onOutcome(TestOutcome(className, m.name, TestOutcomeStatus.ERROR, System.currentTimeMillis() - started, cause.toString(), cause.stackTraceToString()))
-                }
-            }
-        }
+        // JUnit's own runner over the DexClassLoader: whole classes (honours @RunWith / @BeforeClass / rules),
+        // with per-test results streamed from the bridge RunListener — shared with the desktop JvmTestRunner.
+        JUnitReflectiveDriver.run(loader, cacheRoot, testClassNames, onOutcome)
     }
 
     private fun zipDir(dir: Path, jar: Path) {

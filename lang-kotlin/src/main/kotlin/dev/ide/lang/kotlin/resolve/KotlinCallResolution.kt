@@ -468,6 +468,18 @@ internal fun KotlinResolver.computeCallTargets(call: KtCallExpression): List<Kot
         name,
         exactName = true
     ).filter { it.name == name && it.kind == SymbolKind.METHOD && (!it.isExtension || extensionInScope(it)) }
+    // An explicitly imported MEMBER callable (`import org.junit.Assert.assertEquals`, `import …Config.DEBUG`):
+    // a static Java method / object member becomes callable bare once imported. [scopeSymbolsAt] only knows
+    // top-level callables, so resolve the imported member against its owner type. Gated on a matching non-star
+    // import (zero matches in the common case); METHODS only — a FIELD import is a value, not a call target.
+    for (imp in fileContext.imports) {
+        if (imp.isStar || imp.simpleName != name) continue
+        val owner = imp.fqn.substringBeforeLast('.', "")
+        val member = imp.fqn.substringAfterLast('.')
+        if (owner.isEmpty() || member.isEmpty()) continue
+        out += service.membersNamed(owner, emptyList(), member)
+            .filter { it.name == member && it.kind == SymbolKind.METHOD }
+    }
     // A fully-qualified top-level call `kotlin.math.abs(x)` / `kotlinx.coroutines.flow.flowOf(…)`: the receiver is
     // a PACKAGE (not a value/type — `memberReceiverOf` was null and the in-scope lookup above missed, since the
     // name isn't imported). Resolve the top-level function by its package FQN. Purely additive: only fires for a

@@ -71,6 +71,21 @@ class KotlinBuilderChainInferenceTest {
     }
 
     @Test
+    fun importedVoidStaticMethodIsCallable() {
+        // Regression: `import dev.ide.fakeretrofit.GsonConverterFactory.assertEquals` followed by a bare
+        // `assertEquals(4, 2 + 2)` (JUnit's shape) used to type the callee as its `void` → Unit return and
+        // report "Expression 'assertEquals' of type Unit cannot be invoked as a function".
+        val code = "package demo\n" +
+            "import dev.ide.fakeretrofit.GsonConverterFactory.assertEquals\n" +
+            "fun test() { assertEquals(4, 2 + 2) }"
+        val diags = diagnose(code)
+        assertFalse(
+            diags.any { it.code == "kt.notCallable" && "assertEquals" in it.message },
+            "an imported void static method must be callable, not typed as Unit: $diags",
+        )
+    }
+
+    @Test
     fun crossFileTopLevelPropertyBuildResultMemberResolves() {
         // `apiClient` is a top-level property in ANOTHER file (Api.kt, in the disk source model). Its type must
         // come from PSI inference of its initializer chain (inferReturnFromBody), NOT the crude text guess that

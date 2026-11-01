@@ -657,7 +657,13 @@ internal fun KotlinResolver.typeOfName(name: String, offset: Int): KotlinType? {
     // case is zero matches), so the member lookup only fires for a name that was actually imported.
     for (imp in fileContext.imports) {
         if (imp.isStar || imp.simpleName != name) continue
-        service.importedMemberSymbol(imp.fqn)?.let { return it.type as? KotlinType }
+        // A FIELD / enum-constant import is a VALUE, so its declared type is the name's type. A METHOD import
+        // (`import org.junit.Assert.assertEquals`) is a callable: returning its RETURN type (void → `Unit`)
+        // typed the bare name as `Unit`, which made the call site look "not callable" to the diagnostics pass.
+        // The call itself resolves through `callTargets` (which now includes imported member methods).
+        service.importedMemberSymbol(imp.fqn)
+            ?.takeIf { it.kind == SymbolKind.FIELD || it.kind == SymbolKind.ENUM_CONSTANT }
+            ?.let { return it.type as? KotlinType }
     }
     // A same-file TOP-LEVEL property: infer its type from the initializer via live PSI (`sameFileProperty`
     // runs full `inferType`), NOT the disk model's crude callee-name parse — which mistypes a builder chain
