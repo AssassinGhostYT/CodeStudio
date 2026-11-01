@@ -44,6 +44,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -273,7 +274,12 @@ fun BuildConsole(
                         { logcatQuery = it },
                     ) { backend?.build?.clearAppLog() }
                 }
-                BuildTab.Tests -> TestsTab(testState) { r ->
+                BuildTab.Tests -> TestsTab(
+                    testState,
+                    onRerunFailed = {
+                        if (testState.moduleName.isNotEmpty()) backend?.build?.rerunFailedTests(testState.moduleName)
+                    },
+                ) { r ->
                     r.file?.let { f -> if (r.line > 0) onOpenTestSource(f, r.line) }
                 }
             }
@@ -1702,7 +1708,11 @@ private fun SearchField(
 
 /** Pestaña "Tests": estado de la ejecución JUnit y la lista de resultados por test. */
 @Composable
-fun TestsTab(testState: UiTestState, onOpenTest: (UiTestResult) -> Unit = {}) {
+fun TestsTab(
+    testState: UiTestState,
+    onRerunFailed: () -> Unit = {},
+    onOpenTest: (UiTestResult) -> Unit = {},
+) {
     Column(Modifier.fillMaxSize().padding(4.dp)) {
         Row(
             Modifier.fillMaxWidth().padding(vertical = 6.dp),
@@ -1749,6 +1759,11 @@ fun TestsTab(testState: UiTestState, onOpenTest: (UiTestResult) -> Unit = {}) {
                     color = MaterialTheme.colorScheme.outline,
                     style = Ide.type.caption,
                 )
+            }
+            if (!testState.running && testState.failed > 0 && testState.moduleName.isNotEmpty()) {
+                TextButton(onClick = onRerunFailed) {
+                    Text("Reintentar fallidos", style = Ide.type.caption, color = MaterialTheme.colorScheme.error)
+                }
             }
         }
 

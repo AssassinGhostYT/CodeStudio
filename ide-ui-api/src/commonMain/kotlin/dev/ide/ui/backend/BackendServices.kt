@@ -372,6 +372,9 @@ interface BuildService {
     /** Compile and run [moduleName]'s unit tests (`src/test/...`), streaming results into [testState]. */
     fun runTests(moduleName: String) {}
 
+    /** Re-run only the test classes that failed in the last run (Gradle-style rerun-failed). */
+    fun rerunFailedTests(moduleName: String) {}
+
     /** Clear the Tests tab's results. */
     fun clearTests() {}
 }

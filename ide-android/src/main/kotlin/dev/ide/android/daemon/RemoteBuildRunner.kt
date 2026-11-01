@@ -108,6 +108,7 @@ class RemoteBuildRunner(context: Context, private val services: IdeServices) : B
     // Unit tests run in the UI process (not the build daemon), so they delegate to the in-process runner.
     override val testState: StateFlow<UiTestState> get() = services.buildRunner.testState
     override fun runTests(moduleName: String) = services.buildRunner.runTests(moduleName)
+    override fun rerunFailedTests(moduleName: String) = services.buildRunner.rerunFailedTests(moduleName)
     override fun clearTests() = services.buildRunner.clearTests()
 
     private fun AppLogSnapshot.toAppLogUi(): AppLogUi = AppLogUi(

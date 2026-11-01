@@ -166,6 +166,9 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
     /** Compile + run [moduleName]'s unit tests (see [TestService]). */
     fun runTests(moduleName: String) = testService.run(moduleName)
 
+    /** Re-run only the classes that failed in the last test run. */
+    fun rerunFailedTests(moduleName: String) = testService.run(moduleName, onlyFailed = true)
+
     /** Clear the Tests tab. */
     fun clearTests() = testService.clear()
 

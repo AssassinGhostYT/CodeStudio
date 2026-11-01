@@ -43,6 +43,7 @@ internal class BuildBackend(private val ctx: BackendContext) : BuildService {
 
     override val testState: StateFlow<UiTestState> = ctx.engineFlow(UiTestState()) { runner(it).testState }
     override fun runTests(moduleName: String) = runner(ctx.services).runTests(moduleName)
+    override fun rerunFailedTests(moduleName: String) = runner(ctx.services).rerunFailedTests(moduleName)
     override fun clearTests() = runner(ctx.services).clearTests()
 
     override fun listVariants(moduleName: String): List<String> = ctx.services.listVariants(moduleName)

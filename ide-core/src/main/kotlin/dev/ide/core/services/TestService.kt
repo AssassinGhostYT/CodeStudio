@@ -53,13 +53,27 @@ internal class TestService(
         _state.value = UiTestState()
     }
 
-    fun run(moduleName: String) {
+    fun run(moduleName: String, onlyFailed: Boolean = false) {
         if (_state.value.running) return
-        _state.value = UiTestState(running = true, moduleName = moduleName, message = "Buscando tests…")
-        scope.launch(Dispatchers.Default) { execute(moduleName) }
+        // Rerun-failed (Gradle's `--tests` at class granularity): keep only the classes that had a failed or
+        // errored test in the previous run. No failures → nothing to do.
+        val failedSuites = _state.value.results
+            .filter { it.status == UiTestStatus.Failed || it.status == UiTestStatus.Error }
+            .map { it.suite }
+            .toSet()
+        if (onlyFailed && failedSuites.isEmpty()) {
+            _state.update { it.copy(message = "No hay tests fallidos para reintentar.") }
+            return
+        }
+        _state.value = UiTestState(
+            running = true,
+            moduleName = moduleName,
+            message = if (onlyFailed) "Reintentando ${failedSuites.size} clase(s) fallida(s)…" else "Buscando tests…",
+        )
+        scope.launch(Dispatchers.Default) { execute(moduleName, failedSuites) }
     }
 
-    private fun execute(moduleName: String) {
+    private fun execute(moduleName: String, onlySuites: Set<String> = emptySet()) {
         val started = System.currentTimeMillis()
         try {
             ctx.flushOpenDocuments()
@@ -79,9 +93,14 @@ internal class TestService(
                 return fail("No se encontraron archivos .java/.kt en src/test.")
             }
             val testSources = (javaTests + kotlinTests).filter { looksLikeTest(it) }
-            val testClassNames = testSources.mapNotNull { className(it) }.distinct()
+            val testClassNames = testSources.mapNotNull { className(it) }
+                .distinct()
+                .filter { onlySuites.isEmpty() || it in onlySuites }
             if (testClassNames.isEmpty()) {
-                return fail("No se encontró ningún método @Test ni clase @RunWith en ${module.name}.")
+                return fail(
+                    if (onlySuites.isEmpty()) "No se encontró ningún método @Test ni clase @RunWith en ${module.name}."
+                    else "No se encontraron las clases fallidas de la corrida anterior."
+                )
             }
 
             val junitJars = BundledTestRuntime.extractTo(
