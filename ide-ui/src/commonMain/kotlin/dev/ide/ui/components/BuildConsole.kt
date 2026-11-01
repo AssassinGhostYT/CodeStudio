@@ -1762,12 +1762,15 @@ fun TestsTab(testState: UiTestState, onOpenTest: (UiTestResult) -> Unit = {}) {
         }
 
         if (!testState.running && testState.message.isNotEmpty()) {
-            Text(
-                testState.message,
-                color = MaterialTheme.colorScheme.error,
-                style = Ide.type.codeSmall,
-                modifier = Modifier.padding(bottom = 6.dp),
-            )
+            Row(verticalAlignment = Alignment.Top) {
+                Text(
+                    testState.message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = Ide.type.codeSmall,
+                    modifier = Modifier.weight(1f).padding(bottom = 6.dp),
+                )
+                TestCopyButton({ testState.message }, "Copiar error")
+            }
         }
 
         if (testState.total > 0) {
@@ -1790,6 +1793,29 @@ fun TestsTab(testState: UiTestState, onOpenTest: (UiTestResult) -> Unit = {}) {
             }
         }
     }
+}
+
+/** Copies a test error (message + stack trace) in one tap and flips to a check for ~1.5s. */
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+private fun TestCopyButton(provide: () -> String, description: String) {
+    val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
+    var copied by remember { mutableStateOf(false) }
+    LaunchedEffect(copied) {
+        if (copied) { delay(1500.milliseconds); copied = false }
+    }
+    IconButtonCa(
+        if (copied) CaIcons.check else CaIcons.copy,
+        if (copied) stringResource(Res.string.buildc_copied) else description,
+        onClick = {
+            scope.launch { clipboard.setText(AnnotatedString(clipForClipboard(provide()))) }
+            copied = true
+        },
+        boxSize = 24,
+        iconSize = 14,
+        tint = if (copied) Ide.colors.run else MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /** Una fila de resultado: estado, suite.método, duración y detalle del fallo (con archivo:línea). */
@@ -1822,6 +1848,18 @@ private fun TestResultRow(r: UiTestResult, onOpen: (UiTestResult) -> Unit) {
                 Text("${r.durationMs} ms", color = MaterialTheme.colorScheme.outline, style = Ide.type.caption)
             }
             Text(label, color = color, style = Ide.type.caption)
+            if (r.status == UiTestStatus.Failed || r.status == UiTestStatus.Error) {
+                TestCopyButton(
+                    {
+                        buildString {
+                            append(r.suite).append('.').append(r.name)
+                            if (r.message.isNotBlank()) append("\n\n").append(r.message)
+                            if (r.stackTrace.isNotBlank()) append("\n\n").append(r.stackTrace)
+                        }
+                    },
+                    "Copiar error del test",
+                )
+            }
         }
         if (r.message.isNotBlank()) {
             Text(
