@@ -25,6 +25,13 @@ object JUnitReflectiveDriver {
         testClassNames: List<String>,
         onOutcome: (TestOutcome) -> Unit,
     ) {
+        // A project that brought the JUnit Platform (JUnit 5, or a JUnit 5-aware Kotlin test dependency) is
+        // driven by the Platform launcher: it also runs any JUnit 4 classes through the Vintage engine, so a
+        // mixed suite is handled in one pass. Otherwise keep the JUnit 4 path below.
+        if (JUnit5ReflectiveDriver.isAvailable(loader)) {
+            JUnit5ReflectiveDriver.run(loader, testClassNames, onOutcome)
+            return
+        }
         val junitCoreClass = loader.loadClass("org.junit.runner.JUnitCore")
         val requestClass = loader.loadClass("org.junit.runner.Request")
         val listenerClass = loader.loadClass("org.junit.runner.notification.RunListener")

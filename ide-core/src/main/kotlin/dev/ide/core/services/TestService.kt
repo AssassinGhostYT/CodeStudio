@@ -84,7 +84,7 @@ internal class TestService(
             if (testRoots.isEmpty()) {
                 return fail(
                     "No hay carpeta de tests. Crea ${module.name}/src/test/java (o src/test/kotlin) con una " +
-                        "clase que tenga un método @Test (JUnit 4)."
+                        "clase que tenga un método @Test (JUnit 4/5)."
                 )
             }
             val javaTests = filesUnder(testRoots, ".java")
@@ -98,15 +98,27 @@ internal class TestService(
                 .filter { onlySuites.isEmpty() || it in onlySuites }
             if (testClassNames.isEmpty()) {
                 return fail(
-                    if (onlySuites.isEmpty()) "No se encontró ningún método @Test ni clase @RunWith en ${module.name}."
+                    if (onlySuites.isEmpty()) "No se encontró ningún test JUnit (4 o 5) en ${module.name}."
                     else "No se encontraron las clases fallidas de la corrida anterior."
                 )
             }
 
-            val junitJars = BundledTestRuntime.extractTo(
-                ctx.sharedCachesRoot?.resolve("test-runtime") ?: ctx.workspaceRoot.resolve(".platform/test-runtime")
-            )
+            val libs = module.classpath(DependencyScope.TEST_IMPLEMENTATION).entries
+                .map { Paths.get(it.root.path) }
+                .filter { Files.exists(it) }
+
+            val runtimeDir = ctx.sharedCachesRoot?.resolve("test-runtime")
+                ?: ctx.workspaceRoot.resolve(".platform/test-runtime")
+            val junitJars = BundledTestRuntime.extractTo(runtimeDir).toMutableList()
             if (junitJars.isEmpty()) return fail("No se encontró el runtime de JUnit empaquetado.")
+            // JUnit 5 is selected when the project declares a Jupiter/Platform/Vintage artifact OR a test
+            // source imports/annotates JUnit 5. The standalone jar brings the launcher too (the `junit-jupiter`
+            // aggregate does not), and its Vintage engine runs any JUnit 4 classes in the same pass.
+            if (usesJUnit5(testSources, libs)) {
+                val platform = BundledTestRuntime.extractJUnit5To(runtimeDir)
+                    ?: return fail("Este proyecto usa JUnit 5 pero no se encontró el runtime de JUnit 5 empaquetado.")
+                junitJars.add(platform)
+            }
 
             val moduleRoot = ctx.moduleRoot(module) ?: ctx.workspaceRoot
             val javaOut = moduleRoot.resolve("build/test-classes")
@@ -126,9 +138,6 @@ internal class TestService(
                 .filter { Files.isRegularFile(it) }
                 .distinct()
 
-            val libs = module.classpath(DependencyScope.TEST_IMPLEMENTATION).entries
-                .map { Paths.get(it.root.path) }
-                .filter { Files.exists(it) }
             val boot = ctx.bootClasspathFor(module)
 
             if (allKotlin.isNotEmpty()) {
@@ -333,11 +342,44 @@ internal class TestService(
             }
         }.distinct()
 
+    private val JUNIT5_HINTS = listOf(
+        Regex("""org\.junit\.(?:jupiter|platform|vintage)"""),
+        Regex(
+            """@\s*(?:TestFactory|ParameterizedTest|Nested|ExtendWith|DisplayName|RepeatedTest|TestInstance|""" +
+                """TestTemplate|RegisterExtension|BeforeEach|AfterEach|BeforeAll|AfterAll|Disabled)\b"""
+        ),
+    )
+
+    /**
+     * Whether this run should go through the JUnit Platform. A declared Jupiter/Platform/Vintage (or
+     * `kotlin-test-junit5`) artifact is authoritative; otherwise a test source importing `org.junit.jupiter`
+     * / `org.junit.platform` or using a JUnit-5-only annotation is enough. Plain `@Test` stays JUnit 4 (its
+     * import decides), so existing projects keep the lighter JUnit 4 path.
+     */
+    private fun usesJUnit5(sources: List<Path>, libs: List<Path>): Boolean {
+        val junit5Artifact = { p: Path ->
+            val n = p.fileName?.toString()?.lowercase().orEmpty()
+            n.contains("junit-jupiter") || n.contains("junit-platform") ||
+                n.contains("junit-vintage") || n.contains("kotlin-test-junit5")
+        }
+        if (libs.any(junit5Artifact)) return true
+        return sources.any { file ->
+            val text = runCatching { Files.readString(file) }.getOrNull() ?: return@any false
+            JUNIT5_HINTS.any { it.containsMatchIn(text) }
+        }
+    }
+
     private fun looksLikeTest(file: Path): Boolean {
         val text = runCatching { Files.readString(file) }.getOrNull() ?: return false
         // Gradle's JUnit discovery accepts a class with @Test, a custom @RunWith runner (suites, Parameterized,
         // Mockito/Robolectric), or a JUnit 3 TestCase subclass — mirror that so suites aren't silently skipped.
         return Regex("""@\s*(?:org\.junit\.)?Test\b""").containsMatchIn(text) ||
+            Regex(
+                """@\s*(?:org\.junit\.jupiter\.api\.)?(?:ParameterizedTest|TestFactory|RepeatedTest|TestTemplate)\b"""
+            ).containsMatchIn(text) ||
+            Regex(
+                """@\s*(?:org\.junit\.platform\.suite\.api\.)?(?:Suite|SelectClasses|SelectPackages|SelectClasspathRoots)\b"""
+            ).containsMatchIn(text) ||
             Regex("""@\s*(?:org\.junit\.runner\.)?RunWith\b""").containsMatchIn(text) ||
             Regex("""\bextends\s+(?:junit\.framework\.)?TestCase\b""").containsMatchIn(text)
     }
