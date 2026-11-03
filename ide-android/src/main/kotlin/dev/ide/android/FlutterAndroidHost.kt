@@ -240,6 +240,14 @@ object FlutterAndroidHost {
               return ${'$'}rc
             }
 
+            # A previous apt/dpkg run killed mid-flight (the app can tear the prefix down at any time)
+            # leaves dpkg half-configured, and every later install dies with "dpkg was interrupted".
+            # Recover once, then install; the configure step is a no-op when nothing is pending.
+            cs_apt_install() {
+              DEBIAN_FRONTEND=noninteractive dpkg --configure -a >/dev/null 2>&1 || true
+              DEBIAN_FRONTEND=noninteractive apt-get install -y "${'$'}@"
+            }
+
             cs_prepare_x86_aapt2() {
               # Anything but arm64 runs the native aapt2 and needs none of this.
               [ "${'$'}(uname -m)" = aarch64 ] || return 0
@@ -361,7 +369,7 @@ object FlutterAndroidHost {
             if [ ! -x "${'$'}FLUTTER_BIN" ]; then
               echo 'Descargando Flutter SDK dentro de Ubuntu…'
               apt-get update
-              DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates git curl xz-utils unzip zip
+              cs_apt_install ca-certificates git curl xz-utils unzip zip
               clone_ok=false
               for attempt in 1 2 3; do
                 rm -rf /root/flutter
@@ -387,7 +395,7 @@ object FlutterAndroidHost {
               if [ ! -x /usr/lib/jvm/java-17-openjdk-arm64/bin/java ] && ! command -v java >/dev/null 2>&1; then
                 echo 'Instalando OpenJDK 17 para Gradle (primera vez, ~250 MB)…'
                 apt-get update -qq || true
-                DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends openjdk-17-jdk-headless
+                cs_apt_install --no-install-recommends openjdk-17-jdk-headless
               fi
               JDK_HOME=''
               for candidate in /usr/lib/jvm/java-17-openjdk-arm64 /usr/lib/jvm/java-17-openjdk-amd64 /usr/lib/jvm/default-java; do
@@ -412,7 +420,7 @@ object FlutterAndroidHost {
               if [ ! -d "${'$'}ANDROID_SDK_PATH/cmdline-tools/latest" ]; then
                 echo 'Descargando las herramientas de línea de comandos del SDK de Android…'
                 apt-get update -qq || true
-                DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates curl unzip
+                cs_apt_install --no-install-recommends ca-certificates curl unzip
                 rm -rf /tmp/cs-cmdline-tools /tmp/cs-cmdline-tools.zip
                 curl -fsSL --retry 3 -o /tmp/cs-cmdline-tools.zip '$CMDLINE_TOOLS_URL'
                 unzip -q -o /tmp/cs-cmdline-tools.zip -d /tmp/cs-cmdline-tools
