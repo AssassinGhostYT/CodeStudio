@@ -80,8 +80,14 @@ internal class TestService(
             val module = ctx.modules().firstOrNull { it.name == moduleName }
                 ?: return fail("No existe el módulo '$moduleName'.")
 
+            // Dart/Flutter tests run through their own toolchain and JSON reporters, not the JVM runner.
+            if (module.type.id == "dart-console" || module.type.id == "flutter-app") {
+                return executeDart(module, onlySuites, started)
+            }
+
             val testRoots = testSourceRoots(module)
             if (testRoots.isEmpty()) {
+                if (androidTestsPresent(module)) return fail(ANDROID_TEST_UNSUPPORTED)
                 return fail(
                     "No hay carpeta de tests. Crea ${module.name}/src/test/java (o src/test/kotlin) con una " +
                         "clase que tenga un método @Test (JUnit 4/5)."
@@ -95,8 +101,11 @@ internal class TestService(
             val testSources = (javaTests + kotlinTests).filter { looksLikeTest(it) }
             val testClassNames = testSources.mapNotNull { className(it) }
                 .distinct()
-                .filter { onlySuites.isEmpty() || it in onlySuites }
+                // Rerun-failed is class granularity: a nested/parameterized failure reports `Outer$Inner`, but
+                // the selectable unit is `Outer`, so keep the outer class when any of its nested suites failed.
+                .filter { onlySuites.isEmpty() || onlySuites.any { s -> s == it || s.startsWith(it + "$") } }
             if (testClassNames.isEmpty()) {
+                if (androidTestsPresent(module)) return fail(ANDROID_TEST_UNSUPPORTED)
                 return fail(
                     if (onlySuites.isEmpty()) "No se encontró ningún test JUnit (4 o 5) en ${module.name}."
                     else "No se encontraron las clases fallidas de la corrida anterior."
@@ -184,6 +193,31 @@ internal class TestService(
             }
         } catch (t: Throwable) {
             fail("Fallo del runner: ${t.message ?: t}")
+        }
+    }
+
+    /** Runs a Dart/Flutter module's tests and streams results into the same Tests-tab state as JUnit. */
+    private fun executeDart(module: Module, onlySuites: Set<String>, started: Long) {
+        val results = ArrayList<UiTestResult>()
+        val error = DartTestRunner(ctx).run(
+            module = module,
+            onlySuites = onlySuites,
+            onResult = { result ->
+                results.add(result)
+                publishResults(results, module.name, started)
+            },
+            phase = { phase(it) },
+        )
+        if (error.isNotEmpty()) return fail(error)
+        val moduleRoot = ctx.moduleRoot(module) ?: ctx.workspaceRoot
+        runCatching { writeJUnitXml(results, moduleRoot.resolve("build/test-results/test")) }
+        runCatching { writeHtmlReport(results, moduleRoot.resolve("build/reports/tests/test")) }
+        _state.update {
+            it.copy(
+                running = false,
+                elapsedMs = System.currentTimeMillis() - started,
+                message = if (results.isEmpty()) "No se ejecutó ningún test." else "",
+            )
         }
     }
 
@@ -342,11 +376,26 @@ internal class TestService(
             }
         }.distinct()
 
+    /** True when `src/androidTest` exists and holds a JUnit test, so the empty-run message can explain why. */
+    private fun androidTestsPresent(module: Module): Boolean {
+        val root = ctx.moduleRoot(module)?.resolve("src/androidTest") ?: return false
+        if (!Files.isDirectory(root)) return false
+        val files = runCatching {
+            filesUnder(listOf(root), ".java") + filesUnder(listOf(root), ".kt")
+        }.getOrDefault(emptyList())
+        return files.any { looksLikeTest(it) }
+    }
+
+    private val ANDROID_TEST_UNSUPPORTED =
+        "Hay tests instrumentados en src/androidTest, pero necesitan un dispositivo/emulador y todavía no se " +
+            "ejecutan desde la pestaña Tests. Los tests JUnit 4/5 de src/test sí se ejecutan aquí."
+
     private val JUNIT5_HINTS = listOf(
         Regex("""org\.junit\.(?:jupiter|platform|vintage)"""),
         Regex(
             """@\s*(?:TestFactory|ParameterizedTest|Nested|ExtendWith|DisplayName|RepeatedTest|TestInstance|""" +
-                """TestTemplate|RegisterExtension|BeforeEach|AfterEach|BeforeAll|AfterAll|Disabled)\b"""
+                """TestTemplate|RegisterExtension|BeforeEach|AfterEach|BeforeAll|AfterAll|Disabled|Suite|""" +
+                """SelectClasses|SelectPackages|SelectClasspathRoots)\b"""
         ),
     )
 
@@ -373,9 +422,9 @@ internal class TestService(
         val text = runCatching { Files.readString(file) }.getOrNull() ?: return false
         // Gradle's JUnit discovery accepts a class with @Test, a custom @RunWith runner (suites, Parameterized,
         // Mockito/Robolectric), or a JUnit 3 TestCase subclass — mirror that so suites aren't silently skipped.
-        return Regex("""@\s*(?:org\.junit\.)?Test\b""").containsMatchIn(text) ||
+        return Regex("""@\s*(?:(?:org\.junit|org\.junit\.jupiter\.api)\.)?Test\b""").containsMatchIn(text) ||
             Regex(
-                """@\s*(?:org\.junit\.jupiter\.api\.)?(?:ParameterizedTest|TestFactory|RepeatedTest|TestTemplate)\b"""
+                """@\s*(?:(?:org\.junit\.jupiter\.(?:api|params))\.)?(?:ParameterizedTest|TestFactory|RepeatedTest|TestTemplate)\b"""
             ).containsMatchIn(text) ||
             Regex(
                 """@\s*(?:org\.junit\.platform\.suite\.api\.)?(?:Suite|SelectClasses|SelectPackages|SelectClasspathRoots)\b"""

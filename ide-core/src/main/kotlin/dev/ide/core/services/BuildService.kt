@@ -762,10 +762,10 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
             )
             add(RunTaskOption("build:${m.name}", "Build ${m.name}", "build"))
         }
-        // Java/Kotlin/Android modules: a unit-test run (JUnit 4 over src/test) — the Tests console tab
-        // shows the results. Dart/Flutter modules contribute their own "Test" entry from their build system.
+        // JVM (JUnit 4/5 over src/test) and Dart/Flutter (`dart test`/`flutter test`) modules: a test run
+        // whose results go to the Tests console tab.
         for (m in ctx.modules()) {
-            if (m.type.id !in JVM_TEST_MODULE_TYPES) continue
+            if (m.type.id !in TEST_MODULE_TYPES) continue
             add(RunTaskOption("test:${m.name}", "Test ${m.name}", "test"))
         }
         for (m in ctx.modules().filter { it.type.id == "android-app" }) {
@@ -1839,8 +1839,10 @@ internal class BuildService(private val ctx: EngineContext) : Disposable {
     }
 
     private companion object {
-        /** Module types whose unit tests run through the in-process JUnit 4 runner (`src/test`). */
-        private val JVM_TEST_MODULE_TYPES = setOf("java-lib", "java-cli", "android-app", "android-lib")
+        /** Module types whose tests the Tests tab can run (JUnit on the JVM, `dart`/`flutter test` otherwise). */
+        private val TEST_MODULE_TYPES = setOf(
+            "java-lib", "java-cli", "android-app", "android-lib", "dart-console", "flutter-app",
+        )
 
         /** Below this many library deps, dexing is quick enough that the first-build notice is just noise. */
         private const val FIRST_BUILD_DEX_BANNER_THRESHOLD = 8

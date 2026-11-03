@@ -8,6 +8,7 @@ import dev.ide.model.template.ProjectScaffold
 import dev.ide.model.template.ProjectTemplate
 import dev.ide.model.template.TemplateArgs
 import dev.ide.model.template.TemplateCategory
+import dev.ide.model.template.TemplateDependency
 import dev.ide.model.template.TemplateId
 import dev.ide.model.template.TemplateParameter
 
@@ -20,8 +21,18 @@ internal object JavaTemplateSupport {
     fun mainSources() =
         SourceSetTemplate("main", DependencyScope.IMPLEMENTATION, mapOf("src/main/java" to setOf(ContentRole.SOURCE)))
 
+    /** A `test` source set rooted at `src/test/java` (where the Tests tab looks for JUnit). */
+    fun testSources() =
+        SourceSetTemplate("test", DependencyScope.TEST_IMPLEMENTATION, mapOf("src/test/java" to setOf(ContentRole.SOURCE)))
+
     /** Add a single-module project ([moduleName] of [typeId]) and return after committing the model. */
-    fun singleModule(scaffold: ProjectScaffold, projectName: String, moduleName: String, typeId: String) {
+    fun singleModule(
+        scaffold: ProjectScaffold,
+        projectName: String,
+        moduleName: String,
+        typeId: String,
+        withTests: Boolean = false,
+    ) {
         scaffold.workspace.beginModification().apply {
             addProject(projectName, BuildSystemId.NATIVE, scaffold.rootDir)
             commit()
@@ -30,6 +41,7 @@ internal object JavaTemplateSupport {
             addModule(moduleName, scaffold.moduleType(typeId)).apply {
                 languageLevel = scaffold.languageLevel
                 addSourceSet(mainSources())
+                if (withTests) addSourceSet(testSources())
             }
             commit()
         }
@@ -57,8 +69,11 @@ object JavaConsoleAppTemplate : ProjectTemplate {
 
     override fun parameters(): List<TemplateParameter> = emptyList()
 
+    override fun dependencies(args: TemplateArgs): List<TemplateDependency> =
+        listOf(TemplateDependency("app", "junit:junit:4.13.2", "testImplementation"))
+
     override fun generate(scaffold: ProjectScaffold, args: TemplateArgs) {
-        JavaTemplateSupport.singleModule(scaffold, args.name, "app", "java-lib")
+        JavaTemplateSupport.singleModule(scaffold, args.name, "app", "java-lib", withTests = true)
         val pkg = args.packageName
         scaffold.writeText(
             "app/src/main/java/${JavaTemplateSupport.pkgPath(pkg)}/Main.java",
@@ -68,6 +83,22 @@ object JavaConsoleAppTemplate : ProjectTemplate {
             public class Main {
                 public static void main(String[] args) {
                     System.out.println("Hello from ${args.name}!");
+                }
+            }
+            """,
+        )
+        scaffold.writeText(
+            "app/src/test/java/${JavaTemplateSupport.pkgPath(pkg)}/MainTest.java",
+            """
+            package $pkg;
+
+            import org.junit.Test;
+            import static org.junit.Assert.assertEquals;
+
+            public class MainTest {
+                @Test
+                public void addition() {
+                    assertEquals(4, 2 + 2);
                 }
             }
             """,
@@ -85,8 +116,11 @@ object JavaLibraryTemplate : ProjectTemplate {
 
     override fun parameters(): List<TemplateParameter> = emptyList()
 
+    override fun dependencies(args: TemplateArgs): List<TemplateDependency> =
+        listOf(TemplateDependency("lib", "junit:junit:4.13.2", "testImplementation"))
+
     override fun generate(scaffold: ProjectScaffold, args: TemplateArgs) {
-        JavaTemplateSupport.singleModule(scaffold, args.name, "lib", "java-lib")
+        JavaTemplateSupport.singleModule(scaffold, args.name, "lib", "java-lib", withTests = true)
         val pkg = args.packageName
         val type = JavaTemplateSupport.typeName(args.name)
         scaffold.writeText(
@@ -98,6 +132,22 @@ object JavaLibraryTemplate : ProjectTemplate {
             public final class $type {
                 public String greet(String name) {
                     return "Hello, " + name + "!";
+                }
+            }
+            """,
+        )
+        scaffold.writeText(
+            "lib/src/test/java/${JavaTemplateSupport.pkgPath(pkg)}/${type}Test.java",
+            """
+            package $pkg;
+
+            import org.junit.Test;
+            import static org.junit.Assert.assertEquals;
+
+            public class ${type}Test {
+                @Test
+                public void greet() {
+                    assertEquals("Hello, CodeStudio!", new $type().greet("CodeStudio"));
                 }
             }
             """,

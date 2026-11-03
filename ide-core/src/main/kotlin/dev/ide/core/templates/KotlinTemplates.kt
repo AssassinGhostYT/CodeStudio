@@ -8,6 +8,7 @@ import dev.ide.model.template.ProjectScaffold
 import dev.ide.model.template.ProjectTemplate
 import dev.ide.model.template.TemplateArgs
 import dev.ide.model.template.TemplateCategory
+import dev.ide.model.template.TemplateDependency
 import dev.ide.model.template.TemplateId
 import dev.ide.model.template.TemplateParameter
 
@@ -25,8 +26,18 @@ internal object KotlinTemplateSupport {
     private fun mainSources() =
         SourceSetTemplate("main", DependencyScope.IMPLEMENTATION, mapOf("src/main/kotlin" to setOf(ContentRole.SOURCE)))
 
+    /** A `test` source set rooted at `src/test/kotlin` (where the Tests tab looks for JUnit). */
+    private fun testSources() =
+        SourceSetTemplate("test", DependencyScope.TEST_IMPLEMENTATION, mapOf("src/test/kotlin" to setOf(ContentRole.SOURCE)))
+
     /** Add a single-module Kotlin project ([moduleName] of [typeId]) and commit the model. */
-    fun singleModule(scaffold: ProjectScaffold, projectName: String, moduleName: String, typeId: String) {
+    fun singleModule(
+        scaffold: ProjectScaffold,
+        projectName: String,
+        moduleName: String,
+        typeId: String,
+        withTests: Boolean = false,
+    ) {
         scaffold.workspace.beginModification().apply {
             addProject(projectName, BuildSystemId.NATIVE, scaffold.rootDir)
             commit()
@@ -35,6 +46,7 @@ internal object KotlinTemplateSupport {
             addModule(moduleName, scaffold.moduleType(typeId)).apply {
                 languageLevel = scaffold.languageLevel
                 addSourceSet(mainSources())
+                if (withTests) addSourceSet(testSources())
             }
             commit()
         }
@@ -54,8 +66,11 @@ object KotlinConsoleAppTemplate : ProjectTemplate {
 
     override fun parameters(): List<TemplateParameter> = emptyList()
 
+    override fun dependencies(args: TemplateArgs): List<TemplateDependency> =
+        listOf(TemplateDependency("app", "junit:junit:4.13.2", "testImplementation"))
+
     override fun generate(scaffold: ProjectScaffold, args: TemplateArgs) {
-        KotlinTemplateSupport.singleModule(scaffold, args.name, "app", "java-lib")
+        KotlinTemplateSupport.singleModule(scaffold, args.name, "app", "java-lib", withTests = true)
         val pkg = args.packageName
         scaffold.writeText(
             "app/src/main/kotlin/${JavaTemplateSupport.pkgPath(pkg)}/Main.kt",
@@ -64,6 +79,22 @@ object KotlinConsoleAppTemplate : ProjectTemplate {
 
             fun main() {
                 println("Hello from ${args.name}!")
+            }
+            """,
+        )
+        scaffold.writeText(
+            "app/src/test/kotlin/${JavaTemplateSupport.pkgPath(pkg)}/MainTest.kt",
+            """
+            package $pkg
+
+            import org.junit.Test
+            import org.junit.Assert.assertEquals
+
+            class MainTest {
+                @Test
+                fun addition() {
+                    assertEquals(4L, 2L + 2L)
+                }
             }
             """,
         )
@@ -80,8 +111,11 @@ object KotlinLibraryTemplate : ProjectTemplate {
 
     override fun parameters(): List<TemplateParameter> = emptyList()
 
+    override fun dependencies(args: TemplateArgs): List<TemplateDependency> =
+        listOf(TemplateDependency("lib", "junit:junit:4.13.2", "testImplementation"))
+
     override fun generate(scaffold: ProjectScaffold, args: TemplateArgs) {
-        KotlinTemplateSupport.singleModule(scaffold, args.name, "lib", "java-lib")
+        KotlinTemplateSupport.singleModule(scaffold, args.name, "lib", "java-lib", withTests = true)
         val pkg = args.packageName
         val type = JavaTemplateSupport.typeName(args.name)
         scaffold.writeText(
@@ -92,6 +126,22 @@ object KotlinLibraryTemplate : ProjectTemplate {
             /** Entry point of the ${args.name} library. */
             class $type {
                 fun greet(name: String): String = "Hello, " + name + "!"
+            }
+            """,
+        )
+        scaffold.writeText(
+            "lib/src/test/kotlin/${JavaTemplateSupport.pkgPath(pkg)}/${type}Test.kt",
+            """
+            package $pkg
+
+            import org.junit.Test
+            import org.junit.Assert.assertEquals
+
+            class ${type}Test {
+                @Test
+                fun greet() {
+                    assertEquals("Hello, CodeStudio!", $type().greet("CodeStudio"))
+                }
             }
             """,
         )

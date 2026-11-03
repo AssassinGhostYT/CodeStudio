@@ -243,7 +243,8 @@ internal class DartPubService(private val ctx: EngineContext) : Disposable {
             val indent = line.indexOfFirst { !it.isWhitespace() }.let { if (it < 0) 0 else it }
             val trimmed = line.trim()
             if (indent == 0) {
-                inDeps = trimmed.substringBefore(':').trim() == "dependencies"
+                val section = trimmed.substringBefore(':').trim()
+                inDeps = section == "dependencies" || section == "dev_dependencies"
                 pending = null
                 continue
             }

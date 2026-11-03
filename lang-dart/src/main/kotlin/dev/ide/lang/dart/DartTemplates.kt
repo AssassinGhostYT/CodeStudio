@@ -89,6 +89,9 @@ object DartConsoleAppTemplate : ProjectTemplate {
             version: 1.0.0
             environment:
               sdk: '>=3.0.0 <4.0.0'
+            dev_dependencies:
+              test: ^1.25.0
+              lints: ^4.0.0
             """.trimIndent()
         )
 
