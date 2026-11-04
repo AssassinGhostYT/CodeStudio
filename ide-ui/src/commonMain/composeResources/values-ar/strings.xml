@@ -346,6 +346,11 @@
     <string name="breadcrumb_blocks">الكتل</string>
     <string name="breadcrumb_preview">المعاينة</string>
     <string name="breadcrumb_split">مقسّم</string>
+    <string name="breadcrumb_split_code">تقسيم الكود</string>
+    <string name="split_change_file">تغيير الملف</string>
+    <string name="split_close">إغلاق الجزء المقسم</string>
+    <string name="split_empty">اختر ملفًا آخر لهذا الجزء</string>
+    <string name="tab_open_in_split">فتح في جزء مقسم</string>
 
     <!-- Editor chrome -->
     <string name="edchrome_files">الملفات</string>

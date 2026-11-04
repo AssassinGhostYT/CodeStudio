@@ -141,6 +141,11 @@ fun CodeEditor(
      * TOP of that overlay, so they're torn down while obscured — even when the overlay doesn't steal focus.
      */
     obscured: Boolean = false,
+    /**
+     * Request focus when this editor first composes. False for a secondary split pane, which must not steal
+     * focus (and pop the soft keyboard) from the primary editor just because it was composed second.
+     */
+    requestFocusOnStart: Boolean = true,
 ) {
     // Source code is intrinsically left-to-right: the gutter sits at the left edge and lines flow right. On an
     // RTL system locale Compose flips `LocalLayoutDirection`, which would mirror the text shaping + popup
@@ -170,6 +175,7 @@ fun CodeEditor(
             horizontalScrollbar,
             fontLigatures,
             obscured,
+            requestFocusOnStart,
         )
     }
 }
@@ -199,6 +205,7 @@ private fun CodeEditorContent(
     horizontalScrollbar: Boolean = true,
     fontLigatures: Boolean = true,
     obscured: Boolean = false,
+    requestFocusOnStart: Boolean = true,
 ) {
     val colors = Ca.colors
     val scope = rememberCoroutineScope()
@@ -601,7 +608,9 @@ private fun CodeEditorContent(
             runCatching { backend.editor.fileStructure(path, editorSession.doc.text) }.getOrDefault(emptyList())
     }
 
-    LaunchedEffect(path) { runCatching { focus.requestFocus() } }
+    LaunchedEffect(path, requestFocusOnStart) {
+        if (requestFocusOnStart) runCatching { focus.requestFocus() }
+    }
 
     // ---- per-line diagnostic segments (recomputed per edit — O(diagnostics), they are few) ----
     // Keyed on the document *instance* (an edit swaps it; a caret move doesn't), so the key compare is O(1).

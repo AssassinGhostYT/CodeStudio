@@ -201,9 +201,17 @@ internal fun EditorCenter(
                 onCloseToRight = { state.closeToRight(it) },
                 onCloseToLeft = { state.closeToLeft(it) },
                 onCloseAll = { state.closeAll() },
+                onOpenInSplit = { state.openInSplit(it) },
             )
             if (active != null) {
+                // The code split cannot show the same file twice (both panes would share one OpenFile/session),
+                // so selecting the secondary file in the primary pane closes the split instead of duplicating it.
+                LaunchedEffect(active.path, state.splitPath) {
+                    if (state.splitPath == active.path) state.closeSplit()
+                }
                 EditorDaemonEffect(state, active, indexStatus) { hasPreview = it }
+                val split = state.splitFile?.takeIf { it.path != active.path }
+                if (split != null) EditorDaemonEffect(state, split, indexStatus) { }
                 BreadcrumbBar(state, active, hasPreview)
                 AndroidSourcesBanner(state)
                 ReadOnlyBanner(state, active)
@@ -216,19 +224,24 @@ internal fun EditorCenter(
                 // dismisses its floating popups so they don't hang over the overlay.
                 val editorObscured = state.paletteOpen || state.moreOpen ||
                         (compact && (state.leftOpen || state.consoleOpen))
-                val codeSurface: @Composable (Modifier) -> Unit = { mod ->
+                // One editor factory for both panes: each [OpenFile] owns its session (caret/scroll/undo), so the
+                // secondary pane is a genuinely independent editor rather than a mirror of the primary.
+                val codeSurfaceFor: @Composable (OpenFile, Modifier) -> Unit = { file, mod ->
                     CodeEditor(
-                        path = active.path,
-                        session = active.session,
+                        path = file.path,
+                        session = file.session,
                         backend = state.backend,
                         modifier = mod,
                         obscured = editorObscured,
-                        onSave = { state.save(active) },
+                        // Only the primary pane grabs focus on open; a secondary pane must not pop the keyboard.
+                        requestFocusOnStart = file === active,
+                        onSave = { state.save(file) },
                         onNavigate = { p, o -> state.openAt(p, o) },
-                        onRenamed = { newPath -> state.reloadAfterRename(active.path, newPath) },
-                        findEpoch = findEpoch,
-                        formatEpoch = formatEpoch,
-                        optimizeImportsEpoch = optimizeImportsEpoch,
+                        onRenamed = { newPath -> state.reloadAfterRename(file.path, newPath) },
+                        // The toolbar epochs target the primary pane only; 0 is the editor's "no request".
+                        findEpoch = if (file === active) findEpoch else 0,
+                        formatEpoch = if (file === active) formatEpoch else 0,
+                        optimizeImportsEpoch = if (file === active) optimizeImportsEpoch else 0,
                         fontScale = state.editorFontScale,
                         onFontScaleChange = { state.editorFontScale = it },
                         completionAutoPopup = state.completionAutoPopup,
@@ -245,67 +258,96 @@ internal fun EditorCenter(
                         // specific composable. The editor tools (incl. the Code/Blocks/Preview switch) are pinned
                         // to the breadcrumb row, so they're already visible — making the view change easy to undo.
                         onPreview = { fn ->
-                            active.previewTarget = fn
-                            active.viewMode = EditorViewMode.Preview
+                            if (file === active) {
+                                active.previewTarget = fn
+                                active.viewMode = EditorViewMode.Preview
+                            }
                         },
                     )
                 }
-                // `split` is true only in the Split view (editor + preview together): the Compose preview then
-                // hides its chrome bars and fits to width so dragging the divider doesn't rescale it.
-                val previewSurface: @Composable (Modifier, Boolean) -> Unit = { mod, split ->
+                // `splitPreview` is true only in the Split view (editor + preview together): the Compose preview
+                // then hides its chrome bars and fits to width so dragging the divider doesn't rescale it.
+                val previewSurfaceFor: @Composable (OpenFile, Modifier, Boolean) -> Unit = { file, mod, splitPreview ->
                     when {
-                        isMarkdownPreviewable(active.path) -> MarkdownPreviewPane(
-                            path = active.path,
-                            text = active.text,
+                        isMarkdownPreviewable(file.path) -> MarkdownPreviewPane(
+                            path = file.path,
+                            text = file.text,
                             modifier = mod,
                         )
 
-                        isLayoutPreviewable(active.path) -> LayoutPreviewPane(
-                            path = active.path,
-                            text = active.text,
+                        isLayoutPreviewable(file.path) -> LayoutPreviewPane(
+                            path = file.path,
+                            text = file.text,
                             backend = state.backend,
-                            session = active.session,
+                            session = file.session,
                             modifier = mod,
                         )
 
-                        isPreviewable(active.path) -> ResourcePreviewPane(
-                            path = active.path,
-                            text = active.text,
+                        isPreviewable(file.path) -> ResourcePreviewPane(
+                            path = file.path,
+                            text = file.text,
                             backend = state.backend,
                             modifier = mod,
                         )
 
                         else -> ComposePreviewPane(
-                            path = active.path,
-                            text = active.text,
+                            path = file.path,
+                            text = file.text,
                             backend = state.backend,
                             host = state.composePreviewHost,
                             modifier = mod,
-                            selected = active.previewTarget,
-                            split = split,
+                            selected = file.previewTarget,
+                            split = splitPreview,
                         )
                     }
                 }
-                when (active.viewMode) {
-                    // Guard: only render blocks while the `blocks` plugin is enabled; otherwise fall through to
-                    // the code surface (the toggle omits Blocks when disabled, so this is defence-in-depth).
-                    EditorViewMode.Blocks -> if (state.blocksEnabled) BlockEditor(
-                        path = active.path,
-                        session = active.session,
-                        backend = state.backend,
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
-                    ) else codeSurface(Modifier.weight(1f).fillMaxWidth())
+                val primarySurface: @Composable (Modifier) -> Unit = { mod ->
+                    when (active.viewMode) {
+                        // Guard: only render blocks while the `blocks` plugin is enabled; otherwise fall through
+                        // to the code surface (the toggle omits Blocks when disabled, defence-in-depth).
+                        EditorViewMode.Blocks -> if (state.blocksEnabled) BlockEditor(
+                            path = active.path,
+                            session = active.session,
+                            backend = state.backend,
+                            modifier = mod,
+                        ) else codeSurfaceFor(active, mod)
 
-                    EditorViewMode.Preview -> previewSurface(Modifier.weight(1f).fillMaxWidth(), false)
-                    // Edit + watch at once: stacked on a phone (the only way both fit), side-by-side when wide.
-                    EditorViewMode.Split -> SplitEditorPreview(
+                        EditorViewMode.Preview -> previewSurfaceFor(active, mod, false)
+                        // Edit + watch at once: stacked on a phone (the only way both fit), side-by-side when wide.
+                        EditorViewMode.Split -> SplitEditorPreview(
+                            stacked = compact,
+                            editor = { codeSurfaceFor(active, it) },
+                            preview = { previewSurfaceFor(active, it, true) },
+                            modifier = mod,
+                        )
+
+                        else -> codeSurfaceFor(active, mod)
+                    }
+                }
+                // The secondary normally shows code, but a bitmap/markdown/resource tab opens straight into
+                // Preview — respect that instead of dumping its (possibly binary) bytes into a code editor.
+                val secondarySurface: @Composable (OpenFile, Modifier) -> Unit = { file, mod ->
+                    if (file.viewMode == EditorViewMode.Preview) previewSurfaceFor(file, mod, false)
+                    else codeSurfaceFor(file, mod)
+                }
+                if (split != null) {
+                    // Two real editors: the primary keeps the tab strip + its current view mode, the secondary
+                    // is pinned to `split` with its own compact header.
+                    SplitCodePanes(
                         stacked = compact,
-                        editor = codeSurface,
-                        preview = { previewSurface(it, true) },
+                        fraction = state.splitFraction,
+                        onFractionChange = state::setSplitFraction,
+                        primary = primarySurface,
+                        secondary = { mod ->
+                            Column(mod) {
+                                SplitSecondaryHeader(state, split, Modifier.fillMaxWidth())
+                                secondarySurface(split, Modifier.weight(1f).fillMaxWidth())
+                            }
+                        },
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                     )
-
-                    else -> codeSurface(Modifier.weight(1f).fillMaxWidth())
+                } else {
+                    primarySurface(Modifier.weight(1f).fillMaxWidth())
                 }
             } else {
                 NoOpenFilesView(Modifier.weight(1f).fillMaxWidth())

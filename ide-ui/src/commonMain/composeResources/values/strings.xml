@@ -369,6 +369,11 @@ Nunca recopilamos su código, nombres de archivos o proyectos, qué funciones us
     <string name="breadcrumb_blocks">Bloques</string>
     <string name="breadcrumb_preview">Vista previa</string>
     <string name="breadcrumb_split">Dividido</string>
+    <string name="breadcrumb_split_code">Dividir código</string>
+    <string name="split_change_file">Cambiar archivo</string>
+    <string name="split_close">Cerrar panel dividido</string>
+    <string name="split_empty">Elige otro archivo para este panel</string>
+    <string name="tab_open_in_split">Abrir en panel dividido</string>
     <string name="edchrome_files">Archivos</string>
     <string name="edchrome_source">Fuente</string>
     <string name="edchrome_more">Más</string>

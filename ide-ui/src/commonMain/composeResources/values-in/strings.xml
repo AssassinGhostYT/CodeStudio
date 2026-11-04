@@ -294,6 +294,11 @@ Kami tidak pernah mengumpulkan kode, nama file atau proyek Anda, fitur apa yang 
     <string name="breadcrumb_blocks">Blok</string>
     <string name="breadcrumb_preview">Pratinjau</string>
     <string name="breadcrumb_split">Terpisah</string>
+    <string name="breadcrumb_split_code">Bagi kode</string>
+    <string name="split_change_file">Ganti file</string>
+    <string name="split_close">Tutup panel terpisah</string>
+    <string name="split_empty">Pilih file lain untuk panel ini</string>
+    <string name="tab_open_in_split">Buka di panel terpisah</string>
     <string name="edchrome_files">File</string>
     <string name="edchrome_source">Sumber</string>
     <string name="edchrome_more">Lainnya</string>

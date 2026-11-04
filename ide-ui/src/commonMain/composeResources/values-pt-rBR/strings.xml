@@ -292,6 +292,11 @@ Nunca coletamos seu código, nomes de arquivos ou projetos, quais recursos você
     <string name="breadcrumb_blocks">Blocos</string>
     <string name="breadcrumb_preview">Visualização</string>
     <string name="breadcrumb_split">Dividido</string>
+    <string name="breadcrumb_split_code">Dividir código</string>
+    <string name="split_change_file">Alterar arquivo</string>
+    <string name="split_close">Fechar painel dividido</string>
+    <string name="split_empty">Escolha outro arquivo para este painel</string>
+    <string name="tab_open_in_split">Abrir em painel dividido</string>
 
     <!-- edchrome (EditorChrome/SideRail) -->
     <string name="edchrome_files">Arquivos</string>

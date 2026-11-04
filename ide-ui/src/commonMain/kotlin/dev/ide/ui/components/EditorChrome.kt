@@ -124,6 +124,7 @@ import dev.ide.ui.generated.resources.tab_close_others
 import dev.ide.ui.generated.resources.tab_close_to_the_left
 import dev.ide.ui.generated.resources.tab_close_to_the_right
 import dev.ide.ui.generated.resources.tab_open_files
+import dev.ide.ui.generated.resources.tab_open_in_split
 import dev.ide.ui.generated.resources.undo
 import dev.ide.ui.icons.CaIcons
 import dev.ide.ui.icons.TreeIcon
@@ -1034,6 +1035,7 @@ fun TabsStrip(
     onCloseToRight: (OpenFile) -> Unit = {},
     onCloseToLeft: (OpenFile) -> Unit = {},
     onCloseAll: () -> Unit = {},
+    onOpenInSplit: (OpenFile) -> Unit = {},
 ) {
     if (openFiles.isEmpty()) return
 
@@ -1069,12 +1071,14 @@ fun TabsStrip(
                     canCloseOthers = openFiles.size > 1,
                     canCloseRight = index < openFiles.lastIndex,
                     canCloseLeft = index > 0,
+                    canOpenInSplit = index != activeIndex,
                     onSelect = { onSelect(index) },
                     onClose = { onClose(file) },
                     onCloseOthers = { onCloseOthers(file) },
                     onCloseToRight = { onCloseToRight(file) },
                     onCloseToLeft = { onCloseToLeft(file) },
                     onCloseAll = onCloseAll,
+                    onOpenInSplit = { onOpenInSplit(file) },
                 )
             }
         }
@@ -1153,12 +1157,14 @@ private fun EditorTab(
     canCloseOthers: Boolean,
     canCloseRight: Boolean,
     canCloseLeft: Boolean,
+    canOpenInSplit: Boolean,
     onSelect: () -> Unit,
     onClose: () -> Unit,
     onCloseOthers: () -> Unit,
     onCloseToRight: () -> Unit,
     onCloseToLeft: () -> Unit,
     onCloseAll: () -> Unit,
+    onOpenInSplit: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val accent = MaterialTheme.colorScheme.primary
@@ -1210,6 +1216,11 @@ private fun EditorTab(
             }
         }
         CaDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            OverflowItem(
+                CaIcons.splitCode,
+                stringResource(Res.string.tab_open_in_split),
+                enabled = canOpenInSplit,
+            ) { menuOpen = false; onOpenInSplit() }
             OverflowItem(CaIcons.close, stringResource(Res.string.close)) { menuOpen = false; onClose() }
             OverflowItem(CaIcons.close, stringResource(Res.string.tab_close_others), enabled = canCloseOthers) {
                 menuOpen = false; onCloseOthers()

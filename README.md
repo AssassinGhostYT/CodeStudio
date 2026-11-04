@@ -276,7 +276,7 @@ El archivo `.apk` compilado estará disponible en la ruta:
 - [ ] 🟡 Surround With (envolver con plantilla).
 - [ ] 🟡 Duplicar / mover / unir líneas por atajos.
 - [ ] 🟡 Historial de portapapeles.
-- [ ] 🟡 Split editor de dos paneles de código (hoy solo editor + preview).
+- [x] 🟢 Split editor de dos paneles de código.
 - [ ] 🟡 Structural Search & Replace (SSR) y búsqueda por regex con reemplazo.
 - [ ] 🟡 Code cleanup automático y optimización de imports a nivel proyecto.
 - [ ] 🟡 Guías de indentación, reglas verticales y ligaduras de fuente.

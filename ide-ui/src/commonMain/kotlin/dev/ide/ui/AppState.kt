@@ -212,6 +212,22 @@ class IdeUiState(
     var activeIndex by mutableIntStateOf(-1)
 
     /**
+     * Path of the file shown in the secondary code pane, or null when the code split is closed. This is a
+     * layout state, not a per-tab [EditorViewMode]: the primary pane keeps following [active] and the tab
+     * strip, while the secondary pane stays pinned to this file. Kept as a path (not an [OpenFile]) so a tab
+     * replaced in place by a rename / external re-read keeps resolving.
+     */
+    var splitPath by mutableStateOf<String?>(null)
+        private set
+
+    /** The primary pane's share of the code split (0.2..0.8), dragged by the divider. */
+    var splitFraction by mutableStateOf(0.5f)
+        private set
+
+    /** The secondary pane's tab, or null when the split is closed or its file is no longer open. */
+    val splitFile: OpenFile? get() = splitPath?.let { p -> openFiles.firstOrNull { it.path == p } }
+
+    /**
      * Scope for this state's own async work — chiefly reading a tapped file off the main thread (see [open]).
      * Launched on [mainDispatcher] so Compose-state mutations stay on the UI thread; the blocking disk read
      * hops to [ioDispatcher] inside. Cancelled by [dispose] when the project/backend changes and this state is
@@ -579,6 +595,22 @@ class IdeUiState(
 
     val active: OpenFile? get() = openFiles.getOrNull(activeIndex)
 
+    /**
+     * Show [file] in the secondary code pane, opening the split if needed. Refuses the primary file: both
+     * panes would share one [OpenFile]/[EditorSession] (one caret, one undo stack), so the same file in both
+     * is not a split at all. The primary pane is unaffected.
+     */
+    fun openInSplit(file: OpenFile) {
+        if (file.path == active?.path) return
+        splitPath = file.path
+    }
+
+    /** Close the secondary code pane, returning to the single-editor layout. */
+    fun closeSplit() { splitPath = null }
+
+    /** Move the code split's divider; clamped so neither pane can be dragged to nothing. */
+    fun setSplitFraction(value: Float) { splitFraction = value.coerceIn(0.2f, 0.8f) }
+
     /** Fire-and-forget open for UI callbacks — the file is read off the main thread ([openSuspend]). */
     fun open(path: String, name: String) {
         scope.launch { openSuspend(path, name) }
@@ -691,6 +723,7 @@ class IdeUiState(
         if (idx < 0) return
         openFiles.removeAt(idx)
         activeIndex = activeIndex.coerceAtMost(openFiles.lastIndex)
+        if (splitPath == file.path) splitPath = null
         backend.editor.onFileClosed(file.path)
     }
 
@@ -907,6 +940,8 @@ class IdeUiState(
                 backend.editor.updateDocument(diskPath, text)
             }
             dedupeTabsByPath()
+            if (newPath != null && splitPath == activePath) splitPath = newPath
+            if (splitPath != null && openFiles.none { it.path == splitPath }) splitPath = null
             loadTree()
         }
     }
@@ -1019,7 +1054,15 @@ class IdeUiState(
             openFiles[i] = OpenFile(rebased, name, text, tabId = openFiles[i].tabId)
             backend.editor.updateDocument(rebased, text)
         }
+        splitPath = splitPath?.let { sp ->
+            when {
+                sp == oldPath -> newPath
+                underPath(sp, oldPath) -> newPath + sp.substring(oldPath.length)
+                else -> sp
+            }
+        }
         dedupeTabsByPath()
+        if (splitPath != null && openFiles.none { it.path == splitPath }) splitPath = null
     }
 
     /**

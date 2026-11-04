@@ -267,6 +267,11 @@
     <string name="breadcrumb_blocks">Блоки</string>
     <string name="breadcrumb_preview">Предпросмотр</string>
     <string name="breadcrumb_split">Разделение</string>
+    <string name="breadcrumb_split_code">Разделить код</string>
+    <string name="split_change_file">Сменить файл</string>
+    <string name="split_close">Закрыть разделённую панель</string>
+    <string name="split_empty">Выберите другой файл для этой панели</string>
+    <string name="tab_open_in_split">Открыть в разделённой панели</string>
     <string name="edchrome_files">Файлы</string>
     <string name="edchrome_source">Исходный код</string>
     <string name="edchrome_more">Ещё</string>

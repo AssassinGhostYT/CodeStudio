@@ -1,7 +1,10 @@
 package dev.ide.ui.screens
 
 import dev.ide.ui.theme.Ide
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -33,6 +37,7 @@ import dev.ide.ui.IdeUiState
 import dev.ide.ui.LeftPanelId
 import dev.ide.ui.OpenFile
 import dev.ide.ui.components.Breadcrumb
+import dev.ide.ui.components.CaDropdownMenu
 import dev.ide.ui.editor.preview.isLayoutPreviewable
 import dev.ide.ui.editor.preview.isMarkdownPreviewable
 import dev.ide.ui.editor.preview.isPreviewable
@@ -41,6 +46,7 @@ import dev.ide.ui.generated.resources.breadcrumb_blocks
 import dev.ide.ui.generated.resources.breadcrumb_code
 import dev.ide.ui.generated.resources.breadcrumb_preview
 import dev.ide.ui.generated.resources.breadcrumb_split
+import dev.ide.ui.generated.resources.breadcrumb_split_code
 import dev.ide.ui.icons.CaIcons
 import dev.ide.ui.theme.Ca
 import kotlinx.coroutines.delay
@@ -84,7 +90,66 @@ internal fun BreadcrumbBar(
     ) {
         // Tapping the location line opens the Structure panel in the left sidebar (IntelliJ-style outline).
         Box(Modifier.weight(1f).clickable { state.selectLeftPanel(LeftPanelId.STRUCTURE) }) { Breadcrumb(crumbs) }
+        SplitCodeButton(state, active)
         ViewModeToggle(active.viewMode, canPreview, state.blocksEnabled) { active.viewMode = it }
+    }
+}
+
+/**
+ * Toggles the **code + code** split (two files, not the editor+preview [EditorViewMode.Split]). With the split
+ * closed it drops a picker of the other open tabs; with it open the same button closes the secondary pane.
+ * Disabled when there is no second tab to put there.
+ */
+@Composable
+private fun SplitCodeButton(state: IdeUiState, active: OpenFile) {
+    var menuOpen by remember { mutableStateOf(false) }
+    val split = state.splitFile
+    val candidates = state.openFiles.filter { it.path != active.path }
+    val enabled = split != null || candidates.isNotEmpty()
+    Box {
+        Box(
+            Modifier.height(EditorToolbarHeight)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(Ca.radius.xs))
+                .background(
+                    if (split != null) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+                    androidx.compose.foundation.shape.RoundedCornerShape(Ca.radius.xs)
+                )
+                .clickable(enabled = enabled) {
+                    if (split != null) state.closeSplit() else menuOpen = true
+                }
+                .padding(horizontal = 7.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                CaIcons.splitCode,
+                stringResource(Res.string.breadcrumb_split_code),
+                Modifier.size(18.dp),
+                tint = when {
+                    !enabled -> MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                    split != null -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+        CaDropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+            candidates.forEach { candidate ->
+                DropdownMenuItem(
+                    text = { Text(candidate.name, style = MaterialTheme.typography.bodyMedium) },
+                    leadingIcon = {
+                        Icon(
+                            CaIcons.file,
+                            null,
+                            Modifier.size(15.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    },
+                    onClick = {
+                        menuOpen = false
+                        state.openInSplit(candidate)
+                    },
+                )
+            }
+        }
     }
 }
 
