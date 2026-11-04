@@ -1062,4 +1062,10 @@ Kami tidak pernah mengumpulkan kode, nama file atau proyek Anda, fitur apa yang 
     <string name="block_palette_variable">Variabel</string>
     <string name="block_palette_call">Panggil</string>
     <string name="block_palette_comment">Komentar</string>
+    <!-- Pending-task tool window -->
+    <string name="todo_title">TODO</string>
+    <string name="todo_count">%1$d item</string>
+    <string name="todo_filter_all">Semua</string>
+    <string name="todo_empty">Tidak ada komentar TODO, FIXME, HACK, atau XXX.</string>
+    <string name="todo_scanning">Memindai…</string>
 </resources>

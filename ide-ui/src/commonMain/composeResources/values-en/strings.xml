@@ -1247,4 +1247,10 @@ We never collect your code, file or project names, which features you use, or an
     <string name="coming_soon">Coming soon</string>
     <string name="backup_complete">Backup created</string>
     <string name="backup_failed">Couldn\'t create the backup</string>
+    <!-- Pending-task tool window -->
+    <string name="todo_title">TODO</string>
+    <string name="todo_count">%1$d items</string>
+    <string name="todo_filter_all">All</string>
+    <string name="todo_empty">No TODO, FIXME, HACK or XXX comments found.</string>
+    <string name="todo_scanning">Scanning…</string>
 </resources>

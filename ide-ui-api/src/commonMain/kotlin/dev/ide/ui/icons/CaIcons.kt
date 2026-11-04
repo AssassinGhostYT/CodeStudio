@@ -71,6 +71,14 @@ object CaIcons {
     val check = build("check", s("M5 12.5l4.5 4.5L19 6.5"))
     val plus = build("plus", s("M12 5v14M5 12h14"))
     val search = build("search", circle(11f, 11f, 6.5f), s("M16 16l4.5 4.5"))
+    /** Pending-task tool window: a checklist with two completed rows and one pending row. */
+    val todo = build(
+        "todo",
+        s("M9 6h11M9 12h11M9 18h11"),
+        s("M4 6l1.5 1.5L8 4.5"),
+        s("M4 12l1.5 1.5L8 10.5"),
+        circle(5.5f, 18f, 1.2f, filled = true),
+    )
     val command = build(
         "command",
         s("M8 8a2.5 2.5 0 1 0-2.5 2.5H18a2.5 2.5 0 1 1-2.5 2.5V8.5A2.5 2.5 0 1 1 18 11H6a2.5 2.5 0 1 0 2.5 2.5V8z"),

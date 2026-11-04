@@ -69,6 +69,7 @@ enum class RailDestination { Files, Search, Source, More }
 object LeftPanelId {
     const val FILES = "files"
     const val SEARCH = "search"
+    const val TODO = "todo"
     const val STRUCTURE = "structure"
     const val SOURCE = "source"
 }

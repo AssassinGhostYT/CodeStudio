@@ -1208,4 +1208,10 @@
     <string name="block_palette_variable">متغيّر</string>
     <string name="block_palette_call">استدعاء</string>
     <string name="block_palette_comment">تعليق</string>
+    <!-- Pending-task tool window -->
+    <string name="todo_title">TODO</string>
+    <string name="todo_count">%1$d عناصر</string>
+    <string name="todo_filter_all">الكل</string>
+    <string name="todo_empty">لم يتم العثور على تعليقات TODO أو FIXME أو HACK أو XXX.</string>
+    <string name="todo_scanning">جارٍ البحث…</string>
 </resources>

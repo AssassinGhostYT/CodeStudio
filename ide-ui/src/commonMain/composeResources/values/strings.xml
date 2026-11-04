@@ -1327,4 +1327,10 @@ Nunca recopilamos su código, nombres de archivos o proyectos, qué funciones us
     <string name="apk_analyzer_summary">Tamaño total</string>
     <string name="apk_analyzer_category">%1$s</string>
     <string name="apk_analyzer_methods">%1$d métodos</string>
+    <!-- Pending-task tool window -->
+    <string name="todo_title">TODO</string>
+    <string name="todo_count">%1$d elementos</string>
+    <string name="todo_filter_all">Todos</string>
+    <string name="todo_empty">No se encontraron TODO, FIXME, HACK ni XXX.</string>
+    <string name="todo_scanning">Buscando…</string>
 </resources>

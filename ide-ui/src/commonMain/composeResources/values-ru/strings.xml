@@ -1109,4 +1109,10 @@
         <item quantity="other">%1$d версий разрешено автоматически (приоритет у новейшей версии)</item>
     </plurals>
 
+    <!-- Pending-task tool window -->
+    <string name="todo_title">TODO</string>
+    <string name="todo_count">%1$d элементов</string>
+    <string name="todo_filter_all">Все</string>
+    <string name="todo_empty">Комментарии TODO, FIXME, HACK или XXX не найдены.</string>
+    <string name="todo_scanning">Поиск…</string>
 </resources>

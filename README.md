@@ -287,7 +287,7 @@ El archivo `.apk` compilado estará disponible en la ruta:
 
 - [ ] Archivos recientes y navegación atrás/adelante (historial del editor).
 - [ ] Marcadores (bookmarks) y favoritos.
-- [ ] Ventana TODO / tareas pendientes.
+- [x] 🟢 Ventana TODO / tareas pendientes (TODO/FIXME/HACK/XXX con salto a la línea).
 
 **Refactorización avanzada:**
 

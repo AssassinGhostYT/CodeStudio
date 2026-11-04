@@ -1142,4 +1142,10 @@ Nunca coletamos seu código, nomes de arquivos ou projetos, quais recursos você
     <string name="coming_soon">Em breve</string>
     <string name="backup_complete">Backup criado</string>
     <string name="backup_failed">Não foi possível criar o backup</string>
+    <!-- Pending-task tool window -->
+    <string name="todo_title">TODO</string>
+    <string name="todo_count">%1$d itens</string>
+    <string name="todo_filter_all">Todos</string>
+    <string name="todo_empty">Nenhum comentário TODO, FIXME, HACK ou XXX encontrado.</string>
+    <string name="todo_scanning">Procurando…</string>
 </resources>

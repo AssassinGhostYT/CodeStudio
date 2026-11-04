@@ -79,6 +79,7 @@ import dev.ide.ui.generated.resources.edsheet_source_control
 import dev.ide.ui.generated.resources.edsheet_source_control_desc
 import dev.ide.ui.generated.resources.search
 import dev.ide.ui.generated.resources.structure_title
+import dev.ide.ui.generated.resources.todo_title
 import dev.ide.ui.icons.CaIcons
 import dev.ide.ui.platform.isMobilePlatform
 import dev.ide.ui.platform.verticalResizeCursor
@@ -138,12 +139,14 @@ internal fun buildLeftPanels(
 ): List<SidebarPanel> {
     val filesTitle = stringResource(Res.string.edchrome_files)
     val searchTitle = stringResource(Res.string.search)
+    val todoTitle = stringResource(Res.string.todo_title)
     val structureTitle = stringResource(Res.string.structure_title)
     val sourceTitle = stringResource(Res.string.edchrome_source)
 
     // Remembered HERE (the panel host stays composed while the drawer/left panel is swapped) rather than inside
     // SearchScreen, so a search survives navigating to a result and reopening Search for the next occurrence.
     val searchState = remember { SearchState() }
+    val todoState = remember { TodoState() }
 
     val builtIns = listOf(
         SidebarPanel(LeftPanelId.FILES, filesTitle, CaIcons.docText, order = 10) {
@@ -165,6 +168,14 @@ internal fun buildLeftPanels(
                 onOpenAt = { p, o -> state.openAt(p, o); closeDrawer() },
                 modifier = Modifier.fillMaxSize(),
                 searchState = searchState,
+            )
+        },
+        SidebarPanel(LeftPanelId.TODO, todoTitle, CaIcons.todo, order = 25) {
+            TodoScreen(
+                backend = state.backend,
+                onOpenAt = { p, o -> state.openAt(p, o); closeDrawer() },
+                modifier = Modifier.fillMaxSize(),
+                todoState = todoState,
             )
         },
         SidebarPanel(LeftPanelId.STRUCTURE, structureTitle, CaIcons.code, order = 30) {
