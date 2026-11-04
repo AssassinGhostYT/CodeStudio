@@ -336,7 +336,7 @@ internal fun EditorCenter(
                     SplitCodePanes(
                         stacked = compact,
                         fraction = state.splitFraction,
-                        onFractionChange = state::setSplitFraction,
+                        onFractionChange = state::updateSplitFraction,
                         primary = primarySurface,
                         secondary = { mod ->
                             Column(mod) {

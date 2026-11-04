@@ -609,7 +609,7 @@ class IdeUiState(
     fun closeSplit() { splitPath = null }
 
     /** Move the code split's divider; clamped so neither pane can be dragged to nothing. */
-    fun setSplitFraction(value: Float) { splitFraction = value.coerceIn(0.2f, 0.8f) }
+    fun updateSplitFraction(value: Float) { splitFraction = value.coerceIn(0.2f, 0.8f) }
 
     /** Fire-and-forget open for UI callbacks — the file is read off the main thread ([openSuspend]). */
     fun open(path: String, name: String) {
