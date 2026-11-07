@@ -1303,5 +1303,6 @@
     <string name="todo_count">%1$d 项</string>
     <string name="todo_filter_all">全部</string>
     <string name="todo_empty">未找到 TODO、FIXME、HACK 或 XXX 注释。</string>
+    <string name="todo_empty_hint">仅检测注释中的标记，例如：TODO: pending。保存文件后点击刷新。</string>
     <string name="todo_scanning">正在扫描…</string>
 </resources>

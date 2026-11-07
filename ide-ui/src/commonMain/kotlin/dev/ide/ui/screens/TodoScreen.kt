@@ -45,6 +45,7 @@ import dev.ide.ui.generated.resources.Res
 import dev.ide.ui.generated.resources.refresh
 import dev.ide.ui.generated.resources.todo_count
 import dev.ide.ui.generated.resources.todo_empty
+import dev.ide.ui.generated.resources.todo_empty_hint
 import dev.ide.ui.generated.resources.todo_filter_all
 import dev.ide.ui.generated.resources.todo_scanning
 import dev.ide.ui.generated.resources.todo_title
@@ -67,14 +68,13 @@ internal data class TodoItem(
 )
 
 /**
- * Hoisted [TodoScreen] state — the scan results, the active marker filter, and whether the first scan has
- * completed. Remembered by [buildLeftPanels] so the list survives navigating to a hit and reopening the panel.
+ * Hoisted [TodoScreen] state — the scan results and the active marker filter. Remembered by [buildLeftPanels]
+ * so the list survives navigating to a hit and reopening the panel.
  */
 internal class TodoState {
     val items = mutableStateOf<List<TodoItem>>(emptyList())
     val scanning = mutableStateOf(false)
     val filter = mutableStateOf<TodoKind?>(null)
-    var loaded: Boolean = false
 }
 
 /**
@@ -96,11 +96,9 @@ internal fun TodoScreen(
     var refreshEpoch by remember { mutableStateOf(0) }
 
     LaunchedEffect(refreshEpoch) {
-        if (refreshEpoch == 0 && todoState.loaded) return@LaunchedEffect
         scanning = true
         allItems = scanTodos(backend)
         scanning = false
-        todoState.loaded = true
     }
 
     val visible = remember(allItems, filter) {
@@ -154,7 +152,10 @@ internal fun TodoScreen(
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
                 scanning && allItems.isEmpty() -> TodoHint(stringResource(Res.string.todo_scanning))
-                visible.isEmpty() -> TodoHint(stringResource(Res.string.todo_empty))
+                visible.isEmpty() -> TodoHint(
+                    stringResource(Res.string.todo_empty),
+                    stringResource(Res.string.todo_empty_hint),
+                )
                 else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 6.dp)) {
                     grouped.forEach { (path, hits) ->
                         item("todo-file:$path") {
@@ -237,9 +238,14 @@ private fun TodoFilterPill(label: String, active: Boolean, onClick: () -> Unit) 
 }
 
 @Composable
-private fun TodoHint(text: String) {
+private fun TodoHint(text: String, hint: String? = null) {
     Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-        Text(text, color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(text, color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+            if (hint != null) {
+                Text(hint, color = MaterialTheme.colorScheme.outlineVariant, style = MaterialTheme.typography.labelSmall, textAlign = TextAlign.Center)
+            }
+        }
     }
 }
 

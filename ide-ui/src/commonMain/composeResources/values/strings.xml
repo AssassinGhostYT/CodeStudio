@@ -1332,5 +1332,6 @@ Nunca recopilamos su código, nombres de archivos o proyectos, qué funciones us
     <string name="todo_count">%1$d elementos</string>
     <string name="todo_filter_all">Todos</string>
     <string name="todo_empty">No se encontraron TODO, FIXME, HACK ni XXX.</string>
+    <string name="todo_empty_hint">Solo se detectan marcadores dentro de comentarios, por ejemplo: TODO: pendiente. Guarda el archivo y pulsa actualizar.</string>
     <string name="todo_scanning">Buscando…</string>
 </resources>

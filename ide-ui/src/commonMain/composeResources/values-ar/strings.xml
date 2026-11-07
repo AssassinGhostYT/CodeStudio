@@ -1213,5 +1213,6 @@
     <string name="todo_count">%1$d عناصر</string>
     <string name="todo_filter_all">الكل</string>
     <string name="todo_empty">لم يتم العثور على تعليقات TODO أو FIXME أو HACK أو XXX.</string>
+    <string name="todo_empty_hint">يتم اكتشاف العلامات داخل التعليقات فقط، على سبيل المثال: TODO: pending. احفظ الملف ثم اضغط تحديث.</string>
     <string name="todo_scanning">جارٍ البحث…</string>
 </resources>

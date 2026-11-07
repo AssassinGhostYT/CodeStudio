@@ -1067,5 +1067,6 @@ Kami tidak pernah mengumpulkan kode, nama file atau proyek Anda, fitur apa yang 
     <string name="todo_count">%1$d item</string>
     <string name="todo_filter_all">Semua</string>
     <string name="todo_empty">Tidak ada komentar TODO, FIXME, HACK, atau XXX.</string>
+    <string name="todo_empty_hint">Hanya penanda di dalam komentar yang dideteksi, misalnya: TODO: pending. Simpan file lalu tekan segarkan.</string>
     <string name="todo_scanning">Memindai…</string>
 </resources>
