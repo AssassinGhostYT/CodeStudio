@@ -245,7 +245,7 @@ El archivo `.apk` compilado estará disponible en la ruta:
 - [ ] Inspección de variables, watch, eval de expresiones.
 - [ ] Depuración de código nativo (C/C++ NDK via LLDB).
 - [ ] Actualización en vivo de la app instalada (Apply Changes).
-- [ ] Consola de depuración con filtros.
+- [x] 🟢 **Pestaña Debug (crashes y stack traces clicables)** — frames del logcat con salto a archivo:línea; sin breakpoints/step (requieren ADB/Shizuku).
 - [ ] Emulador integrado con perfiles de dispositivo y snapshots.
 - [ ] Mando ADB: dispositivos, wireless debug, screenshot/screenrecord.
 - [x] **Device File Explorer** (navegar el sistema de archivos del propio dispositivo y descargar archivos al proyecto; sin ADB ni root — solo rutas legibles por la app).

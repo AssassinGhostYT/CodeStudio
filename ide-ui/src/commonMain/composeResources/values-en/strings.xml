@@ -265,6 +265,10 @@ We never collect your code, file or project names, which features you use, or an
     <string name="buildc_tab_log">Log</string>
     <string name="buildc_tab_steps">Steps</string>
     <string name="buildc_tab_logcat">Logcat</string>
+    <string name="buildc_tab_debug">Debug</string>
+    <string name="buildc_debug_empty">No crashes or stack traces yet.</string>
+    <string name="buildc_debug_hint">Tap a frame to open the file at that line.</string>
+    <string name="buildc_debug_summary">%1$d crashes · %2$d frames</string>
     <string name="buildc_tab_terminal">Terminal</string>
     <string name="buildc_filter_all">All %1$d</string>
     <string name="buildc_filter_errors">Errors %1$d</string>

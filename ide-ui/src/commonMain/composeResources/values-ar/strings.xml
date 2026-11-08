@@ -288,6 +288,10 @@
     <string name="buildc_tab_log">السجل</string>
     <string name="buildc_tab_steps">الخطوات</string>
     <string name="buildc_tab_logcat">Logcat</string>
+    <string name="buildc_tab_debug">التصحيح</string>
+    <string name="buildc_debug_empty">لا توجد أعطال أو آثار مكدس بعد.</string>
+    <string name="buildc_debug_hint">اضغط على إطار لفتح الملف عند ذلك السطر.</string>
+    <string name="buildc_debug_summary">%1$d أعطال · %2$d إطارات</string>
     <string name="buildc_tab_terminal">Terminal</string>
     <string name="buildc_filter_all">الكل %1$d</string>
     <string name="buildc_filter_errors">الأخطاء %1$d</string>

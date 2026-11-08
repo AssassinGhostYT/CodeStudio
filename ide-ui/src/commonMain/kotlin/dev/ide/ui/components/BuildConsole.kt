@@ -113,6 +113,10 @@ import dev.ide.ui.generated.resources.buildc_tab_problems
 import dev.ide.ui.generated.resources.buildc_tab_log
 import dev.ide.ui.generated.resources.buildc_tab_steps
 import dev.ide.ui.generated.resources.buildc_tab_logcat
+import dev.ide.ui.generated.resources.buildc_tab_debug
+import dev.ide.ui.generated.resources.buildc_debug_empty
+import dev.ide.ui.generated.resources.buildc_debug_hint
+import dev.ide.ui.generated.resources.buildc_debug_summary
 import dev.ide.ui.generated.resources.buildc_tab_terminal
 import dev.ide.ui.generated.resources.buildc_exit_fullscreen
 import dev.ide.ui.generated.resources.buildc_fullscreen
@@ -169,6 +173,8 @@ fun BuildConsole(
     onOpenDiagnostic: (BuildDiagnosticUi) -> Unit = {},
     /** Abre el archivo:línea de un test al tocar su fila en la pestaña Tests. */
     onOpenTestSource: (String, Int) -> Unit = { _, _ -> },
+    /** Abre el archivo:línea de un frame al tocar su fila en la pestaña Debug. */
+    onOpenSourceFrame: (String, Int) -> Unit = { _, _ -> },
     /** Backend for plugin BOTTOM tool-window tabs; null hides them (e.g. backends/tests without one). */
     backend: IdeBackend? = null,
     activeFilePath: String? = null,
@@ -185,6 +191,8 @@ fun BuildConsole(
     val errors = buildState.diagnostics.count { it.severity == UiSeverity.Error }
     val warnings = buildState.diagnostics.count { it.severity == UiSeverity.Warning }
     val done = buildState.steps.count { it.status.isSettled }
+    // Parse once per log update and share it with the Debug tab and its Copy button, so both show the same rows.
+    val debugEntries = remember(appLog.lines) { parseDebugEntries(appLog.lines) }
 
     // Plugin-contributed BOTTOM tool windows appear as extra tabs after the built-in three. Additive: the
     // built-in tabs are unchanged. Needs a backend for the tool-window context, so gated on it.
@@ -227,7 +235,7 @@ fun BuildConsole(
     Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Header(
             buildState, errors, warnings, tab, activePluginTab != null,
-            problemFilter, logLevel, logQuery, appLog, logcatLevel, logcatQuery,
+            problemFilter, logLevel, logQuery, appLog, debugEntries, logcatLevel, logcatQuery,
             onRun, onStop, onCollapse,
         )
         if (indexStatus.building) IndexingSection(indexStatus)
@@ -274,6 +282,11 @@ fun BuildConsole(
                         { logcatQuery = it },
                     ) { backend?.build?.clearAppLog() }
                 }
+                BuildTab.Debug -> DebugTab(
+                    appLog,
+                    debugEntries,
+                    onOpenSourceFrame,
+                ) { backend?.build?.clearAppLog() }
                 BuildTab.Tests -> TestsTab(
                     testState,
                     onRerunFailed = {
@@ -290,7 +303,7 @@ fun BuildConsole(
     }
 }
 
-private enum class BuildTab { Problems, Log, Steps, Logcat, Tests }
+private enum class BuildTab { Problems, Log, Steps, Logcat, Debug, Tests }
 
 /** True for a step that has settled (won't change again this build) — for the running-progress fraction. */
 private val StepStatus.isSettled: Boolean
@@ -312,6 +325,7 @@ private fun Header(
     logLevel: LogLevelFilter,
     logQuery: String,
     appLog: AppLogUi,
+    debugEntries: List<DebugEntry>,
     logcatLevel: LogLevelFilter,
     logcatQuery: String,
     onRun: () -> Unit,
@@ -353,7 +367,7 @@ private fun Header(
         }
         StatusPill(state.status)
         val (copyTab, copyProvide) = copyForTab(
-            state, tab, pluginActive, problemFilter, logLevel, logQuery, appLog, logcatLevel, logcatQuery,
+            state, tab, pluginActive, problemFilter, logLevel, logQuery, appLog, debugEntries, logcatLevel, logcatQuery,
         )
         if (copyProvide != null) CopyButton(copyTab, copyProvide)
         if (running) IconButtonCa(
@@ -417,6 +431,7 @@ private fun copyForTab(
     logLevel: LogLevelFilter,
     logQuery: String,
     appLog: AppLogUi,
+    debugEntries: List<DebugEntry>,
     logcatLevel: LogLevelFilter,
     logcatQuery: String,
 ): Pair<BuildTab, (() -> String)?> {
@@ -449,6 +464,9 @@ private fun copyForTab(
             }
             tab to (if (shown.isEmpty()) null else fun(): String = shown.joinToString("\n", transform = ::renderLogcatForCopy))
         }
+        // La pestaña Debug copia los crashes y frames ya extraídos del logcat.
+        BuildTab.Debug -> tab to (
+            if (debugEntries.isEmpty()) null else fun(): String = renderDebugForCopy(debugEntries))
         // Los tests no tienen transcripción de texto que copiar.
         BuildTab.Tests -> tab to null
     }
@@ -474,6 +492,7 @@ private fun CopyButton(tab: BuildTab, provide: () -> String) {
         BuildTab.Log -> stringResource(Res.string.buildc_tab_log)
         BuildTab.Steps -> stringResource(Res.string.buildc_tab_steps)
         BuildTab.Logcat -> stringResource(Res.string.buildc_tab_logcat)
+        BuildTab.Debug -> stringResource(Res.string.buildc_tab_debug)
         BuildTab.Tests -> "Tests"
     }
     IconButtonCa(
@@ -653,6 +672,11 @@ private fun ConsoleTabs(
                 badge = if (appLog.connected) "●" else appLog.lines.size.takeIf { it > 0 }?.toString(),
                 badgeColor = if (appLog.connected) Ide.colors.success else MaterialTheme.colorScheme.outline,
             ) { onSelect(BuildTab.Logcat) }
+            TabItem(
+                stringResource(Res.string.buildc_tab_debug),
+                builtInActive && tab == BuildTab.Debug,
+                icon = CaIcons.bug,
+            ) { onSelect(BuildTab.Debug) }
             TabItem("Tests", builtInActive && tab == BuildTab.Tests) { onSelect(BuildTab.Tests) }
             // Plugin-contributed BOTTOM tool windows. The PRoot terminal tab used to live here between
             // Steps and Logcat — it's gone, the real Termux lives behind the toolbar's Terminal button
@@ -671,6 +695,7 @@ private fun TabItem(
     selected: Boolean,
     badge: String? = null,
     badgeColor: Color = MaterialTheme.colorScheme.primary,
+    icon: ImageVector? = null,
     onClick: () -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -686,6 +711,14 @@ private fun TabItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+            icon?.let {
+                Icon(
+                    it,
+                    null,
+                    Modifier.size(14.dp),
+                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                )
+            }
             Text(
                 label,
                 color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline,
@@ -1896,4 +1929,202 @@ private fun TestResultRow(r: UiTestResult, onOpen: (UiTestResult) -> Unit) {
             )
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Debug tab (crashes + clickable stack frames from the live app log)
+// ---------------------------------------------------------------------------
+
+/** One parsed row of the Debug tab. */
+private sealed interface DebugEntry {
+    /** Crash context: `FATAL EXCEPTION`, `Caused by:`, the exception message, `Process:`/`PID:`… */
+    data class Crash(val text: String, val fatal: Boolean) : DebugEntry
+
+    /** A Java/Kotlin stack frame; tapping opens [fileName] at [line]. */
+    data class Frame(val owner: String, val fileName: String, val line: Int) : DebugEntry
+
+    /** A non-crash error line kept for context. */
+    data class Message(val text: String, val level: UiLogLevel) : DebugEntry
+}
+
+/** `at com.example.MainActivity.onCreate(MainActivity.kt:42)` → owner, file, line. */
+private val StackFrameRegex = Regex("""^\s*at\s+([\w$.<>]+)\(([^():]+):(\d+)\)""")
+
+/**
+ * Flattens the live logcat into crash context + stack frames. A crash arrives as one multi-line record
+ * (`FATAL EXCEPTION` + trace) or as separate error records, so every physical line is inspected and the whole
+ * record is kept once any line marks it as a crash.
+ */
+private fun parseDebugEntries(lines: List<AppLogLineUi>): List<DebugEntry> {
+    val out = ArrayList<DebugEntry>()
+    for (line in lines) {
+        val physical = line.message.split('\n')
+        val crashRecord = physical.any {
+            it.contains("FATAL EXCEPTION", ignoreCase = true) ||
+                it.trimStart().startsWith("Caused by:") ||
+                (line.level == UiLogLevel.Error && (
+                    it.contains("Exception") || it.contains("Error") || it.contains("FATAL")
+                ))
+        }
+        for (raw in physical) {
+            val text = raw.trim()
+            if (text.isEmpty()) continue
+            val match = StackFrameRegex.find(text)
+            if (match != null) {
+                val lineNumber = match.groupValues[3].toIntOrNull() ?: continue
+                out += DebugEntry.Frame(
+                    owner = match.groupValues[1],
+                    fileName = match.groupValues[2],
+                    line = lineNumber,
+                )
+            } else if (crashRecord) {
+                out += DebugEntry.Crash(text, fatal = text.contains("FATAL EXCEPTION", ignoreCase = true))
+            } else if (line.level == UiLogLevel.Error) {
+                out += DebugEntry.Message(text, line.level)
+            }
+        }
+    }
+    return out
+}
+
+/** The Debug tab's copy text: crash context and frames, one per line. */
+private fun renderDebugForCopy(entries: List<DebugEntry>): String = entries.joinToString("\n") {
+    when (it) {
+        is DebugEntry.Crash -> it.text
+        is DebugEntry.Frame -> "    at ${it.owner}(${it.fileName}:${it.line})"
+        is DebugEntry.Message -> it.text
+    }
+}
+
+@Composable
+private fun DebugTab(
+    appLog: AppLogUi,
+    entries: List<DebugEntry>,
+    onOpenFrame: (String, Int) -> Unit,
+    onClear: () -> Unit,
+) {
+    val crashes = entries.count { it is DebugEntry.Crash && it.fatal }
+    val frames = entries.count { it is DebugEntry.Frame }
+    Column(Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            LogcatStatus(appLog)
+            Spacer(Modifier.weight(1f))
+            if (entries.isNotEmpty()) Text(
+                stringResource(Res.string.buildc_debug_summary, crashes, frames),
+                color = MaterialTheme.colorScheme.outline,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+            )
+            IconButtonCa(
+                CaIcons.close, stringResource(Res.string.clear), onClick = onClear,
+                boxSize = 30, iconSize = 16, tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Box(
+            Modifier.weight(1f).fillMaxWidth()
+                .background(Ide.colors.consoleBg, RoundedCornerShape(Ca.radius.md))
+                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(Ca.radius.md))
+                .padding(10.dp),
+        ) {
+            if (entries.isEmpty()) {
+                Column(
+                    Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Icon(CaIcons.bug, null, Modifier.size(30.dp), tint = MaterialTheme.colorScheme.outline)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        stringResource(Res.string.buildc_debug_empty),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        stringResource(Res.string.buildc_debug_hint),
+                        color = MaterialTheme.colorScheme.outline,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            } else {
+                val listState = rememberLazyListState()
+                LaunchedEffect(entries.size, appLog.connected) {
+                    if (appLog.connected && entries.isNotEmpty())
+                        runCatching { listState.animateScrollToItem(entries.lastIndex) }
+                }
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                    items(entries) { entry ->
+                        when (entry) {
+                            is DebugEntry.Crash -> DebugCrashRow(entry)
+                            is DebugEntry.Frame -> DebugFrameRow(entry, onOpenFrame)
+                            is DebugEntry.Message -> DebugMessageRow(entry)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DebugCrashRow(entry: DebugEntry.Crash) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(
+            if (entry.fatal) CaIcons.bug else CaIcons.error,
+            null,
+            Modifier.size(13.dp).padding(top = 1.dp),
+            tint = if (entry.fatal) MaterialTheme.colorScheme.error else Ide.colors.warning,
+        )
+        Text(
+            entry.text,
+            color = if (entry.fatal) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+            style = Ide.type.codeSmall,
+            fontWeight = if (entry.fatal) FontWeight.SemiBold else FontWeight.Normal,
+        )
+    }
+}
+
+@Composable
+private fun DebugFrameRow(entry: DebugEntry.Frame, onOpenFrame: (String, Int) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth()
+            .clickable { onOpenFrame(entry.fileName, entry.line) }
+            .padding(vertical = 2.dp, horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Icon(CaIcons.caretRight, null, Modifier.size(11.dp), tint = MaterialTheme.colorScheme.primary)
+        Text(
+            entry.owner,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = Ide.type.codeSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "${entry.fileName}:${entry.line}",
+            color = MaterialTheme.colorScheme.primary,
+            style = Ide.type.codeSmall,
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun DebugMessageRow(entry: DebugEntry.Message) {
+    Text(
+        entry.text,
+        color = logcatColor(entry.level),
+        style = Ide.type.codeSmall,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp, horizontal = 2.dp),
+    )
 }

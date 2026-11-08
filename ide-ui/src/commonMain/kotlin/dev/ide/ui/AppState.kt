@@ -719,6 +719,22 @@ class IdeUiState(
         }
     }
 
+    /**
+     * Opens the source file named [fileName] at [line] — Debug-tab stack frames only carry a file name
+     * (e.g. `MainActivity.kt`), so the first matching file in the tree wins. A frame from an unindexed or
+     * generated file is a no-op.
+     */
+    fun openSourceFrame(fileName: String, line: Int) {
+        if (fileName.isBlank()) return
+        val all = ArrayList<TreeNode>()
+        fun walk(n: TreeNode) { if (n.filePath != null) all.add(n); n.children.forEach(::walk) }
+        walk(tree)
+        val node = all.firstOrNull { it.name == fileName }
+            ?: all.firstOrNull { it.name.equals(fileName, ignoreCase = true) }
+            ?: return
+        node.filePath?.let { openAtLine(it, line.coerceAtLeast(1), 1) }
+    }
+
     fun close(file: OpenFile) {
         val idx = openFiles.indexOf(file)
         if (idx < 0) return

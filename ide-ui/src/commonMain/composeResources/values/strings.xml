@@ -265,6 +265,10 @@ Nunca recopilamos su código, nombres de archivos o proyectos, qué funciones us
     <string name="buildc_tab_log">Registro</string>
     <string name="buildc_tab_steps">Pasos</string>
     <string name="buildc_tab_logcat">Logcat</string>
+    <string name="buildc_tab_debug">Depuración</string>
+    <string name="buildc_debug_empty">Sin crashes ni stack traces todavía.</string>
+    <string name="buildc_debug_hint">Toca un frame para abrir el archivo en esa línea.</string>
+    <string name="buildc_debug_summary">%1$d crashes · %2$d frames</string>
     <string name="buildc_tab_terminal">Terminal</string>
     <string name="buildc_filter_all">Todos %1$d</string>
     <string name="buildc_filter_errors">Errores %1$d</string>

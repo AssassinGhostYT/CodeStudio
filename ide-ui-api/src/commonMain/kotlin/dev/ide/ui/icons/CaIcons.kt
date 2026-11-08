@@ -79,6 +79,15 @@ object CaIcons {
         s("M4 12l1.5 1.5L8 10.5"),
         circle(5.5f, 18f, 1.2f, filled = true),
     )
+    /** Debug tool window: a bug body, head, antennae and six legs. */
+    val bug = build(
+        "bug",
+        s("M12 8.5c-2.2 0-3.8 1.7-3.8 3.9v1.2c0 2.2 1.6 3.9 3.8 3.9s3.8-1.7 3.8-3.9v-1.2c0-2.2-1.6-3.9-3.8-3.9z"),
+        s("M10.2 8.5L8.5 6.2M13.8 8.5l1.7-2.3"),
+        s("M8.2 11.5H4.5M8.2 14.5H4.5M8.2 17.5l-3.2 1.6"),
+        s("M15.8 11.5h3.7M15.8 14.5h3.7M15.8 17.5l3.2 1.6"),
+        s("M12 8.5v9.5"),
+    )
     val command = build(
         "command",
         s("M8 8a2.5 2.5 0 1 0-2.5 2.5H18a2.5 2.5 0 1 1-2.5 2.5V8.5A2.5 2.5 0 1 1 18 11H6a2.5 2.5 0 1 0 2.5 2.5V8z"),

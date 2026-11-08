@@ -215,6 +215,10 @@
     <string name="buildc_tab_log">Журнал</string>
     <string name="buildc_tab_steps">Шаги</string>
     <string name="buildc_tab_logcat">Logcat</string>
+    <string name="buildc_tab_debug">Отладка</string>
+    <string name="buildc_debug_empty">Пока нет сбоев или трассировок стека.</string>
+    <string name="buildc_debug_hint">Нажмите на кадр, чтобы открыть файл на этой строке.</string>
+    <string name="buildc_debug_summary">%1$d сбоев · %2$d кадров</string>
     <string name="buildc_tab_terminal">Terminal</string>
     <string name="buildc_filter_all">Все %1$d</string>
     <string name="buildc_filter_errors">Ошибки %1$d</string>

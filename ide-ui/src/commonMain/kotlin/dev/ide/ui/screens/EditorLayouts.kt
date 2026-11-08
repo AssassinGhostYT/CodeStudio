@@ -394,6 +394,7 @@ internal fun ExpandedLayout(
                                 modifier = Modifier.fillMaxSize().padding(14.dp),
                                 onOpenDiagnostic = { d -> d.file?.let { state.openAtLine(it, d.line, d.column) } },
                                 onOpenTestSource = { file, line -> state.openAtLine(file, line, 1) },
+                                onOpenSourceFrame = { file, line -> state.openSourceFrame(file, line) },
                                 backend = state.backend,
                                 activeFilePath = state.active?.path,
                                 appLog = appLog,
@@ -560,6 +561,7 @@ internal fun CompactLayout(
                         // On phone the console covers the editor; jump to the file and collapse the dock.
                         onOpenDiagnostic = { d -> d.file?.let { state.openAtLine(it, d.line, d.column); state.consoleOpen = false } },
                         onOpenTestSource = { file, line -> state.openAtLine(file, line, 1); state.consoleOpen = false },
+                        onOpenSourceFrame = { file, line -> state.openSourceFrame(file, line); state.consoleOpen = false },
                         backend = state.backend,
                         activeFilePath = state.active?.path,
                         testState = testState,

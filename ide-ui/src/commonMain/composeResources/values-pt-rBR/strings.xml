@@ -238,6 +238,10 @@ Nunca coletamos seu código, nomes de arquivos ou projetos, quais recursos você
     <string name="buildc_tab_log">Log</string>
     <string name="buildc_tab_steps">Etapas</string>
     <string name="buildc_tab_logcat">Logcat</string>
+    <string name="buildc_tab_debug">Depuração</string>
+    <string name="buildc_debug_empty">Nenhum crash ou stack trace ainda.</string>
+    <string name="buildc_debug_hint">Toque em um frame para abrir o arquivo naquela linha.</string>
+    <string name="buildc_debug_summary">%1$d falhas · %2$d frames</string>
     <string name="buildc_tab_terminal">Terminal</string>
     <string name="buildc_filter_all">Todos %1$d</string>
     <string name="buildc_filter_errors">Erros %1$d</string>
